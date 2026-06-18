@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   media_kit: ^1.2.6
   media_kit_libs_windows_audio: ^1.0.9
+  shared_preferences: ^2.5.5
+  window_manager: ^0.5.1
 dev_dependencies:
   flutter_test:
     sdk: flutter
