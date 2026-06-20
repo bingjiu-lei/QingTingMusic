@@ -11,10 +11,10 @@ class AppWindowCaption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!enabled) {
-      return const SizedBox(height: 36);
+      return SizedBox(height: 36);
     }
 
-    return const SizedBox(
+    return SizedBox(
       height: 36,
       child: WindowCaption(
         backgroundColor: AppColors.page,

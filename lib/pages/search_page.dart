@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/music_search_controller.dart';
+import '../models/search_catalog_item.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
-import '../widgets/song_panel.dart';
+import '../widgets/search_catalog_list.dart';
+import '../widgets/song_row.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({
@@ -12,12 +14,22 @@ class SearchPage extends StatefulWidget {
     required this.currentSong,
     required this.isPlaying,
     required this.onPlay,
+    required this.onLogin,
+    required this.onOpenCatalog,
+    required this.onLike,
+    required this.onOpenArtist,
+    required this.onOpenAlbum,
   });
 
   final MusicSearchController controller;
   final Song? currentSong;
   final bool isPlaying;
   final ValueChanged<Song> onPlay;
+  final VoidCallback onLogin;
+  final ValueChanged<SearchCatalogItem> onOpenCatalog;
+  final ValueChanged<Song> onLike;
+  final ValueChanged<Song> onOpenArtist;
+  final ValueChanged<Song> onOpenAlbum;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -47,12 +59,12 @@ class _SearchPageState extends State<SearchPage> {
       animation: widget.controller,
       builder: (context, _) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(28, 42, 28, 24),
+          padding: EdgeInsets.fromLTRB(28, 42, 28, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
+                constraints: BoxConstraints(maxWidth: 920),
                 child: TextField(
                   controller: _textController,
                   focusNode: _focusNode,
@@ -60,11 +72,11 @@ class _SearchPageState extends State<SearchPage> {
                   textInputAction: TextInputAction.search,
                   onChanged: widget.controller.updateKeyword,
                   onSubmitted: widget.controller.search,
-                  style: const TextStyle(color: AppColors.text, fontSize: 16),
+                  style: TextStyle(color: AppColors.text, fontSize: 16),
                   decoration: InputDecoration(
                     hintText: '搜索歌曲、歌手或专辑',
-                    hintStyle: const TextStyle(color: AppColors.faint),
-                    prefixIcon: const Icon(
+                    hintStyle: TextStyle(color: AppColors.faint),
+                    prefixIcon: Icon(
                       Icons.search_rounded,
                       color: AppColors.muted,
                     ),
@@ -77,18 +89,18 @@ class _SearchPageState extends State<SearchPage> {
                               widget.controller.updateKeyword('');
                               setState(() {});
                             },
-                            icon: const Icon(Icons.close_rounded),
+                            icon: Icon(Icons.close_rounded),
                           ),
                     filled: true,
                     fillColor: AppColors.surface,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 20),
+                    contentPadding: EdgeInsets.symmetric(vertical: 20),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(
+                      borderSide: BorderSide(
                         color: AppColors.primary,
                         width: 1.5,
                       ),
@@ -96,10 +108,10 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
+              SizedBox(height: 22),
               Expanded(
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 820),
+                  constraints: BoxConstraints(maxWidth: 1120),
                   child: _content(),
                 ),
               ),
@@ -113,25 +125,28 @@ class _SearchPageState extends State<SearchPage> {
   Widget _content() {
     final controller = widget.controller;
     if (controller.hasSearched) {
-      return SongPanel(
-        title: '搜索结果',
-        songs: controller.results,
+      return _SearchResults(
+        controller: controller,
         currentSong: widget.currentSong,
         isPlaying: widget.isPlaying,
-        emptyText: '没有找到相关歌曲',
         onPlay: widget.onPlay,
+        onLogin: widget.onLogin,
+        onOpenCatalog: widget.onOpenCatalog,
+        onLike: widget.onLike,
+        onOpenArtist: widget.onOpenArtist,
+        onOpenAlbum: widget.onOpenAlbum,
       );
     }
 
     if (controller.keyword.trim().isNotEmpty) {
       return _Suggestions(
-        songs: controller.suggestions,
-        onSelected: (song) {
-          _textController.text = song.title;
+        values: controller.suggestions,
+        onSelected: (value) {
+          _textController.text = value;
           _textController.selection = TextSelection.collapsed(
-            offset: song.title.length,
+            offset: value.length,
           );
-          controller.search(song.title);
+          controller.search(value);
         },
       );
     }
@@ -151,43 +166,241 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-class _Suggestions extends StatelessWidget {
-  const _Suggestions({required this.songs, required this.onSelected});
+class _SearchResults extends StatelessWidget {
+  const _SearchResults({
+    required this.controller,
+    required this.currentSong,
+    required this.isPlaying,
+    required this.onPlay,
+    required this.onLogin,
+    required this.onOpenCatalog,
+    required this.onLike,
+    required this.onOpenArtist,
+    required this.onOpenAlbum,
+  });
 
-  final List<Song> songs;
-  final ValueChanged<Song> onSelected;
+  final MusicSearchController controller;
+  final Song? currentSong;
+  final bool isPlaying;
+  final ValueChanged<Song> onPlay;
+  final VoidCallback onLogin;
+  final ValueChanged<SearchCatalogItem> onOpenCatalog;
+  final ValueChanged<Song> onLike;
+  final ValueChanged<Song> onOpenArtist;
+  final ValueChanged<Song> onOpenAlbum;
 
   @override
   Widget build(BuildContext context) {
-    if (songs.isEmpty) {
-      return const Center(
+    return Container(
+      padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '搜索结果',
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          SizedBox(height: 14),
+          Row(
+            children: [
+              for (final category in SearchCategory.values) ...[
+                _CategoryTab(
+                  category: category,
+                  selected: controller.category == category,
+                  onTap: () => controller.selectCategory(category),
+                ),
+                if (category != SearchCategory.values.last) SizedBox(width: 28),
+              ],
+            ],
+          ),
+          Divider(height: 1, color: AppColors.divider),
+          Expanded(
+            child: Stack(
+              children: [
+                _body(),
+                if (controller.isLoading && _hasVisibleData())
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    top: 0,
+                    child: LinearProgressIndicator(minHeight: 2),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _body() {
+    if (controller.isLoading && !_hasVisibleData()) {
+      return const _SearchLoading();
+    }
+    if (controller.errorText != null) {
+      return _SearchError(
+        message: controller.errorText!,
+        showLogin: controller.requiresLogin,
+        onLogin: onLogin,
+      );
+    }
+    if (controller.category == SearchCategory.song) {
+      if (controller.results.isEmpty) {
+        return Center(
+          child: Text(
+            '没有找到相关单曲',
+            style: TextStyle(color: AppColors.faint, fontSize: 13),
+          ),
+        );
+      }
+      return ListView.separated(
+        padding: EdgeInsets.only(top: 8),
+        itemCount: controller.results.length,
+        separatorBuilder: (_, _) =>
+            Divider(height: 1, color: AppColors.divider),
+        itemBuilder: (context, index) {
+          final song = controller.results[index];
+          return SongRow(
+            song: song,
+            index: index,
+            isCurrent: currentSong?.id == song.id,
+            isPlaying: isPlaying,
+            onPlay: () => onPlay(song),
+            onLike: () => onLike(song),
+            onArtist: () => onOpenArtist(song),
+            onAlbum: () => onOpenAlbum(song),
+          );
+        },
+      );
+    }
+    return SearchCatalogList(
+      items: controller.catalogResults,
+      emptyText: '没有找到相关${controller.category.label}',
+      onSelected: onOpenCatalog,
+    );
+  }
+
+  bool _hasVisibleData() {
+    return controller.category == SearchCategory.song
+        ? controller.results.isNotEmpty
+        : controller.catalogResults.isNotEmpty;
+  }
+}
+
+class _CategoryTab extends StatelessWidget {
+  const _CategoryTab({
+    required this.category,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final SearchCategory category;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(6),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        hoverColor: AppColors.selected.withValues(alpha: 0.6),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(8, 7, 8, 11),
+          child: Column(
+            children: [
+              Text(
+                category.label,
+                style: TextStyle(
+                  color: selected ? AppColors.text : AppColors.muted,
+                  fontSize: 13,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
+              ),
+              SizedBox(height: 8),
+              AnimatedContainer(
+                duration: Duration(milliseconds: 150),
+                width: selected ? 22 : 0,
+                height: 2,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SearchLoading extends StatelessWidget {
+  const _SearchLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.separated(
+      padding: const EdgeInsets.only(top: 10),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 7,
+      separatorBuilder: (_, _) => const SizedBox(height: 7),
+      itemBuilder: (_, index) => TweenAnimationBuilder<double>(
+        duration: Duration(milliseconds: 220 + index * 35),
+        tween: Tween(begin: 0, end: 1),
+        builder: (_, value, child) => Opacity(opacity: value, child: child),
+        child: Container(
+          height: 62,
+          decoration: BoxDecoration(
+            color: AppColors.surfaceMuted,
+            borderRadius: BorderRadius.circular(7),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Suggestions extends StatelessWidget {
+  const _Suggestions({required this.values, required this.onSelected});
+
+  final List<String> values;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    if (values.isEmpty) {
+      return Center(
         child: Text('暂无联想结果', style: TextStyle(color: AppColors.faint)),
       );
     }
 
     return ListView.separated(
-      itemCount: songs.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      itemCount: values.length,
+      separatorBuilder: (_, _) => Divider(height: 1),
       itemBuilder: (context, index) {
-        final song = songs[index];
+        final value = values[index];
         return Material(
           color: Colors.transparent,
           child: ListTile(
-            onTap: () => onSelected(song),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-            leading: const Icon(Icons.search_rounded, color: AppColors.faint),
+            onTap: () => onSelected(value),
+            contentPadding: EdgeInsets.symmetric(horizontal: 12),
+            leading: Icon(Icons.search_rounded, color: AppColors.faint),
             title: Text(
-              song.title,
-              style: const TextStyle(
+              value,
+              style: TextStyle(
                 color: AppColors.text,
                 fontWeight: FontWeight.w600,
               ),
             ),
-            subtitle: Text(
-              '${song.artist} · ${song.album}',
-              style: const TextStyle(color: AppColors.muted, fontSize: 12),
-            ),
-            trailing: const Icon(
+            trailing: Icon(
               Icons.north_west_rounded,
               color: AppColors.faint,
               size: 17,
@@ -195,6 +408,44 @@ class _Suggestions extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _SearchError extends StatelessWidget {
+  const _SearchError({
+    required this.message,
+    required this.showLogin,
+    required this.onLogin,
+  });
+
+  final String message;
+  final bool showLogin;
+  final VoidCallback onLogin;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            showLogin ? Icons.person_outline_rounded : Icons.cloud_off_rounded,
+            color: AppColors.faint,
+            size: 34,
+          ),
+          SizedBox(height: 12),
+          Text(message, style: TextStyle(color: AppColors.muted)),
+          if (showLogin) ...[
+            SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: onLogin,
+              icon: Icon(Icons.qr_code_rounded, size: 18),
+              label: Text('扫码登录'),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -215,7 +466,7 @@ class _SearchHistory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return const Center(
+      return Center(
         child: Text('搜索记录会保存在这里', style: TextStyle(color: AppColors.faint)),
       );
     }
@@ -225,7 +476,7 @@ class _SearchHistory extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Text(
+            Text(
               '最近搜索',
               style: TextStyle(
                 color: AppColors.text,
@@ -233,11 +484,11 @@ class _SearchHistory extends StatelessWidget {
                 fontWeight: FontWeight.w700,
               ),
             ),
-            const Spacer(),
-            TextButton(onPressed: onClear, child: const Text('清空')),
+            Spacer(),
+            TextButton(onPressed: onClear, child: Text('清空')),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: 8),
         Expanded(
           child: ListView.builder(
             itemCount: values.length,
@@ -247,19 +498,13 @@ class _SearchHistory extends StatelessWidget {
                 color: Colors.transparent,
                 child: ListTile(
                   onTap: () => onSelected(value),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                  leading: const Icon(
-                    Icons.history_rounded,
-                    color: AppColors.faint,
-                  ),
-                  title: Text(
-                    value,
-                    style: const TextStyle(color: AppColors.text),
-                  ),
+                  contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                  leading: Icon(Icons.history_rounded, color: AppColors.faint),
+                  title: Text(value, style: TextStyle(color: AppColors.text)),
                   trailing: IconButton(
                     tooltip: '删除记录',
                     onPressed: () => onRemove(value),
-                    icon: const Icon(Icons.close_rounded, size: 18),
+                    icon: Icon(Icons.close_rounded, size: 18),
                   ),
                 ),
               );

@@ -3,18 +3,24 @@ import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 class AlbumArt extends StatelessWidget {
-  const AlbumArt({super.key, required this.size, this.emphasized = false});
+  const AlbumArt({
+    super.key,
+    required this.size,
+    this.emphasized = false,
+    this.imageUrl,
+  });
 
   final double size;
   final bool emphasized;
+  final String? imageUrl;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final placeholder = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: emphasized ? AppColors.primary : const Color(0xFFDCE7F3),
+        color: emphasized ? AppColors.primary : Color(0xFFDCE7F3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Stack(
@@ -45,6 +51,18 @@ class AlbumArt extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+    if (imageUrl == null || imageUrl!.isEmpty) return placeholder;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.network(
+        imageUrl!,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => placeholder,
       ),
     );
   }

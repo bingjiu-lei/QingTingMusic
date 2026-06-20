@@ -8,13 +8,23 @@ class AppSidebar extends StatelessWidget {
     required this.selectedIndex,
     required this.onChanged,
     required this.compact,
+    required this.loginLabel,
+    required this.isLoggedIn,
+    required this.onLogin,
+    required this.isDark,
+    required this.onToggleTheme,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onChanged;
   final bool compact;
+  final String loginLabel;
+  final bool isLoggedIn;
+  final VoidCallback onLogin;
+  final bool isDark;
+  final VoidCallback onToggleTheme;
 
-  static const items = [
+  static final items = [
     (Icons.library_music_rounded, '我的音乐'),
     (Icons.search_rounded, '搜索'),
     (Icons.settings_rounded, '设置'),
@@ -33,7 +43,7 @@ class AppSidebar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _Brand(compact: compact),
-          const SizedBox(height: 32),
+          SizedBox(height: 32),
           for (var index = 0; index < items.length; index++)
             _NavigationItem(
               icon: items[index].$1,
@@ -42,28 +52,102 @@ class AppSidebar extends StatelessWidget {
               selected: selectedIndex == index,
               onTap: () => onChanged(index),
             ),
-          const Spacer(),
-          _LoginEntry(compact: compact),
+          Spacer(),
+          _ThemeToggle(compact: compact, isDark: isDark, onTap: onToggleTheme),
+          SizedBox(height: 6),
+          _LoginEntry(
+            compact: compact,
+            label: loginLabel,
+            isLoggedIn: isLoggedIn,
+            onTap: onLogin,
+          ),
         ],
       ),
     );
   }
 }
 
-class _LoginEntry extends StatelessWidget {
-  const _LoginEntry({required this.compact});
+class _ThemeToggle extends StatelessWidget {
+  const _ThemeToggle({
+    required this.compact,
+    required this.isDark,
+    required this.onTap,
+  });
 
   final bool compact;
+  final bool isDark;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final label = isDark ? '切换浅色模式' : '切换深色模式';
     return Tooltip(
-      message: compact ? '登录' : '',
+      message: compact ? label : '',
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
-          onTap: () {},
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: AppColors.selected.withValues(alpha: 0.55),
+          child: SizedBox(
+            height: 42,
+            child: Row(
+              mainAxisAlignment: compact
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.start,
+              children: [
+                if (!compact) SizedBox(width: 12),
+                AnimatedSwitcher(
+                  duration: Duration(milliseconds: 180),
+                  child: Icon(
+                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+                    key: ValueKey(isDark),
+                    color: AppColors.muted,
+                    size: 20,
+                  ),
+                ),
+                if (!compact) ...[
+                  SizedBox(width: 12),
+                  Text(
+                    isDark ? '浅色模式' : '深色模式',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LoginEntry extends StatelessWidget {
+  const _LoginEntry({
+    required this.compact,
+    required this.label,
+    required this.isLoggedIn,
+    required this.onTap,
+  });
+
+  final bool compact;
+  final String label;
+  final bool isLoggedIn;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: compact ? label : '',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          onTap: onTap,
           borderRadius: BorderRadius.circular(8),
           child: SizedBox(
             height: 42,
@@ -72,19 +156,25 @@ class _LoginEntry extends StatelessWidget {
                   ? MainAxisAlignment.center
                   : MainAxisAlignment.start,
               children: [
-                if (!compact) const SizedBox(width: 12),
-                const Icon(
-                  Icons.person_outline_rounded,
-                  color: AppColors.muted,
+                if (!compact) SizedBox(width: 12),
+                Icon(
+                  isLoggedIn
+                      ? Icons.account_circle_rounded
+                      : Icons.person_outline_rounded,
+                  color: isLoggedIn ? AppColors.primary : AppColors.muted,
                   size: 20,
                 ),
                 if (!compact) ...[
-                  const SizedBox(width: 12),
-                  const Text(
-                    '登录',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w500,
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isLoggedIn ? AppColors.text : AppColors.muted,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -116,22 +206,18 @@ class _Brand extends StatelessWidget {
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: const Icon(
-            Icons.wb_sunny_outlined,
-            color: Colors.white,
-            size: 24,
-          ),
+          child: Icon(Icons.wb_sunny_outlined, color: Colors.white, size: 24),
         ),
         if (!compact) ...[
-          const SizedBox(width: 12),
-          const Expanded(
+          SizedBox(width: 12),
+          Expanded(
             child: Text(
               '晴听音乐',
               maxLines: 1,
               style: TextStyle(
                 color: AppColors.text,
                 fontSize: 17,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -159,7 +245,7 @@ class _NavigationItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 8),
       child: Tooltip(
         message: compact ? label : '',
         child: Material(
@@ -168,6 +254,7 @@ class _NavigationItem extends StatelessWidget {
           child: InkWell(
             onTap: onTap,
             borderRadius: BorderRadius.circular(8),
+            hoverColor: AppColors.selected.withValues(alpha: 0.55),
             child: SizedBox(
               height: 46,
               child: Row(
@@ -175,14 +262,14 @@ class _NavigationItem extends StatelessWidget {
                     ? MainAxisAlignment.center
                     : MainAxisAlignment.start,
                 children: [
-                  if (!compact) const SizedBox(width: 12),
+                  if (!compact) SizedBox(width: 12),
                   Icon(
                     icon,
                     size: 21,
                     color: selected ? AppColors.primary : AppColors.muted,
                   ),
                   if (!compact) ...[
-                    const SizedBox(width: 12),
+                    SizedBox(width: 12),
                     Text(
                       label,
                       style: TextStyle(

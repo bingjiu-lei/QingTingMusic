@@ -1,0 +1,792 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
+
+import '../models/kugou_session.dart';
+import '../models/music_playlist.dart';
+import '../models/search_catalog_item.dart';
+import '../models/song.dart';
+import 'secure_session_storage.dart';
+import 'api_endpoint_service.dart';
+
+class AuthenticationRequiredException implements Exception {
+  const AuthenticationRequiredException();
+}
+
+class KugouApiException implements Exception {
+  const KugouApiException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+class KugouQrCode {
+  const KugouQrCode({required this.key, required this.imageDataUrl});
+
+  final String key;
+  final String imageDataUrl;
+}
+
+class KugouQrCheckResult {
+  const KugouQrCheckResult({required this.status, this.session});
+
+  final int status;
+  final KugouSession? session;
+}
+
+class KugouApiClient {
+  KugouApiClient({
+    Dio? dio,
+    SecureSessionStorage? storage,
+    ApiEndpointService? endpointService,
+  }) : _dio = dio ?? _createDio(''),
+       _storage = storage ?? SecureSessionStorage(),
+       _endpointService = endpointService ?? ApiEndpointService();
+
+  final Dio _dio;
+  final SecureSessionStorage _storage;
+  final ApiEndpointService _endpointService;
+
+  KugouSession session = const KugouSession();
+
+  Future<void> initialize() async {
+    session = await _storage.load();
+    if (!session.hasDevice) {
+      await registerDevice();
+    }
+  }
+
+  Future<void> registerDevice() async {
+    final response = await _get(
+      '/register/dev',
+      queryParameters: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+    );
+    final data = _map(response.data)['data'];
+    final body = _map(data);
+    session = _mergeCookies(
+      session.copyWith(dfid: body['dfid']?.toString()),
+      response.headers.map['set-cookie'] ?? const [],
+    );
+    if (!session.hasDevice) {
+      throw const KugouApiException('设备初始化失败，请稍后重试');
+    }
+    await _storage.save(session);
+  }
+
+  Future<KugouQrCode> createLoginQr() async {
+    final response = await _get(
+      '/login/qr/key',
+      queryParameters: {'timestamp': DateTime.now().millisecondsSinceEpoch},
+      bypassCache: true,
+    );
+    final data = _map(_map(response.data)['data']);
+    final key = (data['qrcode'] ?? data['key'] ?? '').toString();
+    var image = (data['qrcode_img'] ?? data['base64'] ?? '').toString();
+
+    if (key.isEmpty) {
+      throw const KugouApiException('二维码生成失败');
+    }
+    if (image.isEmpty) {
+      final create = await _get(
+        '/login/qr/create',
+        queryParameters: {
+          'key': key,
+          'qrimg': true,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+        bypassCache: true,
+      );
+      final createData = _map(_map(create.data)['data']);
+      image = (createData['base64'] ?? createData['qrcode_img'] ?? '')
+          .toString();
+    }
+    if (image.isEmpty) {
+      throw const KugouApiException('二维码图片生成失败');
+    }
+    return KugouQrCode(key: key, imageDataUrl: image);
+  }
+
+  Future<KugouQrCheckResult> checkLoginQr(String key) async {
+    final response = await _get(
+      '/login/qr/check',
+      queryParameters: {
+        'key': key,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+      bypassCache: true,
+    );
+    final data = _map(_map(response.data)['data']);
+    final status = _toInt(data['status']);
+    if (status != 4) return KugouQrCheckResult(status: status);
+
+    final token = (data['token'] ?? '').toString();
+    final userId = (data['userid'] ?? data['user_id'] ?? '').toString();
+    if (token.isEmpty || userId.isEmpty) {
+      throw const KugouApiException('登录成功，但未获得有效凭证');
+    }
+
+    session = _mergeCookies(
+      session.copyWith(
+        token: token,
+        userId: userId,
+        nickname: (data['nickname'] ?? data['username'] ?? '').toString(),
+      ),
+      response.headers.map['set-cookie'] ?? const [],
+    );
+    await _storage.save(session);
+    return KugouQrCheckResult(status: status, session: session);
+  }
+
+  Future<void> logout() async {
+    session = session.loggedOut();
+    await _storage.save(session);
+  }
+
+  Future<List<String>> searchSuggestions(String keyword) async {
+    final response = await _get(
+      '/search/suggest',
+      queryParameters: {'keywords': keyword},
+    );
+    final body = _map(response.data);
+    final groups = _list(body['data']);
+    final values = <String>[];
+    for (final group in groups) {
+      for (final record in _list(_map(group)['RecordDatas'])) {
+        final value = (_map(record)['HintInfo'] ?? '').toString().trim();
+        if (value.isNotEmpty && !values.contains(value)) values.add(value);
+        if (values.length == 8) return values;
+      }
+    }
+    return values;
+  }
+
+  Future<List<Song>> searchSongs(String keyword) async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+
+    final response = await _get(
+      '/search',
+      authenticated: true,
+      queryParameters: {
+        'keywords': keyword,
+        'type': 'song',
+        'page': 1,
+        'pagesize': 30,
+      },
+    );
+    final body = _map(response.data);
+    final errorCode = _toInt(body['error_code'] ?? body['ErrorCode']);
+    if (errorCode == 152) {
+      await logout();
+      throw const AuthenticationRequiredException();
+    }
+
+    final data = _map(body['data']);
+    final records = _list(
+      data['lists'] ?? data['list'] ?? data['songs'] ?? body['lists'],
+    );
+    return records.map(_songFromSearch).whereType<Song>().toList();
+  }
+
+  Future<List<SearchCatalogItem>> searchCatalog(
+    String keyword,
+    SearchCategory category,
+  ) async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+
+    final type = switch (category) {
+      SearchCategory.album => 'album',
+      SearchCategory.artist => 'author',
+      SearchCategory.song => 'song',
+    };
+    final response = await _get(
+      '/search',
+      authenticated: true,
+      queryParameters: {
+        'keywords': keyword,
+        'type': type,
+        'page': 1,
+        'pagesize': 30,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+      bypassCache: true,
+    );
+    final body = _map(response.data);
+    final errorCode = _toInt(body['error_code'] ?? body['ErrorCode']);
+    if (errorCode == 152) {
+      await logout();
+      throw const AuthenticationRequiredException();
+    }
+
+    final records = _list(_map(body['data'])['lists']);
+    return records
+        .map((value) => _catalogItem(value, category))
+        .whereType<SearchCatalogItem>()
+        .toList();
+  }
+
+  Future<List<Song>> getCatalogSongs(SearchCatalogItem item) async {
+    final path = switch (item.category) {
+      SearchCategory.album => '/album/songs',
+      SearchCategory.artist => '/artist/audios',
+      SearchCategory.song => throw const KugouApiException('不支持的详情类型'),
+    };
+    final response = await _get(
+      path,
+      authenticated: true,
+      queryParameters: {'id': item.id, 'page': 1, 'pagesize': 100},
+    );
+    return _parseSongCollection(response.data);
+  }
+
+  Future<List<SearchCatalogItem>> getArtistAlbums(
+    SearchCatalogItem artist,
+  ) async {
+    final response = await _get(
+      '/artist/albums',
+      authenticated: true,
+      queryParameters: {'id': artist.id, 'page': 1, 'pagesize': 100},
+    );
+    return _findRecords(response.data)
+        .map((value) => _catalogItem(value, SearchCategory.album))
+        .whereType<SearchCatalogItem>()
+        .toList();
+  }
+
+  Future<List<MusicPlaylist>> getUserPlaylists() async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    final response = await _get(
+      '/user/playlist',
+      authenticated: true,
+      bypassCache: true,
+      queryParameters: {'page': 1, 'pagesize': 100},
+    );
+    final data = _map(_map(response.data)['data']);
+    return _list(data['info'] ?? data['lists'])
+        .map((value) {
+          final json = _map(value);
+          final image = _read(json, ['pic', 'img']);
+          final source = _toInt(json['source']);
+          return MusicPlaylist(
+            id: _read(json, ['global_collection_id', 'list_create_gid']),
+            listId: _read(json, ['listid', 'list_create_listid']),
+            name: _read(json, ['name'], fallback: '未命名歌单'),
+            songCount: _toInt(json['m_count'] ?? json['song_count']),
+            coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
+            isDefault: _toInt(json['is_def']) > 0,
+            isMine: _toInt(json['is_mine']) == 1,
+            kind: _toInt(json['is_def']) > 0
+                ? MusicPlaylistKind.favoriteSongs
+                : source == 2
+                ? MusicPlaylistKind.album
+                : _toInt(json['is_mine']) == 1
+                ? MusicPlaylistKind.createdPlaylist
+                : MusicPlaylistKind.collectedPlaylist,
+          );
+        })
+        .where((item) => item.id.isNotEmpty)
+        .toList();
+  }
+
+  Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
+    final response = await _get(
+      '/playlist/track/all',
+      authenticated: true,
+      bypassCache: true,
+      queryParameters: {'id': playlist.id, 'page': 1, 'pagesize': 200},
+    );
+    return _parseSongCollection(response.data, liked: playlist.isDefault);
+  }
+
+  Future<List<Song>> getCloudSongs() async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    final response = await _get(
+      '/user/cloud',
+      authenticated: true,
+      bypassCache: true,
+      queryParameters: {'page': 1, 'pagesize': 100},
+    );
+    return _parseSongCollection(response.data, cloud: true);
+  }
+
+  Future<List<SearchCatalogItem>> getFollowedArtists() async {
+    final response = await _get(
+      '/user/follow',
+      authenticated: true,
+      bypassCache: true,
+    );
+    final records = _list(_map(_map(response.data)['data'])['lists']);
+    return records
+        .map((value) {
+          final json = _map(value);
+          final singerId = _read(json, ['singerid']);
+          final name = _read(json, ['nickname']);
+          if (singerId.isEmpty ||
+              name.isEmpty ||
+              _toInt(json['jumptype']) != 1) {
+            return null;
+          }
+          return SearchCatalogItem(
+            id: singerId,
+            title: name,
+            subtitle: '歌手',
+            category: SearchCategory.artist,
+            imageUrl: _read(json, ['pic']),
+          );
+        })
+        .whereType<SearchCatalogItem>()
+        .toList();
+  }
+
+  Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song) async {
+    if (song.hash == null || song.hash!.isEmpty) {
+      throw const KugouApiException('歌曲缺少收藏信息');
+    }
+    await _post(
+      '/playlist/tracks/add',
+      authenticated: true,
+      queryParameters: {
+        'listid': playlist.listId,
+        'data':
+            '${song.artist} - ${song.title}|${song.hash}|${song.albumId ?? 0}|${song.albumAudioId ?? 0}',
+      },
+    );
+  }
+
+  Future<void> removeSongFromPlaylist(MusicPlaylist playlist, Song song) async {
+    if (song.fileId == null) {
+      throw const KugouApiException('请刷新收藏列表后再取消收藏');
+    }
+    await _post(
+      '/playlist/tracks/del',
+      authenticated: true,
+      queryParameters: {'listid': playlist.listId, 'fileids': song.fileId},
+    );
+  }
+
+  Future<Song> resolvePlayback(Song song) async {
+    if (song.audioUrl.isNotEmpty) return song;
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    if (song.hash == null || song.hash!.isEmpty) {
+      throw const KugouApiException('歌曲缺少播放信息');
+    }
+
+    final response = await _get(
+      song.isCloud ? '/user/cloud/url' : '/song/url',
+      authenticated: true,
+      queryParameters: {
+        'hash': song.hash,
+        'album_id': song.albumId ?? 0,
+        'album_audio_id': song.albumAudioId ?? 0,
+        if (song.isCloud) 'audio_id': song.cloudAudioId ?? 0,
+        if (song.isCloud) 'name': '${song.artist} - ${song.title}',
+        'quality': 128,
+      },
+    );
+    final url = _findAudioUrl(response.data);
+    if (url == null) {
+      throw const KugouApiException('暂时无法获取这首歌的播放地址');
+    }
+    return song.copyWith(audioUrl: url);
+  }
+
+  Future<Response<Object?>> _get(
+    String path, {
+    Map<String, Object?>? queryParameters,
+    bool authenticated = false,
+    bool bypassCache = false,
+  }) async {
+    try {
+      await _configureEndpoint();
+      return await _dio.get<Object?>(
+        path,
+        queryParameters: queryParameters,
+        options: Options(
+          headers: {
+            if (authenticated && session.authorization.isNotEmpty)
+              'Authorization': session.authorization,
+            if (bypassCache) 'Cache-Control': 'no-cache, no-store',
+            if (bypassCache) 'Pragma': 'no-cache',
+          },
+        ),
+      );
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      final errorCode = _toInt(
+        _map(data)['error_code'] ?? _map(data)['ErrorCode'],
+      );
+      if (authenticated && errorCode == 152) {
+        await logout();
+        throw const AuthenticationRequiredException();
+      }
+      final message =
+          _map(data)['message']?.toString() ??
+          _map(data)['msg']?.toString() ??
+          '网络请求失败，请稍后重试';
+      throw KugouApiException(message);
+    }
+  }
+
+  Future<Response<Object?>> _post(
+    String path, {
+    Map<String, Object?>? queryParameters,
+    bool authenticated = false,
+  }) async {
+    try {
+      await _configureEndpoint();
+      return await _dio.post<Object?>(
+        path,
+        queryParameters: queryParameters,
+        options: Options(
+          headers: {
+            if (authenticated && session.authorization.isNotEmpty)
+              'Authorization': session.authorization,
+            'Cache-Control': 'no-cache, no-store',
+          },
+        ),
+      );
+    } on DioException catch (error) {
+      final data = error.response?.data;
+      throw KugouApiException(
+        _map(data)['message']?.toString() ??
+            _map(data)['msg']?.toString() ??
+            '操作失败，请稍后重试',
+      );
+    }
+  }
+
+  Future<void> _configureEndpoint() async {
+    final endpoint = await _endpointService.load();
+    if (endpoint.isEmpty) {
+      throw const KugouApiException('请先在设置中填写后端 API 地址');
+    }
+    final uri = Uri.tryParse(endpoint);
+    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
+      throw const KugouApiException('后端 API 地址格式不正确');
+    }
+    _dio.options.baseUrl = endpoint;
+  }
+
+  Song? _songFromSearch(Object? value) {
+    final json = _map(value);
+    final hash = _read(json, ['FileHash', 'filehash', 'hash', 'Hash']);
+    var title = _read(json, [
+      'SongName',
+      'songname',
+      'song_name',
+      'title',
+      'FileName',
+    ]);
+    final artist = _read(json, [
+      'SingerName',
+      'singername',
+      'singer_name',
+      'author_name',
+    ], fallback: '未知歌手');
+    final prefix = '$artist - ';
+    if (title.startsWith(prefix)) title = title.substring(prefix.length);
+    if (hash.isEmpty || title.isEmpty) return null;
+
+    final image = _read(json, ['Image', 'image', 'img']);
+    return Song(
+      id: hash,
+      title: title,
+      artist: artist,
+      album: _read(json, [
+        'AlbumName',
+        'album_name',
+        'albumname',
+      ], fallback: '未知专辑'),
+      duration: Duration(
+        seconds: _toInt(
+          json['Duration'] ?? json['duration'] ?? json['timelen'],
+        ),
+      ),
+      audioUrl: '',
+      hash: hash,
+      albumId: _toInt(json['AlbumID'] ?? json['album_id']),
+      albumAudioId: _toInt(
+        json['MixSongID'] ?? json['mixsongid'] ?? json['album_audio_id'],
+      ),
+      coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
+      fileId: _nullableInt(json['fileid']),
+      artistId: _nullableInt(
+        json['SingerId'] ?? json['singerid'] ?? json['author_id'],
+      ),
+    );
+  }
+
+  List<Song> _parseSongCollection(
+    Object? response, {
+    bool liked = false,
+    bool cloud = false,
+  }) {
+    return _findRecords(response)
+        .map((value) => _songFromCollection(value, liked: liked, cloud: cloud))
+        .whereType<Song>()
+        .toList();
+  }
+
+  Song? _songFromCollection(
+    Object? value, {
+    required bool liked,
+    required bool cloud,
+  }) {
+    final json = _map(value);
+    final base = _map(json['base']);
+    final audio = _map(json['audio_info']);
+    final albumInfo = _map(json['album_info'] ?? json['albuminfo']);
+    final transParam = _map(json['trans_param']);
+    final singerInfoValue = json['singerinfo'];
+    final singerInfo = singerInfoValue is List && singerInfoValue.isNotEmpty
+        ? _map(singerInfoValue.first)
+        : _map(singerInfoValue);
+    final hash = _read(json, [
+      'hash',
+      'FileHash',
+    ], fallback: _read(audio, ['hash', 'hash_128']));
+    var artist = _read(
+      json,
+      ['singername', 'SingerName', 'author_name'],
+      fallback: _read(base, [
+        'author_name',
+      ], fallback: _read(singerInfo, ['name'], fallback: '未知歌手')),
+    );
+    final authors = _list(json['authors'] ?? base['authors']);
+    final firstAuthor = authors.isEmpty
+        ? const <String, Object?>{}
+        : _map(authors.first);
+    var title = _read(json, [
+      'name',
+      'audio_name',
+      'songname',
+      'FileName',
+    ], fallback: _read(base, ['audio_name']));
+    if (artist == '未知歌手' && title.contains(' - ')) {
+      final parts = title.split(' - ');
+      artist = parts.first.trim();
+      title = parts.skip(1).join(' - ').trim();
+    }
+    final prefix = '$artist - ';
+    if (title.startsWith(prefix)) title = title.substring(prefix.length);
+    title = title.replaceFirst(
+      RegExp(r'\.(mp3|m4a|flac|wav|aac)$', caseSensitive: false),
+      '',
+    );
+    if (hash.isEmpty || title.isEmpty) return null;
+
+    final cover = _read(
+      json,
+      ['cover', 'img'],
+      fallback: _read(albumInfo, [
+        'cover',
+        'sizable_cover',
+      ], fallback: _read(transParam, ['union_cover'])),
+    );
+    var duration = _toInt(
+      json['timelen'] ??
+          json['duration'] ??
+          audio['duration'] ??
+          audio['duration_128'],
+    );
+    if (duration > 10000) duration ~/= 1000;
+
+    return Song(
+      id: hash,
+      title: title,
+      artist: artist,
+      album: _read(json, [
+        'album_name',
+        'AlbumName',
+      ], fallback: _read(albumInfo, ['album_name', 'name'], fallback: '未知专辑')),
+      duration: Duration(seconds: duration),
+      audioUrl: '',
+      hash: hash,
+      albumId: _nullableInt(
+        json['album_id'] ??
+            json['albumid'] ??
+            base['album_id'] ??
+            albumInfo['album_id'] ??
+            albumInfo['id'],
+      ),
+      albumAudioId: _nullableInt(
+        json['mixsongid'] ?? json['album_audio_id'] ?? base['album_audio_id'],
+      ),
+      coverUrl: cover.isEmpty ? null : cover.replaceAll('{size}', '240'),
+      fileId: _nullableInt(json['fileid']),
+      artistId: _nullableInt(
+        json['singerid'] ??
+            json['author_id'] ??
+            base['author_id'] ??
+            singerInfo['id'] ??
+            firstAuthor['author_id'],
+      ),
+      isCloud: cloud,
+      cloudAudioId: _nullableInt(json['audio_id'] ?? base['audio_id']),
+      liked: liked,
+    );
+  }
+
+  SearchCatalogItem? _catalogItem(Object? value, SearchCategory category) {
+    final json = _map(value);
+    final fields = switch (category) {
+      SearchCategory.album => (
+        id: _read(json, ['albumid']),
+        title: _read(json, ['albumname']),
+        subtitle: _read(json, ['singer', 'author_name'], fallback: '未知歌手'),
+        image: _read(json, ['img']),
+      ),
+      SearchCategory.artist => (
+        id: _read(json, ['AuthorId', 'authorid', 'singerid']),
+        title: _read(json, ['AuthorName', 'authorname', 'singername']),
+        subtitle: '${_toInt(json['AudioCount'] ?? json['songcount'])} 首歌曲',
+        image: _read(json, ['Avatar', 'avatar', 'img']),
+      ),
+      SearchCategory.song => (id: '', title: '', subtitle: '', image: ''),
+    };
+    if (fields.id.isEmpty || fields.title.isEmpty) return null;
+    return SearchCatalogItem(
+      id: fields.id,
+      title: fields.title,
+      subtitle: fields.subtitle,
+      category: category,
+      imageUrl: fields.image.isEmpty
+          ? null
+          : fields.image.replaceAll('{size}', '240'),
+    );
+  }
+
+  KugouSession _mergeCookies(KugouSession current, List<String> setCookies) {
+    final values = <String, String>{};
+    for (final header in setCookies) {
+      final first = header.split(';').first;
+      final index = first.indexOf('=');
+      if (index > 0) {
+        values[first.substring(0, index)] = first.substring(index + 1);
+      }
+    }
+    return current.copyWith(
+      token: values['token'],
+      userId: values['userid'],
+      dfid: values['dfid'],
+      mid: values['KUGOU_API_MID'],
+      guid: values['KUGOU_API_GUID'],
+      device: values['KUGOU_API_DEV'],
+      mac: values['KUGOU_API_MAC'],
+    );
+  }
+}
+
+Dio _createDio(String _) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: ApiEndpointService.defaultEndpoint,
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30),
+      sendTimeout: const Duration(seconds: 15),
+    ),
+  );
+  dio.httpClientAdapter = IOHttpClientAdapter(
+    createHttpClient: () {
+      final client = HttpClient();
+      client.findProxy = (uri) {
+        final value =
+            Platform.environment['HTTPS_PROXY'] ??
+            Platform.environment['https_proxy'] ??
+            Platform.environment['HTTP_PROXY'] ??
+            Platform.environment['http_proxy'] ??
+            Platform.environment['ALL_PROXY'] ??
+            Platform.environment['all_proxy'];
+        if (value == null || value.isEmpty) return 'DIRECT';
+
+        final proxy = Uri.tryParse(value);
+        if (proxy?.host.isEmpty ?? true) return 'DIRECT';
+        return 'PROXY ${proxy!.host}:${proxy.hasPort ? proxy.port : 80}';
+      };
+      return client;
+    },
+  );
+  return dio;
+}
+
+Map<String, Object?> _map(Object? value) {
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) {
+    return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+  return const {};
+}
+
+List<Object?> _list(Object? value) => value is List ? value : const [];
+
+List<Object?> _findRecords(Object? value) {
+  if (value is List) return value;
+  if (value is Map) {
+    for (final key in ['songs', 'lists', 'list', 'info', 'data']) {
+      final nested = value[key];
+      if (nested is List) return nested;
+      final found = _findRecords(nested);
+      if (found.isNotEmpty) return found;
+    }
+  }
+  return const [];
+}
+
+int _toInt(Object? value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  return int.tryParse(value?.toString() ?? '') ?? 0;
+}
+
+int? _nullableInt(Object? value) {
+  final parsed = _toInt(value);
+  return parsed == 0 ? null : parsed;
+}
+
+String _read(
+  Map<String, Object?> json,
+  List<String> keys, {
+  String fallback = '',
+}) {
+  for (final key in keys) {
+    final value = json[key]?.toString().trim() ?? '';
+    if (value.isNotEmpty) return value;
+  }
+  return fallback;
+}
+
+String? _findAudioUrl(Object? value) {
+  if (value is Map) {
+    const preferredKeys = [
+      'play_url',
+      'playUrl',
+      'url',
+      'backup_url',
+      'backupUrl',
+    ];
+    for (final key in preferredKeys) {
+      final found = _findAudioUrl(value[key]);
+      if (found != null) return found;
+    }
+    for (final entry in value.entries) {
+      if (preferredKeys.contains(entry.key)) continue;
+      final found = _findAudioUrl(entry.value);
+      if (found != null) return found;
+    }
+  } else if (value is List) {
+    for (final item in value) {
+      final found = _findAudioUrl(item);
+      if (found != null) return found;
+    }
+  } else if (value is String &&
+      value.startsWith('http') &&
+      !RegExp(
+        r'\.(jpg|jpeg|png|webp)(\?|$)',
+        caseSensitive: false,
+      ).hasMatch(value)) {
+    return value;
+  }
+  return null;
+}

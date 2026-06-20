@@ -1,4 +1,6 @@
 import '../models/song.dart';
+import '../models/search_catalog_item.dart';
+import '../models/music_playlist.dart';
 import 'music_repository.dart';
 
 class DemoMusicRepository implements MusicRepository {
@@ -40,6 +42,12 @@ class DemoMusicRepository implements MusicRepository {
   Future<List<Song>> getNewSongs() async => songs.reversed.toList();
 
   @override
+  Future<List<String>> searchSuggestions(String keyword) async {
+    final matches = await searchSongs(keyword);
+    return matches.map((song) => song.title).toList();
+  }
+
+  @override
   Future<List<Song>> searchSongs(String keyword) async {
     final query = keyword.trim().toLowerCase();
     if (query.isEmpty) return const [];
@@ -50,4 +58,56 @@ class DemoMusicRepository implements MusicRepository {
           song.album.toLowerCase().contains(query);
     }).toList();
   }
+
+  @override
+  Future<List<SearchCatalogItem>> searchCatalog(
+    String keyword,
+    SearchCategory category,
+  ) async {
+    return const [];
+  }
+
+  @override
+  Future<List<Song>> getCatalogSongs(SearchCatalogItem item) async => songs;
+
+  @override
+  Future<List<SearchCatalogItem>> getArtistAlbums(
+    SearchCatalogItem artist,
+  ) async => const [];
+
+  @override
+  Future<List<MusicPlaylist>> getUserPlaylists() async => const [
+    MusicPlaylist(
+      id: 'demo-favorites',
+      listId: 'demo-favorites',
+      name: '默认收藏',
+      songCount: 1,
+      isDefault: true,
+      isMine: true,
+      kind: MusicPlaylistKind.favoriteSongs,
+    ),
+  ];
+
+  @override
+  Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
+    return songs.where((song) => song.liked).toList();
+  }
+
+  @override
+  Future<List<Song>> getCloudSongs() async => const [];
+
+  @override
+  Future<List<SearchCatalogItem>> getFollowedArtists() async => const [];
+
+  @override
+  Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song) async {}
+
+  @override
+  Future<void> removeSongFromPlaylist(
+    MusicPlaylist playlist,
+    Song song,
+  ) async {}
+
+  @override
+  Future<Song> resolvePlayback(Song song) async => song;
 }
