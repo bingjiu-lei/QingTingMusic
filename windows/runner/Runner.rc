@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "QingTingMusic" "\0"
-            VALUE "FileDescription", "QingTingMusic" "\0"
+            VALUE "CompanyName", "晴听音乐" "\0"
+            VALUE "FileDescription", "晴听音乐 Windows 音乐播放器" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "QingTingMusic" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 QingTingMusic. All rights reserved." "\0"
             VALUE "OriginalFilename", "QingTingMusic.exe" "\0"
-            VALUE "ProductName", "QingTingMusic" "\0"
+            VALUE "ProductName", "晴听音乐" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
