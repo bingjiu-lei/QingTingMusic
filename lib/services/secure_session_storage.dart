@@ -7,17 +7,12 @@ import 'package:ffi/ffi.dart';
 import 'package:win32/win32.dart';
 
 import '../models/kugou_session.dart';
+import 'app_storage_service.dart';
 
 class SecureSessionStorage {
   static const _cryptProtectUiForbidden = 0x1;
 
-  File get _file {
-    final root =
-        Platform.environment['LOCALAPPDATA'] ??
-        Platform.environment['APPDATA'] ??
-        Directory.current.path;
-    return File('$root\\QingTingMusic\\session.dat');
-  }
+  File get _file => AppStorageService.file('session.dat');
 
   Future<KugouSession> load() async {
     if (!Platform.isWindows || !await _file.exists()) {

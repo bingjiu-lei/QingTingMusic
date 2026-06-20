@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'services/app_storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await AppStorageService.initialize();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
     const options = WindowOptions(

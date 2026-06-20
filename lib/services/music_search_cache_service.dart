@@ -3,6 +3,7 @@ import 'dart:io';
 
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
+import 'app_storage_service.dart';
 
 class MusicSearchCache {
   const MusicSearchCache({this.songs = const {}, this.catalogs = const {}});
@@ -12,13 +13,7 @@ class MusicSearchCache {
 }
 
 class MusicSearchCacheService {
-  File get _file {
-    final root =
-        Platform.environment['LOCALAPPDATA'] ??
-        Platform.environment['APPDATA'] ??
-        Directory.current.path;
-    return File('$root\\QingTingMusic\\search-cache.json');
-  }
+  File get _file => AppStorageService.file('search-cache.json');
 
   Future<MusicSearchCache> load() async {
     if (!await _file.exists()) return const MusicSearchCache();

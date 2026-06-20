@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'app_storage_service.dart';
 
 class ApiEndpointService {
   ApiEndpointService({this.verifier});
@@ -11,7 +11,7 @@ class ApiEndpointService {
   final Future<void> Function(String endpoint)? verifier;
 
   Future<String> load() async {
-    if (Platform.isWindows && await _settingsFile.exists()) {
+    if (await _settingsFile.exists()) {
       try {
         final json =
             jsonDecode(await _settingsFile.readAsString())
@@ -19,40 +19,23 @@ class ApiEndpointService {
         return json[storageKey]?.toString() ?? '';
       } catch (_) {}
     }
-    final preferences = await SharedPreferences.getInstance();
-    return preferences.getString(storageKey) ?? defaultEndpoint;
+    return defaultEndpoint;
   }
 
   Future<void> save(String value) async {
     final endpoint = normalize(value);
     if (endpoint.isNotEmpty) await (verifier ?? verify)(endpoint);
-    if (Platform.isWindows) {
-      await _settingsFile.parent.create(recursive: true);
-      await _settingsFile.writeAsString(
-        jsonEncode({storageKey: endpoint}),
-        flush: true,
-      );
-      if (await load() != endpoint) {
-        throw StateError('后端 API 地址未能持久化');
-      }
-      return;
-    }
-    final preferences = await SharedPreferences.getInstance();
-    final saved = await preferences.setString(storageKey, endpoint);
-    if (!saved) throw StateError('后端 API 地址保存失败');
-    await preferences.reload();
-    if (preferences.getString(storageKey) != endpoint) {
+    await _settingsFile.parent.create(recursive: true);
+    await _settingsFile.writeAsString(
+      jsonEncode({storageKey: endpoint}),
+      flush: true,
+    );
+    if (await load() != endpoint) {
       throw StateError('后端 API 地址未能持久化');
     }
   }
 
-  File get _settingsFile {
-    final root =
-        Platform.environment['LOCALAPPDATA'] ??
-        Platform.environment['APPDATA'] ??
-        Directory.current.path;
-    return File('$root\\QingTingMusic\\settings.json');
-  }
+  File get _settingsFile => AppStorageService.file('settings.json');
 
   String normalize(String value) =>
       value.trim().replaceFirst(RegExp(r'/+$'), '');

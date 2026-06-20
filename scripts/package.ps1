@@ -1,9 +1,18 @@
-$ErrorActionPreference = 'Stop'
+param(
+    [Parameter(Mandatory = $true)]
+    [ValidatePattern('^\d+\.\d+\.\d+$')]
+    [string]$Version,
 
+    [ValidateRange(1, 2147483647)]
+    [int]$BuildNumber = 1
+)
+
+$ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $releaseDir = Join-Path $projectRoot 'build\windows\x64\runner\Release'
 $installerScript = Join-Path $projectRoot 'installer\QingTingMusic.iss'
-$outputFile = Join-Path $projectRoot 'dist\QingTingMusic-Setup-v0.1.0-x64.exe'
+$pubspecFile = Join-Path $projectRoot 'pubspec.yaml'
+$outputFile = Join-Path $projectRoot "dist\QingTingMusic-Setup-v$Version-x64.exe"
 $innoCandidates = @(
     'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
     'C:\Program Files\Inno Setup 6\ISCC.exe',
@@ -15,14 +24,29 @@ Set-Location $projectRoot
 Get-Process -Name 'qing_ting_music' -ErrorAction SilentlyContinue |
     Stop-Process -Force
 
+$pubspec = [System.IO.File]::ReadAllText($pubspecFile)
+$updatedPubspec = [regex]::Replace(
+    $pubspec,
+    '(?m)^version:\s*\d+\.\d+\.\d+\+\d+\s*$',
+    "version: $Version+$BuildNumber"
+)
+if ($updatedPubspec -eq $pubspec -and $pubspec -notmatch "(?m)^version:\s*$Version\+$BuildNumber\s*$") {
+    throw 'Could not update the version field in pubspec.yaml'
+}
+[System.IO.File]::WriteAllText(
+    $pubspecFile,
+    $updatedPubspec,
+    [System.Text.UTF8Encoding]::new($false)
+)
+
 Write-Host 'Cleaning previous Windows build...' -ForegroundColor Cyan
 flutter clean
 
 Write-Host 'Restoring Flutter dependencies...' -ForegroundColor Cyan
 flutter pub get
 
-Write-Host 'Building Windows release...' -ForegroundColor Cyan
-flutter build windows --release
+Write-Host "Building Windows release v$Version+$BuildNumber..." -ForegroundColor Cyan
+flutter build windows --release --build-name $Version --build-number $BuildNumber
 
 $iscc = $innoCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 if (-not $iscc) {
@@ -34,7 +58,7 @@ if (-not (Test-Path (Join-Path $releaseDir 'qing_ting_music.exe'))) {
 }
 
 Write-Host 'Building Windows installer...' -ForegroundColor Cyan
-& $iscc $installerScript
+& $iscc "/DMyAppVersion=$Version" $installerScript
 if ($LASTEXITCODE -ne 0) {
     throw "Inno Setup failed with exit code $LASTEXITCODE"
 }

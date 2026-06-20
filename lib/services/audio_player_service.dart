@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:just_audio/just_audio.dart';
 
 import '../models/song.dart';
+import 'app_storage_service.dart';
 
 class AudioPlayerService {
   AudioPlayerService({required bool enabled}) {
@@ -56,8 +57,7 @@ class AudioPlayerService {
   }
 
   Future<File> _download(Song song, Uri uri) async {
-    final publicRoot = Platform.environment['PUBLIC'] ?? r'C:\Users\Public';
-    final directory = Directory('$publicRoot\\QingTingMusic\\audio');
+    final directory = AppStorageService.directory('audio');
     await directory.create(recursive: true);
     final extension = uri.pathSegments.last.contains('.')
         ? uri.pathSegments.last.split('.').last

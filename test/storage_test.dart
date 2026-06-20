@@ -2,27 +2,31 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qing_ting_music/models/song.dart';
+import 'package:qing_ting_music/services/app_storage_service.dart';
 import 'package:qing_ting_music/services/api_endpoint_service.dart';
 import 'package:qing_ting_music/services/recent_songs_service.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  late Directory tempDirectory;
 
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
+  setUp(() async {
+    tempDirectory = await Directory.systemTemp.createTemp('qingting-storage-');
+    AppStorageService.overrideForTesting(tempDirectory);
+  });
+
+  tearDown(() async {
+    AppStorageService.overrideForTesting(null);
+    if (await tempDirectory.exists()) {
+      await tempDirectory.delete(recursive: true);
+    }
   });
 
   test('persists API endpoint and verifies it', () async {
     final service = ApiEndpointService(verifier: (_) async {});
     await service.save('https://kugou.bingjiu.cc.cd/');
     expect(await service.load(), 'https://kugou.bingjiu.cc.cd');
-    if (Platform.isWindows) {
-      final file = File(
-        '${Platform.environment['LOCALAPPDATA']}\\QingTingMusic\\settings.json',
-      );
-      expect(await file.exists(), isTrue);
-    }
+    expect(await AppStorageService.file('settings.json').exists(), isTrue);
   });
 
   test('persists recent songs', () async {

@@ -4,6 +4,7 @@ import 'dart:io';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
+import 'app_storage_service.dart';
 
 class MusicLibrarySnapshot {
   const MusicLibrarySnapshot({
@@ -22,13 +23,7 @@ class MusicLibrarySnapshot {
 }
 
 class MusicLibraryCacheService {
-  File get _file {
-    final root =
-        Platform.environment['LOCALAPPDATA'] ??
-        Platform.environment['APPDATA'] ??
-        Directory.current.path;
-    return File('$root\\QingTingMusic\\library-cache.json');
-  }
+  File get _file => AppStorageService.file('library-cache.json');
 
   Future<MusicLibrarySnapshot> load() async {
     if (!await _file.exists()) return const MusicLibrarySnapshot();

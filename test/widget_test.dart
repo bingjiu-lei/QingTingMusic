@@ -1,11 +1,24 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qing_ting_music/app.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:qing_ting_music/services/app_preferences_service.dart';
+import 'package:qing_ting_music/services/app_storage_service.dart';
 
 void main() {
-  setUp(() {
-    SharedPreferences.setMockInitialValues({});
+  late Directory tempDirectory;
+
+  setUp(() async {
+    tempDirectory = await Directory.systemTemp.createTemp('qingting-widget-');
+    AppStorageService.overrideForTesting(tempDirectory);
+  });
+
+  tearDown(() async {
+    AppStorageService.overrideForTesting(null);
+    if (await tempDirectory.exists()) {
+      await tempDirectory.delete(recursive: true);
+    }
   });
 
   testWidgets('opens on my music without entitlement placeholders', (
@@ -60,8 +73,8 @@ void main() {
     expect(find.text('歌单'), findsNothing);
     expect(find.text('Imagine'), findsNWidgets(2));
 
-    final preferences = await SharedPreferences.getInstance();
-    expect(preferences.getStringList('music_search_history'), ['Imagine']);
+    final preferences = AppPreferencesService();
+    expect(await preferences.read('music_search_history'), ['Imagine']);
   });
 
   testWidgets('renders the wide desktop layout at 1536 by 900', (tester) async {
