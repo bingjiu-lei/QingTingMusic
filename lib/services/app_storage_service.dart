@@ -35,6 +35,7 @@ class AppStorageService {
     } else {
       await dataDirectory.create(recursive: true);
     }
+    await ensureCurrentUserAccess(dataDirectory);
     if (!Platform.isWindows) return;
 
     final localAppData = Platform.environment['LOCALAPPDATA'];
@@ -83,6 +84,30 @@ class AppStorageService {
       }
     } catch (_) {
       // Old public files may have restrictive ACLs. New writes still use userdata.
+    }
+  }
+
+  static Future<void> ensureCurrentUserAccess(FileSystemEntity entity) async {
+    if (!Platform.isWindows) return;
+    final userName = Platform.environment['USERNAME'];
+    if (userName == null || userName.isEmpty) return;
+    final domain = Platform.environment['USERDOMAIN'];
+    final identity = domain == null || domain.isEmpty
+        ? userName
+        : '$domain\\$userName';
+    final permission = entity is Directory
+        ? '$identity:(OI)(CI)F'
+        : '$identity:F';
+    try {
+      await Process.run('icacls', [
+        entity.path,
+        '/inheritance:e',
+        '/grant:r',
+        permission,
+        '/Q',
+      ]);
+    } catch (_) {
+      // Playback retries with a fresh cache file if Windows rejects an old ACL.
     }
   }
 }

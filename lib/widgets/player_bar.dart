@@ -183,6 +183,7 @@ class _BufferedProgress extends StatelessWidget {
               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
               overlayColor: AppColors.primary.withValues(alpha: 0.12),
               overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
+              trackShape: const _EdgeToEdgeSliderTrackShape(),
             ),
             child: Slider(
               value: played,
@@ -202,5 +203,22 @@ class _BufferedProgress extends StatelessWidget {
       0,
       1,
     );
+  }
+}
+
+class _EdgeToEdgeSliderTrackShape extends RoundedRectSliderTrackShape {
+  const _EdgeToEdgeSliderTrackShape();
+
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final trackHeight = sliderTheme.trackHeight ?? 0;
+    final top = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    return Rect.fromLTWH(offset.dx, top, parentBox.size.width, trackHeight);
   }
 }

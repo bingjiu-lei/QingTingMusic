@@ -48,6 +48,10 @@ class MusicLibraryController extends ChangeNotifier {
       .where((item) => item.kind == MusicPlaylistKind.collectedPlaylist)
       .toList();
 
+  List<MusicPlaylist> get sortedAlbums => albums.reversed.toList();
+
+  List<Song> get sortedCloudSongs => cloudSongs.reversed.toList();
+
   bool isLoading(LibrarySection section) => loading.contains(section);
 
   bool hasData(LibrarySection section) => switch (section) {

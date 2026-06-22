@@ -269,6 +269,10 @@ class KugouApiClient {
           final json = _map(value);
           final image = _read(json, ['pic', 'img']);
           final source = _toInt(json['source']);
+          final ownerId = _read(json, ['list_create_userid', 'userid']);
+          final isMine =
+              ownerId.isNotEmpty && ownerId == session.userId ||
+              _toInt(json['is_mine']) == 1;
           return MusicPlaylist(
             id: _read(json, ['global_collection_id', 'list_create_gid']),
             listId: _read(json, ['listid', 'list_create_listid']),
@@ -276,12 +280,12 @@ class KugouApiClient {
             songCount: _toInt(json['m_count'] ?? json['song_count']),
             coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
             isDefault: _toInt(json['is_def']) > 0,
-            isMine: _toInt(json['is_mine']) == 1,
+            isMine: isMine,
             kind: _toInt(json['is_def']) > 0
                 ? MusicPlaylistKind.favoriteSongs
                 : source == 2
                 ? MusicPlaylistKind.album
-                : _toInt(json['is_mine']) == 1
+                : isMine
                 ? MusicPlaylistKind.createdPlaylist
                 : MusicPlaylistKind.collectedPlaylist,
           );

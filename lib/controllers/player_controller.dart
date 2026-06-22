@@ -31,6 +31,9 @@ class PlayerController extends ChangeNotifier {
         if (value != null && value != Duration.zero) duration = value;
         notifyListeners();
       }),
+      audioService.completedStream.listen((_) {
+        unawaited(_handleCompletion());
+      }),
       audioService.errorStream.listen((message) {
         isPlaying = false;
         errorText = message.isEmpty ? '播放失败，请稍后重试。' : message;
@@ -53,6 +56,21 @@ class PlayerController extends ChangeNotifier {
   Duration duration = Duration.zero;
   String? errorText;
   final List<Song> recentSongs = [];
+  bool _handlingCompletion = false;
+
+  Future<void> _handleCompletion() async {
+    if (_handlingCompletion || isPreparing || currentSong == null) return;
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (isPreparing || duration <= Duration.zero) return;
+    final remaining = duration - position;
+    if (remaining > const Duration(seconds: 2)) return;
+    _handlingCompletion = true;
+    try {
+      await playNext();
+    } finally {
+      _handlingCompletion = false;
+    }
+  }
 
   Future<void> initialize() async {
     final saved = await recentSongsService?.load() ?? const [];

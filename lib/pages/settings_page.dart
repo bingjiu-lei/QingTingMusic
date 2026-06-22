@@ -65,7 +65,7 @@ class _SettingsPageState extends State<SettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PageHeader(title: '设置', subtitle: '调整晴听音乐的使用偏好'),
+          PageHeader(title: '设置', subtitle: '调整晴听音乐的使用偏好'),
           const SizedBox(height: 22),
           Container(
             width: double.infinity,
@@ -135,13 +135,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const Divider(height: 34),
-                const _SettingRow(
+                _SettingRow(
                   icon: Icons.high_quality_rounded,
                   title: '播放音质',
                   value: '标准音质',
                 ),
                 const Divider(height: 28),
-                const _SettingRow(
+                _SettingRow(
                   icon: Icons.info_outline_rounded,
                   title: '关于晴听音乐',
                   value: '1.0.0',

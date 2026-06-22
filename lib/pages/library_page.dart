@@ -60,7 +60,7 @@ class _LibraryPageState extends State<LibraryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const PageHeader(title: '我的音乐', subtitle: '收藏与个人音乐内容'),
+          PageHeader(title: '我的音乐', subtitle: '收藏与个人音乐内容'),
           const SizedBox(height: 18),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -98,7 +98,7 @@ class _LibraryPageState extends State<LibraryPage> {
         onOpen: widget.onOpenPlaylist,
       ),
       LibrarySection.albums => _PlaylistGrid(
-        playlists: controller.albums,
+        playlists: controller.sortedAlbums,
         onOpen: widget.onOpenPlaylist,
         emptyText: '还没有收藏的专辑',
       ),
@@ -107,7 +107,11 @@ class _LibraryPageState extends State<LibraryPage> {
         emptyText: '还没有收藏的歌手',
         onSelected: widget.onOpenCatalog,
       ),
-      LibrarySection.cloud => _songs('云盘歌曲', controller.cloudSongs, '云盘中还没有歌曲'),
+      LibrarySection.cloud => _songs(
+        '云盘歌曲',
+        controller.sortedCloudSongs,
+        '云盘中还没有歌曲',
+      ),
       LibrarySection.recent => _songs('最近播放', widget.recentSongs, '还没有播放记录'),
     };
 

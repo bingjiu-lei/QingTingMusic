@@ -59,33 +59,31 @@ class _SongRowState extends State<SongRow> {
           child: Row(
             children: [
               SizedBox(
-                width: 34,
-                child: IconButton(
-                  tooltip: active && widget.isPlaying ? '暂停' : '播放',
-                  padding: EdgeInsets.zero,
-                  onPressed: widget.onPlay,
-                  icon: Icon(
-                    active && widget.isPlaying
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    color: active ? AppColors.primary : AppColors.muted,
-                    size: 21,
-                  ),
-                ),
-              ),
-              SizedBox(
-                width: 28,
-                child: active
-                    ? Icon(
-                        widget.isPlaying
-                            ? Icons.graphic_eq_rounded
-                            : Icons.music_note_rounded,
-                        color: AppColors.primary,
-                        size: 16,
+                width: 42,
+                child: _hovered
+                    ? IconButton(
+                        tooltip: active && widget.isPlaying ? '暂停' : '播放',
+                        padding: EdgeInsets.zero,
+                        onPressed: widget.onPlay,
+                        icon: Icon(
+                          active && widget.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: active ? AppColors.primary : AppColors.muted,
+                          size: 21,
+                        ),
                       )
-                    : Text(
-                        '${widget.index + 1}'.padLeft(2, '0'),
-                        style: TextStyle(color: AppColors.faint, fontSize: 11),
+                    : Center(
+                        child: Text(
+                          '${widget.index + 1}'.padLeft(2, '0'),
+                          style: TextStyle(
+                            color: active ? AppColors.primary : AppColors.faint,
+                            fontSize: 11,
+                            fontWeight: active
+                                ? FontWeight.w700
+                                : FontWeight.w400,
+                          ),
+                        ),
                       ),
               ),
               AlbumArt(

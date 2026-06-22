@@ -33,6 +33,12 @@ class AudioPlayerService {
   Stream<Duration?> get durationStream =>
       _player?.durationStream ?? const Stream<Duration?>.empty();
 
+  Stream<void> get completedStream =>
+      _player?.processingStateStream
+          .where((state) => state == ProcessingState.completed)
+          .map((_) {}) ??
+      const Stream<void>.empty();
+
   Stream<String> get errorStream => _errors.stream;
 
   bool get isEnabled => _player != null;
@@ -43,8 +49,14 @@ class AudioPlayerService {
     final url = song.audioUrl.trim();
     if (url.isEmpty) throw StateError('播放地址为空');
 
-    final file = await _download(song, Uri.parse(url));
-    await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
+    var file = await _download(song, Uri.parse(url));
+    try {
+      await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
+    } on PlayerException {
+      await _discard(file);
+      file = await _download(song, Uri.parse(url), force: true);
+      await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
+    }
     unawaited(player.play());
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!player.playing) {
@@ -56,9 +68,10 @@ class AudioPlayerService {
     }
   }
 
-  Future<File> _download(Song song, Uri uri) async {
+  Future<File> _download(Song song, Uri uri, {bool force = false}) async {
     final directory = AppStorageService.directory('audio');
     await directory.create(recursive: true);
+    await AppStorageService.ensureCurrentUserAccess(directory);
     final extension = uri.pathSegments.last.contains('.')
         ? uri.pathSegments.last.split('.').last
         : 'mp3';
@@ -66,11 +79,12 @@ class AudioPlayerService {
       RegExp(r'[^A-Za-z0-9_-]'),
       '_',
     );
-    final file = File('${directory.path}\\$safeId.$extension');
-    if (await file.exists() && await file.length() > 1024) return file;
+    final file = File('${directory.path}\\v2_$safeId.$extension');
+    if (!force && await _isReadableAudio(file)) return file;
+    await _discard(file);
 
     final partial = File('${file.path}.part');
-    if (await partial.exists()) await partial.delete();
+    await _discard(partial);
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 20);
     client.findProxy = (_) {
@@ -95,11 +109,34 @@ class AudioPlayerService {
       if (await partial.length() <= 1024) {
         throw const HttpException('音频文件内容为空');
       }
-      return await partial.rename(file.path);
+      final completed = await partial.rename(file.path);
+      await AppStorageService.ensureCurrentUserAccess(completed);
+      if (!await _isReadableAudio(completed)) {
+        throw FileSystemException('下载后的音频文件不可读取', completed.path);
+      }
+      return completed;
     } finally {
       client.close(force: true);
-      if (await partial.exists()) await partial.delete();
+      await _discard(partial);
     }
+  }
+
+  Future<bool> _isReadableAudio(File file) async {
+    try {
+      if (!await file.exists() || await file.length() <= 1024) return false;
+      await AppStorageService.ensureCurrentUserAccess(file);
+      final handle = await file.open(mode: FileMode.read);
+      await handle.close();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _discard(File file) async {
+    try {
+      if (await file.exists()) await file.delete();
+    } catch (_) {}
   }
 
   Future<void> play() async => _player?.play();
