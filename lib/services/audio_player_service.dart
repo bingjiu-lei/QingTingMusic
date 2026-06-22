@@ -48,15 +48,15 @@ class AudioPlayerService {
     if (player == null) return;
     final url = song.audioUrl.trim();
     if (url.isEmpty) throw StateError('播放地址为空');
+    final uri = Uri.parse(url);
 
-    var file = await _download(song, Uri.parse(url));
-    try {
-      await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
-    } on PlayerException {
-      await _discard(file);
-      file = await _download(song, Uri.parse(url), force: true);
-      await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
-    }
+    // EchoMusic also hands the resolved URL directly to its playback engine.
+    // This avoids Windows Media Foundation rejecting a local cache file due to
+    // machine-specific ACL or packaged-app permission differences.
+    await player.setAudioSource(
+      AudioSource.uri(uri, headers: const {_userAgentHeader: _userAgent}),
+    );
+    unawaited(_cacheInBackground(song, uri));
     unawaited(player.play());
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!player.playing) {
@@ -68,7 +68,15 @@ class AudioPlayerService {
     }
   }
 
-  Future<File> _download(Song song, Uri uri, {bool force = false}) async {
+  Future<void> _cacheInBackground(Song song, Uri uri) async {
+    try {
+      await _download(song, uri);
+    } catch (_) {
+      // A cache failure must never interrupt online playback.
+    }
+  }
+
+  Future<File> _download(Song song, Uri uri) async {
     final directory = AppStorageService.directory('audio');
     await directory.create(recursive: true);
     await AppStorageService.ensureCurrentUserAccess(directory);
@@ -79,8 +87,8 @@ class AudioPlayerService {
       RegExp(r'[^A-Za-z0-9_-]'),
       '_',
     );
-    final file = File('${directory.path}\\v2_$safeId.$extension');
-    if (!force && await _isReadableAudio(file)) return file;
+    final file = File('${directory.path}\\v3_$safeId.$extension');
+    if (await _isReadableAudio(file)) return file;
     await _discard(file);
 
     final partial = File('${file.path}.part');
@@ -97,10 +105,7 @@ class AudioPlayerService {
     };
     try {
       final request = await client.getUrl(uri);
-      request.headers.set(
-        HttpHeaders.userAgentHeader,
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      );
+      request.headers.set(_userAgentHeader, _userAgent);
       final response = await request.close();
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('音频下载失败：${response.statusCode}');
@@ -152,4 +157,7 @@ class AudioPlayerService {
     await _player?.dispose();
     await _errors.close();
   }
+
+  static const _userAgentHeader = HttpHeaders.userAgentHeader;
+  static const _userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)';
 }

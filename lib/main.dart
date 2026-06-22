@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
@@ -8,6 +9,8 @@ import 'services/app_storage_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  JustAudioMediaKit.title = '晴听音乐';
+  JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
   await AppStorageService.initialize();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
