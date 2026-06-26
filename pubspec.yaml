@@ -40,6 +40,9 @@ dependencies:
   dio: ^5.9.2
   win32: ^6.3.0
   ffi: ^2.2.0
+  crypto: ^3.0.7
+  qr_flutter: ^4.1.0
+  pointycastle: ^4.0.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -61,6 +64,10 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+  assets:
+    - assets/images/app_icon_light.png
+    - assets/images/app_icon_dark.png
+    - assets/images/album_placeholder.png
   fonts:
     - family: NotoSansSC
       fonts:

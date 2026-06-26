@@ -76,6 +76,10 @@ class PlayerBar extends StatelessWidget {
                 IconButton(
                   tooltip: '上一首',
                   onPressed: song == null ? null : controller.playPrevious,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(42, 42),
+                    iconSize: 24,
+                  ),
                   icon: const Icon(Icons.skip_previous_rounded),
                 ),
                 FilledButton(
@@ -111,6 +115,10 @@ class PlayerBar extends StatelessWidget {
                 IconButton(
                   tooltip: '下一首',
                   onPressed: song == null ? null : controller.playNext,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(42, 42),
+                    iconSize: 24,
+                  ),
                   icon: const Icon(Icons.skip_next_rounded),
                 ),
                 SizedBox(width: compact ? 8 : 18),

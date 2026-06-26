@@ -7,6 +7,7 @@ import 'package:qing_ting_music/data/demo_music_repository.dart';
 import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/song.dart';
 import 'package:qing_ting_music/services/audio_player_service.dart';
+import 'package:qing_ting_music/services/kugou_api_client.dart';
 
 void main() {
   test('automatically advances when playback completes', () async {
@@ -39,6 +40,36 @@ void main() {
 
     controller.dispose();
   });
+
+  test(
+    'keeps the playing song visible when the next song cannot resolve',
+    () async {
+      final audio = _FakeAudioPlayerService();
+      final songs = [_song('one'), _song('blocked')];
+      final controller = PlayerController(
+        audioService: audio,
+        resolveSong: (song) async {
+          if (song.id == 'blocked') {
+            throw const KugouApiException('暂时无法获取这首歌的播放地址');
+          }
+          return song;
+        },
+      );
+
+      await controller.playSong(songs.first, fromQueue: songs);
+      audio.seekTo(const Duration(seconds: 42));
+      await Future<void>.delayed(Duration.zero);
+      await controller.playSong(songs.last, fromQueue: songs);
+
+      expect(controller.currentSong?.id, 'one');
+      expect(controller.isPlaying, isTrue);
+      expect(controller.position, const Duration(seconds: 42));
+      expect(controller.errorText, contains('blocked'));
+      expect(audio.opened.map((song) => song.id), ['one']);
+
+      controller.dispose();
+    },
+  );
 
   test('albums and cloud songs are exposed newest first', () {
     final controller = MusicLibraryController(DemoMusicRepository())
@@ -91,6 +122,8 @@ class _FakeAudioPlayerService extends AudioPlayerService {
   void complete() => _completed.add(null);
 
   void finish(Duration duration) => _position.add(duration);
+
+  void seekTo(Duration position) => _position.add(position);
 
   @override
   Future<void> dispose() async {

@@ -87,6 +87,12 @@ class PlayerController extends ChangeNotifier {
       queue = [song];
     }
 
+    final previousSong = currentSong;
+    final previousPosition = position;
+    final previousBufferedPosition = bufferedPosition;
+    final previousDuration = duration;
+    final previousWasPlaying = isPlaying || audioService.isPlaying;
+
     try {
       errorText = null;
       currentSong = song;
@@ -128,21 +134,63 @@ class PlayerController extends ChangeNotifier {
       isPreparing = false;
       notifyListeners();
     } on AuthenticationRequiredException {
-      isPlaying = false;
-      isPreparing = false;
-      errorText = '登录后即可播放在线歌曲';
-      notifyListeners();
+      _handlePlaybackFailure(
+        attemptedSong: song,
+        previousSong: previousSong,
+        previousPosition: previousPosition,
+        previousBufferedPosition: previousBufferedPosition,
+        previousDuration: previousDuration,
+        previousWasPlaying: previousWasPlaying,
+        message: '登录后即可播放在线歌曲',
+      );
     } on KugouApiException catch (error) {
-      isPlaying = false;
-      isPreparing = false;
-      errorText = error.message;
-      notifyListeners();
+      _handlePlaybackFailure(
+        attemptedSong: song,
+        previousSong: previousSong,
+        previousPosition: previousPosition,
+        previousBufferedPosition: previousBufferedPosition,
+        previousDuration: previousDuration,
+        previousWasPlaying: previousWasPlaying,
+        message: error.message,
+      );
     } catch (error) {
-      isPlaying = false;
-      isPreparing = false;
-      errorText = '播放失败：$error';
-      notifyListeners();
+      _handlePlaybackFailure(
+        attemptedSong: song,
+        previousSong: previousSong,
+        previousPosition: previousPosition,
+        previousBufferedPosition: previousBufferedPosition,
+        previousDuration: previousDuration,
+        previousWasPlaying: previousWasPlaying,
+        message: '播放失败：$error',
+      );
     }
+  }
+
+  void _handlePlaybackFailure({
+    required Song attemptedSong,
+    required Song? previousSong,
+    required Duration previousPosition,
+    required Duration previousBufferedPosition,
+    required Duration previousDuration,
+    required bool previousWasPlaying,
+    required String message,
+  }) {
+    isPreparing = false;
+    errorText = '${attemptedSong.title}：$message';
+    if (previousSong != null && previousWasPlaying) {
+      currentSong = previousSong;
+      position = previousPosition;
+      bufferedPosition = previousBufferedPosition;
+      duration = previousDuration;
+      isPlaying = true;
+    } else {
+      currentSong = attemptedSong;
+      position = Duration.zero;
+      bufferedPosition = Duration.zero;
+      duration = attemptedSong.duration;
+      isPlaying = false;
+    }
+    notifyListeners();
   }
 
   Future<void> _saveRecentSongs() async {

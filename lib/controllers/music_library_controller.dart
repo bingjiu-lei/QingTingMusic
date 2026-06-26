@@ -40,12 +40,18 @@ class MusicLibraryController extends ChangeNotifier {
     return null;
   }
 
+  List<Song> get sortedFavorites => favorites.reversed.toList();
+
   List<MusicPlaylist> get createdPlaylists => playlists
       .where((item) => item.kind == MusicPlaylistKind.createdPlaylist)
+      .toList()
+      .reversed
       .toList();
 
   List<MusicPlaylist> get collectedPlaylists => playlists
       .where((item) => item.kind == MusicPlaylistKind.collectedPlaylist)
+      .toList()
+      .reversed
       .toList();
 
   List<MusicPlaylist> get sortedAlbums => albums.reversed.toList();
@@ -95,20 +101,35 @@ class MusicLibraryController extends ChangeNotifier {
         case LibrarySection.songs:
           final nextPlaylists = await _loadPlaylists(refresh: refresh);
           final favorite = _favoriteFrom(nextPlaylists);
-          favorites = favorite == null
-              ? const []
+          final nextFavorites = favorite == null
+              ? const <Song>[]
               : await repository.getPlaylistSongs(favorite);
+          if (nextFavorites.isNotEmpty || favorites.isEmpty) {
+            favorites = nextFavorites;
+          }
         case LibrarySection.playlists:
-          playlists = await _loadPlaylists(refresh: refresh);
+          final nextPlaylists = await _loadPlaylists(refresh: refresh);
+          if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
+            playlists = nextPlaylists;
+          }
         case LibrarySection.albums:
           final nextPlaylists = await _loadPlaylists(refresh: refresh);
-          albums = nextPlaylists
+          final nextAlbums = nextPlaylists
               .where((item) => item.kind == MusicPlaylistKind.album)
               .toList();
+          if (nextAlbums.isNotEmpty || albums.isEmpty) {
+            albums = nextAlbums;
+          }
         case LibrarySection.artists:
-          followedArtists = await repository.getFollowedArtists();
+          final nextArtists = await repository.getFollowedArtists();
+          if (nextArtists.isNotEmpty || followedArtists.isEmpty) {
+            followedArtists = nextArtists;
+          }
         case LibrarySection.cloud:
-          cloudSongs = await repository.getCloudSongs();
+          final nextCloudSongs = await repository.getCloudSongs();
+          if (nextCloudSongs.isNotEmpty || cloudSongs.isEmpty) {
+            cloudSongs = nextCloudSongs;
+          }
         case LibrarySection.recent:
           break;
       }

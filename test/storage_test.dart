@@ -29,6 +29,13 @@ void main() {
     expect(await AppStorageService.file('settings.json').exists(), isTrue);
   });
 
+  test('uses official API mode when endpoint is not configured', () async {
+    final service = ApiEndpointService(verifier: (_) async {});
+    expect(await service.load(), isEmpty);
+    await service.save('   ');
+    expect(await service.load(), isEmpty);
+  });
+
   test('persists recent songs', () async {
     final service = RecentSongsService();
     const song = Song(

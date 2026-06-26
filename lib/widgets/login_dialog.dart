@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../controllers/auth_controller.dart';
 import '../theme/app_theme.dart';
@@ -98,6 +99,7 @@ class _LoginDialogState extends State<LoginDialog> {
     }
 
     final image = _decodeImage(controller.qrImageDataUrl);
+    final qrText = controller.qrText;
     return Column(
       children: [
         Container(
@@ -110,11 +112,17 @@ class _LoginDialogState extends State<LoginDialog> {
             border: Border.all(color: AppColors.divider),
           ),
           child: image == null
-              ? const SizedBox(
-                  width: 28,
-                  height: 28,
-                  child: CircularProgressIndicator(strokeWidth: 2.5),
-                )
+              ? qrText == null || qrText.isEmpty
+                    ? const SizedBox(
+                        width: 28,
+                        height: 28,
+                        child: CircularProgressIndicator(strokeWidth: 2.5),
+                      )
+                    : QrImageView(
+                        data: qrText,
+                        size: 196,
+                        backgroundColor: Colors.white,
+                      )
               : Image.memory(
                   image,
                   width: 204,
@@ -136,7 +144,7 @@ class _LoginDialogState extends State<LoginDialog> {
         ),
         const SizedBox(height: 6),
         Text(
-          '请使用酷狗概念版扫描二维码并在手机上确认。',
+          '请使用移动端扫描二维码并在手机上确认。',
           textAlign: TextAlign.center,
           style: TextStyle(color: AppColors.muted, fontSize: 12),
         ),

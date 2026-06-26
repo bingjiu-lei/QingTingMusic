@@ -7,8 +7,9 @@ import '../models/kugou_session.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
-import 'secure_session_storage.dart';
 import 'api_endpoint_service.dart';
+import 'kugou_official_client.dart';
+import 'secure_session_storage.dart';
 
 class AuthenticationRequiredException implements Exception {
   const AuthenticationRequiredException();
@@ -24,10 +25,15 @@ class KugouApiException implements Exception {
 }
 
 class KugouQrCode {
-  const KugouQrCode({required this.key, required this.imageDataUrl});
+  const KugouQrCode({
+    required this.key,
+    required this.imageDataUrl,
+    this.qrText,
+  });
 
   final String key;
   final String imageDataUrl;
+  final String? qrText;
 }
 
 class KugouQrCheckResult {
@@ -44,22 +50,70 @@ class KugouApiClient {
     ApiEndpointService? endpointService,
   }) : _dio = dio ?? _createDio(''),
        _storage = storage ?? SecureSessionStorage(),
-       _endpointService = endpointService ?? ApiEndpointService();
+       _endpointService = endpointService ?? ApiEndpointService(),
+       _officialClient = KugouOfficialClient();
 
   final Dio _dio;
   final SecureSessionStorage _storage;
   final ApiEndpointService _endpointService;
+  final KugouOfficialClient _officialClient;
 
   KugouSession session = const KugouSession();
 
   Future<void> initialize() async {
     session = await _storage.load();
-    if (!session.hasDevice) {
+    if (!session.hasDevice || await _needsOfficialDeviceRefresh()) {
       await registerDevice();
     }
   }
 
+  Future<bool> _needsOfficialDeviceRefresh() async {
+    if (!await _usesOfficialApi()) return false;
+    final guidLooksValid = RegExp(r'^[0-9a-f]{32}$').hasMatch(session.guid);
+    final dfidLooksSynthetic = RegExp(r'^[0-9A-Z]{24}$').hasMatch(session.dfid);
+    return !guidLooksValid || dfidLooksSynthetic;
+  }
+
   Future<void> registerDevice() async {
+    if (await _usesOfficialApi()) {
+      final guid = !RegExp(r'^[0-9a-f]{32}$').hasMatch(session.guid)
+          ? KugouOfficialClient.randomGuid()
+          : session.guid;
+      session = session.copyWith(
+        mid: session.mid.isEmpty
+            ? KugouOfficialClient.midFromGuid(guid)
+            : session.mid,
+        guid: guid,
+        device: session.device.isEmpty
+            ? KugouOfficialClient.randomDeviceId()
+            : session.device,
+        mac: session.mac.isEmpty
+            ? KugouOfficialClient.randomMac()
+            : session.mac,
+      );
+      final response = await _officialRequest(
+        '/register/dev',
+        queryParameters: {
+          'userid': session.userId,
+          'token': session.token,
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+        },
+        bypassCache: true,
+      );
+      final body = _map(response.data);
+      final data = _map(body['data']);
+      final dfid = _read(data, ['dfid'], fallback: _read(body, ['dfid']));
+      if (dfid.isEmpty) {
+        throw const KugouApiException('设备初始化失败，请稍后重试');
+      }
+      session = _mergeCookies(
+        session.copyWith(dfid: dfid),
+        response.headers.map['set-cookie'] ?? const [],
+      );
+      await _storage.save(session);
+      return;
+    }
+
     final response = await _get(
       '/register/dev',
       queryParameters: {'timestamp': DateTime.now().millisecondsSinceEpoch},
@@ -84,12 +138,17 @@ class KugouApiClient {
     );
     final data = _map(_map(response.data)['data']);
     final key = (data['qrcode'] ?? data['key'] ?? '').toString();
+    var qrText = (data['qrcode_txt'] ?? data['qrText'] ?? '').toString();
     var image = (data['qrcode_img'] ?? data['base64'] ?? '').toString();
 
     if (key.isEmpty) {
       throw const KugouApiException('二维码生成失败');
     }
-    if (image.isEmpty) {
+    if (image.isEmpty && qrText.isEmpty && await _usesOfficialApi()) {
+      qrText =
+          'https://h5.kugou.com/apps/loginQRCode/html/index.html?qrcode=$key';
+    }
+    if (image.isEmpty && qrText.isEmpty) {
       final create = await _get(
         '/login/qr/create',
         queryParameters: {
@@ -103,10 +162,10 @@ class KugouApiClient {
       image = (createData['base64'] ?? createData['qrcode_img'] ?? '')
           .toString();
     }
-    if (image.isEmpty) {
+    if (image.isEmpty && qrText.isEmpty) {
       throw const KugouApiException('二维码图片生成失败');
     }
-    return KugouQrCode(key: key, imageDataUrl: image);
+    return KugouQrCode(key: key, imageDataUrl: image, qrText: qrText);
   }
 
   Future<KugouQrCheckResult> checkLoginQr(String key) async {
@@ -164,7 +223,9 @@ class KugouApiClient {
   }
 
   Future<List<Song>> searchSongs(String keyword) async {
-    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    if (!await _usesOfficialApi() && !session.isLoggedIn) {
+      throw const AuthenticationRequiredException();
+    }
 
     final response = await _get(
       '/search',
@@ -185,7 +246,11 @@ class KugouApiClient {
 
     final data = _map(body['data']);
     final records = _list(
-      data['lists'] ?? data['list'] ?? data['songs'] ?? body['lists'],
+      data['lists'] ??
+          data['list'] ??
+          data['songs'] ??
+          data['info'] ??
+          body['lists'],
     );
     return records.map(_songFromSearch).whereType<Song>().toList();
   }
@@ -194,7 +259,9 @@ class KugouApiClient {
     String keyword,
     SearchCategory category,
   ) async {
-    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    if (!await _usesOfficialApi() && !session.isLoggedIn) {
+      throw const AuthenticationRequiredException();
+    }
 
     final type = switch (category) {
       SearchCategory.album => 'album',
@@ -220,7 +287,8 @@ class KugouApiClient {
       throw const AuthenticationRequiredException();
     }
 
-    final records = _list(_map(body['data'])['lists']);
+    final data = _map(body['data']);
+    final records = _list(data['lists'] ?? data['info'] ?? body['data']);
     return records
         .map((value) => _catalogItem(value, category))
         .whereType<SearchCatalogItem>()
@@ -264,24 +332,35 @@ class KugouApiClient {
       queryParameters: {'page': 1, 'pagesize': 100},
     );
     final data = _map(_map(response.data)['data']);
-    return _list(data['info'] ?? data['lists'])
+    _throwIfAuthFailed(response.data);
+    return _findRecords(data)
         .map((value) {
           final json = _map(value);
-          final image = _read(json, ['pic', 'img']);
+          final image = _read(json, ['pic', 'img', 'sizable_cover']);
           final source = _toInt(json['source']);
-          final ownerId = _read(json, ['list_create_userid', 'userid']);
+          final ownerId = _read(json, [
+            'list_create_userid',
+            'userid',
+            'user_id',
+          ]);
           final isMine =
               ownerId.isNotEmpty && ownerId == session.userId ||
               _toInt(json['is_mine']) == 1;
+          final isDefault = _toInt(json['is_def'] ?? json['is_default']) > 0;
           return MusicPlaylist(
-            id: _read(json, ['global_collection_id', 'list_create_gid']),
-            listId: _read(json, ['listid', 'list_create_listid']),
+            id: _read(json, [
+              'global_collection_id',
+              'list_create_gid',
+              'gid',
+              'specialid',
+            ]),
+            listId: _read(json, ['listid', 'list_create_listid', 'specialid']),
             name: _read(json, ['name'], fallback: '未命名歌单'),
             songCount: _toInt(json['m_count'] ?? json['song_count']),
             coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
-            isDefault: _toInt(json['is_def']) > 0,
+            isDefault: isDefault,
             isMine: isMine,
-            kind: _toInt(json['is_def']) > 0
+            kind: isDefault
                 ? MusicPlaylistKind.favoriteSongs
                 : source == 2
                 ? MusicPlaylistKind.album
@@ -290,7 +369,7 @@ class KugouApiClient {
                 : MusicPlaylistKind.collectedPlaylist,
           );
         })
-        .where((item) => item.id.isNotEmpty)
+        .where((item) => item.id.isNotEmpty || item.listId.isNotEmpty)
         .toList();
   }
 
@@ -299,7 +378,12 @@ class KugouApiClient {
       '/playlist/track/all',
       authenticated: true,
       bypassCache: true,
-      queryParameters: {'id': playlist.id, 'page': 1, 'pagesize': 200},
+      queryParameters: {
+        'id': playlist.id,
+        'listid': playlist.listId,
+        'page': 1,
+        'pagesize': 200,
+      },
     );
     return _parseSongCollection(response.data, liked: playlist.isDefault);
   }
@@ -312,6 +396,7 @@ class KugouApiClient {
       bypassCache: true,
       queryParameters: {'page': 1, 'pagesize': 100},
     );
+    _throwIfAuthFailed(response.data);
     return _parseSongCollection(response.data, cloud: true);
   }
 
@@ -321,7 +406,8 @@ class KugouApiClient {
       authenticated: true,
       bypassCache: true,
     );
-    final records = _list(_map(_map(response.data)['data'])['lists']);
+    _throwIfAuthFailed(response.data);
+    final records = _findRecords(_map(response.data)['data']);
     return records
         .map((value) {
           final json = _map(value);
@@ -372,7 +458,9 @@ class KugouApiClient {
 
   Future<Song> resolvePlayback(Song song) async {
     if (song.audioUrl.isNotEmpty) return song;
-    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    if (!await _usesOfficialApi() && !session.isLoggedIn) {
+      throw const AuthenticationRequiredException();
+    }
     if (song.hash == null || song.hash!.isEmpty) {
       throw const KugouApiException('歌曲缺少播放信息');
     }
@@ -403,6 +491,14 @@ class KugouApiClient {
     bool bypassCache = false,
   }) async {
     try {
+      final officialMode = await _usesOfficialApi();
+      if (officialMode) {
+        return await _officialRequest(
+          path,
+          queryParameters: queryParameters,
+          bypassCache: bypassCache,
+        );
+      }
       await _configureEndpoint();
       return await _dio.get<Object?>(
         path,
@@ -439,6 +535,15 @@ class KugouApiClient {
     bool authenticated = false,
   }) async {
     try {
+      final officialMode = await _usesOfficialApi();
+      if (officialMode) {
+        return await _officialRequest(
+          path,
+          queryParameters: queryParameters,
+          method: 'POST',
+          bypassCache: true,
+        );
+      }
       await _configureEndpoint();
       return await _dio.post<Object?>(
         path,
@@ -473,6 +578,42 @@ class KugouApiClient {
     _dio.options.baseUrl = endpoint;
   }
 
+  Future<bool> _usesOfficialApi() async =>
+      (await _endpointService.load()).isEmpty;
+
+  Future<Response<Object?>> _officialRequest(
+    String path, {
+    Map<String, Object?>? queryParameters,
+    String method = 'GET',
+    bool bypassCache = false,
+  }) async {
+    final result = await _officialClient.request(
+      path,
+      queryParameters: queryParameters ?? const {},
+      method: method,
+      session: session,
+      bypassCache: bypassCache,
+    );
+    return Response<Object?>(
+      data: result['data'],
+      statusCode: _toInt(result['statusCode']),
+      headers: Headers.fromMap({
+        'set-cookie': (result['setCookie'] as List<Object?>? ?? const [])
+            .map((value) => value.toString())
+            .toList(),
+      }),
+      requestOptions: RequestOptions(path: path),
+    );
+  }
+
+  void _throwIfAuthFailed(Object? response) {
+    final body = _map(response);
+    final errorCode = _toInt(body['error_code'] ?? body['ErrorCode']);
+    if (errorCode == 152 || errorCode == 20017) {
+      throw const AuthenticationRequiredException();
+    }
+  }
+
   Song? _songFromSearch(Object? value) {
     final json = _map(value);
     final hash = _read(json, ['FileHash', 'filehash', 'hash', 'Hash']);
@@ -482,8 +623,9 @@ class KugouApiClient {
       'song_name',
       'title',
       'FileName',
+      'filename',
     ]);
-    final artist = _read(json, [
+    var artist = _read(json, [
       'SingerName',
       'singername',
       'singer_name',
@@ -491,9 +633,19 @@ class KugouApiClient {
     ], fallback: '未知歌手');
     final prefix = '$artist - ';
     if (title.startsWith(prefix)) title = title.substring(prefix.length);
+    if (artist == '未知歌手' && title.contains(' - ')) {
+      final parts = title.split(' - ');
+      artist = parts.first.trim();
+      title = parts.skip(1).join(' - ').trim();
+    }
     if (hash.isEmpty || title.isEmpty) return null;
 
-    final image = _read(json, ['Image', 'image', 'img']);
+    final image = _read(json, [
+      'Image',
+      'image',
+      'img',
+      'imgurl',
+    ], fallback: _coverFromTransParam(json['trans_param']));
     return Song(
       id: hash,
       title: title,
@@ -567,6 +719,7 @@ class KugouApiClient {
       'audio_name',
       'songname',
       'FileName',
+      'filename',
     ], fallback: _read(base, ['audio_name']));
     if (artist == '未知歌手' && title.contains(' - ')) {
       final parts = title.split(' - ');
@@ -584,10 +737,13 @@ class KugouApiClient {
     final cover = _read(
       json,
       ['cover', 'img'],
-      fallback: _read(albumInfo, [
-        'cover',
-        'sizable_cover',
-      ], fallback: _read(transParam, ['union_cover'])),
+      fallback: _read(
+        albumInfo,
+        ['cover', 'sizable_cover'],
+        fallback: _read(transParam, [
+          'union_cover',
+        ], fallback: _coverFromTransParam(json['trans_param'])),
+      ),
     );
     var duration = _toInt(
       json['timelen'] ??
@@ -611,6 +767,7 @@ class KugouApiClient {
       albumId: _nullableInt(
         json['album_id'] ??
             json['albumid'] ??
+            json['albumId'] ??
             base['album_id'] ??
             albumInfo['album_id'] ??
             albumInfo['id'],
@@ -637,10 +794,14 @@ class KugouApiClient {
     final json = _map(value);
     final fields = switch (category) {
       SearchCategory.album => (
-        id: _read(json, ['albumid']),
-        title: _read(json, ['albumname']),
-        subtitle: _read(json, ['singer', 'author_name'], fallback: '未知歌手'),
-        image: _read(json, ['img']),
+        id: _read(json, ['albumid', 'album_id']),
+        title: _read(json, ['albumname', 'album_name']),
+        subtitle: _read(json, [
+          'singer',
+          'author_name',
+          'singername',
+        ], fallback: '未知歌手'),
+        image: _read(json, ['img', 'imgurl']),
       ),
       SearchCategory.artist => (
         id: _read(json, ['AuthorId', 'authorid', 'singerid']),
@@ -686,7 +847,7 @@ class KugouApiClient {
 Dio _createDio(String _) {
   final dio = Dio(
     BaseOptions(
-      baseUrl: ApiEndpointService.defaultEndpoint,
+      baseUrl: '',
       connectTimeout: const Duration(seconds: 15),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 15),
@@ -759,6 +920,13 @@ String _read(
     if (value.isNotEmpty) return value;
   }
   return fallback;
+}
+
+String _coverFromTransParam(Object? value) {
+  final text = value?.toString() ?? '';
+  if (text.isEmpty) return '';
+  final match = RegExp(r'union_cover=([^;}\s]+)').firstMatch(text);
+  return match?.group(1) ?? '';
 }
 
 String? _findAudioUrl(Object? value) {

@@ -144,62 +144,78 @@ class _Brand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tooltip = isDark ? '切换浅色模式' : '切换深色模式';
-    return Row(
-      mainAxisAlignment: compact
-          ? MainAxisAlignment.center
-          : MainAxisAlignment.start,
-      children: [
-        Tooltip(
-          message: tooltip,
-          child: Material(
-            color: AppColors.primary,
+    return Tooltip(
+      message: tooltip,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          child: InkWell(
+            onTap: onToggleTheme,
             borderRadius: BorderRadius.circular(10),
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              onTap: onToggleTheme,
-              hoverColor: Colors.white.withValues(alpha: 0.14),
-              highlightColor: Colors.white.withValues(alpha: 0.18),
-              splashColor: Colors.white.withValues(alpha: 0.22),
-              child: SizedBox(
-                width: 42,
-                height: 42,
-                child: Center(
-                  child: AnimatedSwitcher(
-                    duration: Duration(milliseconds: 200),
-                    transitionBuilder: (child, animation) => RotationTransition(
-                      turns: Tween<double>(
-                        begin: 0.85,
-                        end: 1,
-                      ).animate(animation),
-                      child: FadeTransition(opacity: animation, child: child),
-                    ),
-                    child: Icon(
-                      isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
-                      key: ValueKey(isDark),
-                      color: Colors.white,
-                      size: 24,
+            hoverColor: AppColors.selected.withValues(alpha: 0.55),
+            highlightColor: AppColors.selected.withValues(alpha: 0.7),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              height: 46,
+              padding: EdgeInsets.symmetric(horizontal: compact ? 0 : 4),
+              child: Row(
+                mainAxisAlignment: compact
+                    ? MainAxisAlignment.center
+                    : MainAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        final scale = Tween<double>(
+                          begin: 0.96,
+                          end: 1,
+                        ).animate(animation);
+                        return FadeTransition(
+                          opacity: animation,
+                          child: ScaleTransition(scale: scale, child: child),
+                        );
+                      },
+                      child: Image.asset(
+                        isDark
+                            ? 'assets/images/app_icon_dark.png'
+                            : 'assets/images/app_icon_light.png',
+                        key: ValueKey(isDark),
+                        width: 42,
+                        height: 42,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
+                  if (!compact) ...[
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: AnimatedDefaultTextStyle(
+                        duration: const Duration(milliseconds: 220),
+                        curve: Curves.easeOutCubic,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        child: const Text('晴听音乐'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
           ),
         ),
-        if (!compact) ...[
-          SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              '晴听音乐',
-              maxLines: 1,
-              style: TextStyle(
-                color: AppColors.text,
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ],
+      ),
     );
   }
 }

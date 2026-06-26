@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-
 class AlbumArt extends StatelessWidget {
   const AlbumArt({
     super.key,
@@ -16,41 +14,14 @@ class AlbumArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: emphasized ? AppColors.primary : Color(0xFFDCE7F3),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: size * 0.15,
-            right: size * 0.15,
-            top: size * 0.28,
-            child: Container(
-              height: 1,
-              color: Colors.white.withValues(alpha: 0.5),
-            ),
-          ),
-          Positioned(
-            left: size * 0.22,
-            right: size * 0.12,
-            top: size * 0.48,
-            child: Container(
-              height: 1,
-              color: Colors.white.withValues(alpha: 0.38),
-            ),
-          ),
-          Center(
-            child: Icon(
-              Icons.music_note_rounded,
-              size: size * 0.43,
-              color: Colors.white,
-            ),
-          ),
-        ],
+    final placeholder = ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Image.asset(
+        'assets/images/album_placeholder.png',
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
       ),
     );
     if (imageUrl == null || imageUrl!.isEmpty) return placeholder;

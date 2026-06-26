@@ -92,16 +92,21 @@ class MusicSearchController extends ChangeNotifier {
 
     try {
       if (category == SearchCategory.song) {
-        results = _songCache[query] ?? await repository.searchSongs(query);
-        _songCache[query] = results;
+        final cached = _songCache[query];
+        results = _usableSongCache(cached)
+            ? cached!
+            : await repository.searchSongs(query);
+        if (results.isNotEmpty) _songCache[query] = results;
         unawaited(cacheService.save(_songCache, _catalogCache));
         catalogResults = const [];
       } else {
         final key = '${category.name}:$query';
-        catalogResults =
-            _catalogCache[key] ?? await _loadCatalog(query, category);
+        final cached = _catalogCache[key];
+        catalogResults = cached != null && cached.isNotEmpty
+            ? cached
+            : await _loadCatalog(query, category);
         if (request != _searchRequest) return;
-        _catalogCache[key] = catalogResults;
+        if (catalogResults.isNotEmpty) _catalogCache[key] = catalogResults;
         unawaited(cacheService.save(_songCache, _catalogCache));
         results = const [];
       }
@@ -137,17 +142,23 @@ class MusicSearchController extends ChangeNotifier {
     if (hasSearched && keyword.trim().isNotEmpty) {
       final query = keyword.trim();
       if (value == SearchCategory.song && _songCache.containsKey(query)) {
-        results = _songCache[query]!;
-        catalogResults = const [];
-        notifyListeners();
-        return;
+        final cached = _songCache[query]!;
+        if (_usableSongCache(cached)) {
+          results = cached;
+          catalogResults = const [];
+          notifyListeners();
+          return;
+        }
       }
       final key = '${value.name}:$query';
       if (_catalogCache.containsKey(key)) {
-        catalogResults = _catalogCache[key]!;
-        results = const [];
-        notifyListeners();
-        return;
+        final cached = _catalogCache[key]!;
+        if (cached.isNotEmpty) {
+          catalogResults = cached;
+          results = const [];
+          notifyListeners();
+          return;
+        }
       }
       await search();
     } else {
@@ -183,6 +194,13 @@ class MusicSearchController extends ChangeNotifier {
         _catalogRequests.remove(key);
       }
     });
+  }
+
+  bool _usableSongCache(List<Song>? songs) {
+    if (songs == null || songs.isEmpty) return false;
+    return songs.any(
+      (song) => song.coverUrl != null && song.coverUrl!.isNotEmpty,
+    );
   }
 
   void clearError() {

@@ -7,7 +7,6 @@ class ApiEndpointService {
   ApiEndpointService({this.verifier});
 
   static const storageKey = 'music_api_endpoint';
-  static const defaultEndpoint = 'https://kugou.bingjiu.cc.cd';
   final Future<void> Function(String endpoint)? verifier;
 
   Future<String> load() async {
@@ -19,7 +18,7 @@ class ApiEndpointService {
         return json[storageKey]?.toString() ?? '';
       } catch (_) {}
     }
-    return defaultEndpoint;
+    return '';
   }
 
   Future<void> save(String value) async {

@@ -91,7 +91,11 @@ class _LibraryPageState extends State<LibraryPage> {
     final controller = widget.controller;
     final section = tabs[selectedTab].$2;
     final content = switch (section) {
-      LibrarySection.songs => _songs('歌曲', controller.favorites, '还没有收藏的歌曲'),
+      LibrarySection.songs => _songs(
+        '歌曲',
+        controller.sortedFavorites,
+        '还没有收藏的歌曲',
+      ),
       LibrarySection.playlists => _PlaylistGroups(
         created: controller.createdPlaylists,
         collected: controller.collectedPlaylists,

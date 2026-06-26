@@ -23,6 +23,7 @@ class AuthController extends ChangeNotifier {
 
   AuthState state = AuthState.initializing;
   String? qrImageDataUrl;
+  String? qrText;
   String? errorText;
   int? lastQrStatus;
   Timer? _pollTimer;
@@ -52,6 +53,7 @@ class AuthController extends ChangeNotifier {
     _pollTimer?.cancel();
     state = AuthState.loadingQr;
     qrImageDataUrl = null;
+    qrText = null;
     errorText = null;
     lastQrStatus = null;
     notifyListeners();
@@ -61,6 +63,7 @@ class AuthController extends ChangeNotifier {
       final qr = await apiClient.createLoginQr();
       _qrKey = qr.key;
       qrImageDataUrl = qr.imageDataUrl;
+      qrText = qr.qrText;
       state = AuthState.waitingScan;
       notifyListeners();
       _pollTimer = Timer.periodic(
@@ -115,6 +118,7 @@ class AuthController extends ChangeNotifier {
     _pollTimer?.cancel();
     await apiClient.logout();
     qrImageDataUrl = null;
+    qrText = null;
     errorText = null;
     state = AuthState.loggedOut;
     notifyListeners();

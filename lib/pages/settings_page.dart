@@ -86,7 +86,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  '用于登录、搜索和在线播放。地址会保存在本机。',
+                  '留空时直接请求官方接口；填写后使用这个域名下的服务器接口。',
                   style: TextStyle(color: AppColors.muted, fontSize: 12),
                 ),
                 const SizedBox(height: 14),
@@ -96,7 +96,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: TextField(
                         controller: _controller,
                         decoration: InputDecoration(
-                          hintText: 'https://example.com',
+                          hintText:
+                              '留空使用官方接口，或填写 https://music-api.example.com',
                           prefixIcon: const Icon(Icons.dns_outlined, size: 20),
                           filled: true,
                           fillColor: AppColors.page,
@@ -123,8 +124,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 Text(
                   _errorText ??
                       (_activeEndpoint.isEmpty
-                          ? '当前未配置后端，在线功能不可用'
-                          : '当前生效：$_activeEndpoint'),
+                          ? '当前模式：官方接口'
+                          : '当前模式：自定义后端 $_activeEndpoint'),
                   style: TextStyle(
                     color: _errorText == null
                         ? AppColors.muted
