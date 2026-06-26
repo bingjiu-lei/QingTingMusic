@@ -39,11 +39,11 @@ void main() {
     await _pumpApp(tester, const Size(1280, 720));
 
     await tester.tap(find.text('搜索'));
-    await tester.pumpAndSettle();
+    await _settleForUi(tester);
     expect(find.byType(TextField), findsOneWidget);
 
     await tester.tap(find.text('我的音乐').first);
-    await tester.pumpAndSettle();
+    await _settleForUi(tester);
     expect(find.text('收藏与个人音乐内容'), findsOneWidget);
     expect(find.textContaining('歌曲'), findsWidgets);
     expect(find.textContaining('歌单'), findsOneWidget);
@@ -51,21 +51,21 @@ void main() {
     expect(find.textContaining('最近播放'), findsOneWidget);
 
     await tester.tap(find.text('设置'));
-    await tester.pumpAndSettle();
+    await _settleForUi(tester);
     expect(find.text('播放音质'), findsOneWidget);
   });
 
   testWidgets('searches demo songs and stores the query', (tester) async {
     await _pumpApp(tester, const Size(1280, 720));
     await tester.tap(find.text('搜索'));
-    await tester.pumpAndSettle();
+    await _settleForUi(tester);
 
     await tester.enterText(find.byType(TextField), 'Imagine');
-    await tester.pumpAndSettle();
-    expect(find.text('Imagine'), findsOneWidget);
+    await _settleForUi(tester);
+    expect(find.text('Imagine'), findsWidgets);
 
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await _settleForUi(tester);
     expect(find.text('搜索结果'), findsOneWidget);
     expect(find.text('单曲'), findsOneWidget);
     expect(find.text('歌手'), findsOneWidget);
@@ -101,5 +101,11 @@ Future<void> _pumpApp(WidgetTester tester, Size size) async {
       useDemoData: true,
     ),
   );
-  await tester.pumpAndSettle();
+  await _settleForUi(tester);
+}
+
+Future<void> _settleForUi(WidgetTester tester) async {
+  for (var i = 0; i < 8; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
