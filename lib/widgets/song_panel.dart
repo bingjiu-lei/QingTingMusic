@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 
 import '../models/song.dart';
 import '../theme/app_theme.dart';
+import 'list_scroll_actions.dart';
 import 'song_row.dart';
 
-class SongPanel extends StatelessWidget {
+class SongPanel extends StatefulWidget {
   const SongPanel({
     super.key,
     required this.title,
@@ -31,7 +32,30 @@ class SongPanel extends StatelessWidget {
   final ValueChanged<Song>? onAlbum;
 
   @override
+  State<SongPanel> createState() => _SongPanelState();
+}
+
+class _SongPanelState extends State<SongPanel> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  int? get _currentIndex {
+    final current = widget.currentSong;
+    if (current == null) return null;
+    for (var i = 0; i < widget.songs.length; i++) {
+      if (widget.songs[i].id == current.id) return i;
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final itemExtent = widget.compactRows ? 59.0 : 67.0;
     return Container(
       padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
       decoration: BoxDecoration(
@@ -42,7 +66,7 @@ class SongPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            title,
+            widget.title,
             style: TextStyle(
               color: AppColors.text,
               fontSize: 17,
@@ -51,36 +75,50 @@ class SongPanel extends StatelessWidget {
           ),
           SizedBox(height: 10),
           Expanded(
-            child: songs.isEmpty
+            child: widget.songs.isEmpty
                 ? Center(
                     child: Text(
-                      emptyText,
+                      widget.emptyText,
                       style: TextStyle(color: AppColors.faint, fontSize: 13),
                     ),
                   )
-                : ListView.separated(
-                    itemCount: songs.length,
-                    separatorBuilder: (_, _) => Divider(
-                      height: 1,
-                      thickness: 0.5,
-                      color: AppColors.divider,
-                    ),
-                    itemBuilder: (context, index) {
-                      final song = songs[index];
-                      return SongRow(
-                        song: song,
-                        index: index,
-                        compact: compactRows,
-                        isCurrent: currentSong?.id == song.id,
-                        isPlaying: isPlaying,
-                        onPlay: () => onPlay(song),
-                        onLike: onLike == null ? null : () => onLike!(song),
-                        onArtist: onArtist == null
-                            ? null
-                            : () => onArtist!(song),
-                        onAlbum: onAlbum == null ? null : () => onAlbum!(song),
-                      );
-                    },
+                : Stack(
+                    children: [
+                      ListView.separated(
+                        controller: _scrollController,
+                        itemCount: widget.songs.length,
+                        separatorBuilder: (_, _) => Divider(
+                          height: 1,
+                          thickness: 0.5,
+                          color: AppColors.divider,
+                        ),
+                        itemBuilder: (context, index) {
+                          final song = widget.songs[index];
+                          return SongRow(
+                            song: song,
+                            index: index,
+                            compact: widget.compactRows,
+                            isCurrent: widget.currentSong?.id == song.id,
+                            isPlaying: widget.isPlaying,
+                            onPlay: () => widget.onPlay(song),
+                            onLike: widget.onLike == null
+                                ? null
+                                : () => widget.onLike!(song),
+                            onArtist: widget.onArtist == null
+                                ? null
+                                : () => widget.onArtist!(song),
+                            onAlbum: widget.onAlbum == null
+                                ? null
+                                : () => widget.onAlbum!(song),
+                          );
+                        },
+                      ),
+                      ListScrollActions(
+                        controller: _scrollController,
+                        currentIndex: _currentIndex,
+                        itemExtent: itemExtent,
+                      ),
+                    ],
                   ),
           ),
         ],

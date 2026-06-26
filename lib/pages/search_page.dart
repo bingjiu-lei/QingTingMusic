@@ -4,6 +4,7 @@ import '../controllers/music_search_controller.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
+import '../widgets/list_scroll_actions.dart';
 import '../widgets/search_catalog_list.dart';
 import '../widgets/song_row.dart';
 
@@ -166,7 +167,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
-class _SearchResults extends StatelessWidget {
+class _SearchResults extends StatefulWidget {
   const _SearchResults({
     required this.controller,
     required this.currentSong,
@@ -190,7 +191,31 @@ class _SearchResults extends StatelessWidget {
   final ValueChanged<Song> onOpenAlbum;
 
   @override
+  State<_SearchResults> createState() => _SearchResultsState();
+}
+
+class _SearchResultsState extends State<_SearchResults> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  int? get _currentIndex {
+    final current = widget.currentSong;
+    if (current == null) return null;
+    final results = widget.controller.results;
+    for (var i = 0; i < results.length; i++) {
+      if (results[i].id == current.id) return i;
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final controller = widget.controller;
     return Container(
       padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
       decoration: BoxDecoration(
@@ -233,6 +258,13 @@ class _SearchResults extends StatelessWidget {
                     top: 0,
                     child: LinearProgressIndicator(minHeight: 2),
                   ),
+                if (controller.category == SearchCategory.song)
+                  ListScrollActions(
+                    controller: _scrollController,
+                    currentIndex: _currentIndex,
+                    itemExtent: 67.0,
+                    scrollPadding: 8.0,
+                  ),
               ],
             ),
           ),
@@ -242,6 +274,7 @@ class _SearchResults extends StatelessWidget {
   }
 
   Widget _body() {
+    final controller = widget.controller;
     if (controller.isLoading && !_hasVisibleData()) {
       return const _SearchLoading();
     }
@@ -249,7 +282,7 @@ class _SearchResults extends StatelessWidget {
       return _SearchError(
         message: controller.errorText!,
         showLogin: controller.requiresLogin,
-        onLogin: onLogin,
+        onLogin: widget.onLogin,
       );
     }
     if (controller.category == SearchCategory.song) {
@@ -262,6 +295,7 @@ class _SearchResults extends StatelessWidget {
         );
       }
       return ListView.separated(
+        controller: _scrollController,
         padding: EdgeInsets.only(top: 8),
         itemCount: controller.results.length,
         separatorBuilder: (_, _) =>
@@ -271,12 +305,12 @@ class _SearchResults extends StatelessWidget {
           return SongRow(
             song: song,
             index: index,
-            isCurrent: currentSong?.id == song.id,
-            isPlaying: isPlaying,
-            onPlay: () => onPlay(song),
-            onLike: () => onLike(song),
-            onArtist: () => onOpenArtist(song),
-            onAlbum: () => onOpenAlbum(song),
+            isCurrent: widget.currentSong?.id == song.id,
+            isPlaying: widget.isPlaying,
+            onPlay: () => widget.onPlay(song),
+            onLike: () => widget.onLike(song),
+            onArtist: () => widget.onOpenArtist(song),
+            onAlbum: () => widget.onOpenAlbum(song),
           );
         },
       );
@@ -284,11 +318,12 @@ class _SearchResults extends StatelessWidget {
     return SearchCatalogList(
       items: controller.catalogResults,
       emptyText: '没有找到相关${controller.category.label}',
-      onSelected: onOpenCatalog,
+      onSelected: widget.onOpenCatalog,
     );
   }
 
   bool _hasVisibleData() {
+    final controller = widget.controller;
     return controller.category == SearchCategory.song
         ? controller.results.isNotEmpty
         : controller.catalogResults.isNotEmpty;

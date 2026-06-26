@@ -42,7 +42,11 @@ class AppSidebar extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _Brand(compact: compact),
+          _Brand(
+            compact: compact,
+            isDark: isDark,
+            onToggleTheme: onToggleTheme,
+          ),
           SizedBox(height: 32),
           for (var index = 0; index < items.length; index++)
             _NavigationItem(
@@ -53,8 +57,6 @@ class AppSidebar extends StatelessWidget {
               onTap: () => onChanged(index),
             ),
           Spacer(),
-          _ThemeToggle(compact: compact, isDark: isDark, onTap: onToggleTheme),
-          SizedBox(height: 6),
           _LoginEntry(
             compact: compact,
             label: loginLabel,
@@ -62,65 +64,6 @@ class AppSidebar extends StatelessWidget {
             onTap: onLogin,
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ThemeToggle extends StatelessWidget {
-  const _ThemeToggle({
-    required this.compact,
-    required this.isDark,
-    required this.onTap,
-  });
-
-  final bool compact;
-  final bool isDark;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = isDark ? '切换浅色模式' : '切换深色模式';
-    return Tooltip(
-      message: compact ? label : '',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          hoverColor: AppColors.selected.withValues(alpha: 0.55),
-          child: SizedBox(
-            height: 42,
-            child: Row(
-              mainAxisAlignment: compact
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                if (!compact) SizedBox(width: 12),
-                AnimatedSwitcher(
-                  duration: Duration(milliseconds: 180),
-                  child: Icon(
-                    isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
-                    key: ValueKey(isDark),
-                    color: AppColors.muted,
-                    size: 20,
-                  ),
-                ),
-                if (!compact) ...[
-                  SizedBox(width: 12),
-                  Text(
-                    isDark ? '浅色模式' : '深色模式',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -188,25 +131,59 @@ class _LoginEntry extends StatelessWidget {
 }
 
 class _Brand extends StatelessWidget {
-  const _Brand({required this.compact});
+  const _Brand({
+    required this.compact,
+    required this.isDark,
+    required this.onToggleTheme,
+  });
 
   final bool compact;
+  final bool isDark;
+  final VoidCallback onToggleTheme;
 
   @override
   Widget build(BuildContext context) {
+    final tooltip = isDark ? '切换浅色模式' : '切换深色模式';
     return Row(
       mainAxisAlignment: compact
           ? MainAxisAlignment.center
           : MainAxisAlignment.start,
       children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
+        Tooltip(
+          message: tooltip,
+          child: Material(
             color: AppColors.primary,
             borderRadius: BorderRadius.circular(10),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onToggleTheme,
+              hoverColor: Colors.white.withValues(alpha: 0.14),
+              highlightColor: Colors.white.withValues(alpha: 0.18),
+              splashColor: Colors.white.withValues(alpha: 0.22),
+              child: SizedBox(
+                width: 42,
+                height: 42,
+                child: Center(
+                  child: AnimatedSwitcher(
+                    duration: Duration(milliseconds: 200),
+                    transitionBuilder: (child, animation) => RotationTransition(
+                      turns: Tween<double>(
+                        begin: 0.85,
+                        end: 1,
+                      ).animate(animation),
+                      child: FadeTransition(opacity: animation, child: child),
+                    ),
+                    child: Icon(
+                      isDark ? Icons.nightlight_round : Icons.wb_sunny_rounded,
+                      key: ValueKey(isDark),
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
-          child: Icon(Icons.wb_sunny_outlined, color: Colors.white, size: 24),
         ),
         if (!compact) ...[
           SizedBox(width: 12),

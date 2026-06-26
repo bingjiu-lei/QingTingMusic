@@ -54,7 +54,9 @@ class _SongRowState extends State<SongRow> {
           color: active
               ? AppColors.selected
               : _hovered
-              ? AppColors.surfaceMuted
+              ? AppColors.primary.withValues(
+                  alpha: AppColors.isDark ? 0.08 : 0.04,
+                )
               : Colors.transparent,
           child: Row(
             children: [
@@ -133,24 +135,33 @@ class _SongRowState extends State<SongRow> {
               ),
               if (widget.showAlbum)
                 Expanded(
-                  child: MouseRegion(
-                    cursor: widget.onAlbum == null
-                        ? MouseCursor.defer
-                        : SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: widget.onAlbum,
-                      child: Text(
-                        widget.song.album,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: widget.onAlbum == null
-                              ? AppColors.muted
-                              : AppColors.primaryPressed,
-                          fontSize: 12,
+                  child: Builder(
+                    builder: (context) {
+                      final albumName = widget.song.album.trim();
+                      final hasAlbum =
+                          albumName.isNotEmpty && albumName != '未知专辑';
+                      final tap = hasAlbum ? widget.onAlbum : null;
+                      final clickable = tap != null;
+                      return MouseRegion(
+                        cursor: tap == null
+                            ? MouseCursor.defer
+                            : SystemMouseCursors.click,
+                        child: GestureDetector(
+                          onTap: tap,
+                          child: Text(
+                            albumName.isEmpty ? '未知专辑' : widget.song.album,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: clickable
+                                  ? AppColors.primaryPressed
+                                  : AppColors.muted,
+                              fontSize: 12,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                    },
                   ),
                 ),
               if (widget.onLike != null)

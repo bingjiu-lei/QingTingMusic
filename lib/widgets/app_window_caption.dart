@@ -14,11 +14,12 @@ class AppWindowCaption extends StatelessWidget {
       return SizedBox(height: 36);
     }
 
+    final dark = Theme.of(context).brightness == Brightness.dark;
     return SizedBox(
       height: 36,
       child: WindowCaption(
         backgroundColor: AppColors.page,
-        brightness: Brightness.light,
+        brightness: dark ? Brightness.dark : Brightness.light,
       ),
     );
   }
