@@ -325,79 +325,137 @@ class KugouApiClient {
 
   Future<List<MusicPlaylist>> getUserPlaylists() async {
     if (!session.isLoggedIn) throw const AuthenticationRequiredException();
-    final response = await _get(
-      '/user/playlist',
-      authenticated: true,
-      bypassCache: true,
-      queryParameters: {'page': 1, 'pagesize': 100},
+    const pageSize = 100;
+    final playlists = <String, MusicPlaylist>{};
+    for (var page = 1; page <= 20; page++) {
+      final response = await _get(
+        '/user/playlist',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {'page': page, 'pagesize': pageSize},
+      );
+      final data = _map(_map(response.data)['data']);
+      _throwIfAuthFailed(response.data);
+      final records = _findRecords(data);
+      if (records.isEmpty) break;
+
+      var added = 0;
+      for (final value in records) {
+        final playlist = _playlistFromJson(value);
+        if (playlist == null) continue;
+        final key = playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+        if (!playlists.containsKey(key)) added++;
+        playlists[key] = playlist;
+      }
+      if (records.length < pageSize || added == 0) break;
+    }
+    return playlists.values.toList();
+  }
+
+  MusicPlaylist? _playlistFromJson(Object? value) {
+    final json = _map(value);
+    final image = _read(json, ['pic', 'img', 'sizable_cover']);
+    final source = _toInt(json['source']);
+    final ownerId = _read(json, ['list_create_userid', 'userid', 'user_id']);
+    final isMine =
+        ownerId.isNotEmpty && ownerId == session.userId ||
+        _toInt(json['is_mine']) == 1;
+    final isDefault = _toInt(json['is_def'] ?? json['is_default']) > 0;
+    final playlist = MusicPlaylist(
+      id: _read(json, [
+        'global_collection_id',
+        'list_create_gid',
+        'gid',
+        'specialid',
+      ]),
+      listId: _read(json, ['listid', 'list_create_listid', 'specialid']),
+      name: _read(json, ['name'], fallback: '未命名歌单'),
+      songCount: _toInt(json['m_count'] ?? json['song_count']),
+      coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
+      isDefault: isDefault,
+      isMine: isMine,
+      kind: isDefault
+          ? MusicPlaylistKind.favoriteSongs
+          : source == 2
+          ? MusicPlaylistKind.album
+          : isMine
+          ? MusicPlaylistKind.createdPlaylist
+          : MusicPlaylistKind.collectedPlaylist,
     );
-    final data = _map(_map(response.data)['data']);
-    _throwIfAuthFailed(response.data);
-    return _findRecords(data)
-        .map((value) {
-          final json = _map(value);
-          final image = _read(json, ['pic', 'img', 'sizable_cover']);
-          final source = _toInt(json['source']);
-          final ownerId = _read(json, [
-            'list_create_userid',
-            'userid',
-            'user_id',
-          ]);
-          final isMine =
-              ownerId.isNotEmpty && ownerId == session.userId ||
-              _toInt(json['is_mine']) == 1;
-          final isDefault = _toInt(json['is_def'] ?? json['is_default']) > 0;
-          return MusicPlaylist(
-            id: _read(json, [
-              'global_collection_id',
-              'list_create_gid',
-              'gid',
-              'specialid',
-            ]),
-            listId: _read(json, ['listid', 'list_create_listid', 'specialid']),
-            name: _read(json, ['name'], fallback: '未命名歌单'),
-            songCount: _toInt(json['m_count'] ?? json['song_count']),
-            coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
-            isDefault: isDefault,
-            isMine: isMine,
-            kind: isDefault
-                ? MusicPlaylistKind.favoriteSongs
-                : source == 2
-                ? MusicPlaylistKind.album
-                : isMine
-                ? MusicPlaylistKind.createdPlaylist
-                : MusicPlaylistKind.collectedPlaylist,
-          );
-        })
-        .where((item) => item.id.isNotEmpty || item.listId.isNotEmpty)
-        .toList();
+    if (playlist.id.isEmpty && playlist.listId.isEmpty) return null;
+    return playlist;
   }
 
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
-    final response = await _get(
-      '/playlist/track/all',
-      authenticated: true,
-      bypassCache: true,
-      queryParameters: {
-        'id': playlist.id,
-        'listid': playlist.listId,
-        'page': 1,
-        'pagesize': 200,
-      },
-    );
-    return _parseSongCollection(response.data, liked: playlist.isDefault);
+    const pageSize = 200;
+    final songs = <String, Song>{};
+    for (var page = 1; page <= 30; page++) {
+      final response = await _get(
+        '/playlist/track/all',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {
+          'id': playlist.id,
+          'listid': playlist.listId,
+          'page': page,
+          'pagesize': pageSize,
+        },
+      );
+      final records = _findRecords(response.data);
+      if (records.isEmpty) break;
+      final pageSongs = records
+          .map(
+            (value) => _songFromCollection(
+              value,
+              liked: playlist.isDefault,
+              cloud: false,
+            ),
+          )
+          .whereType<Song>();
+      var added = 0;
+      for (final song in pageSongs) {
+        final hash = song.hash ?? '';
+        final key = hash.isNotEmpty ? hash : song.id;
+        if (!songs.containsKey(key)) added++;
+        songs[key] = song;
+      }
+      if (playlist.songCount > 0 && songs.length >= playlist.songCount) break;
+      if (records.length < pageSize || added == 0) break;
+    }
+    final result = songs.values.toList();
+    final newestFirst = playlist.kind == MusicPlaylistKind.createdPlaylist;
+    return newestFirst ? result.reversed.toList() : result;
   }
 
   Future<List<Song>> getCloudSongs() async {
     if (!session.isLoggedIn) throw const AuthenticationRequiredException();
-    final response = await _get(
-      '/user/cloud',
-      authenticated: true,
-      bypassCache: true,
-      queryParameters: {'page': 1, 'pagesize': 100},
-    );
-    _throwIfAuthFailed(response.data);
-    return _parseSongCollection(response.data, cloud: true);
+    const pageSize = 100;
+    final songs = <String, Song>{};
+    for (var page = 1; page <= 30; page++) {
+      final response = await _get(
+        '/user/cloud',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {'page': page, 'pagesize': pageSize},
+      );
+      _throwIfAuthFailed(response.data);
+      final records = _findRecords(response.data);
+      if (records.isEmpty) break;
+      final pageSongs = records
+          .map((value) => _songFromCollection(value, liked: false, cloud: true))
+          .whereType<Song>();
+      var added = 0;
+      for (final song in pageSongs) {
+        final hash = song.hash ?? '';
+        final key =
+            song.cloudAudioId?.toString() ?? (hash.isNotEmpty ? hash : song.id);
+        if (!songs.containsKey(key)) added++;
+        songs[key] = song;
+      }
+      if (records.length < pageSize) break;
+      if (added == 0 && songs.isNotEmpty) break;
+    }
+    return songs.values.toList();
   }
 
   Future<List<SearchCatalogItem>> getFollowedArtists() async {
@@ -407,15 +465,34 @@ class KugouApiClient {
       bypassCache: true,
     );
     _throwIfAuthFailed(response.data);
-    final records = _findRecords(_map(response.data)['data']);
+    final records = _findRecords(response.data);
     return records
         .map((value) {
           final json = _map(value);
-          final singerId = _read(json, ['singerid']);
-          final name = _read(json, ['nickname']);
-          if (singerId.isEmpty ||
-              name.isEmpty ||
-              _toInt(json['jumptype']) != 1) {
+          final idenType = _toInt(json['iden_type']);
+          final jumpType = _toInt(json['jumptype']);
+          if ((idenType > 0 && idenType != 1) ||
+              (jumpType > 0 && jumpType != 1)) {
+            return null;
+          }
+          final directSingerId = _read(json, [
+            'singerid',
+            'author_id',
+            'authorid',
+          ]);
+          final singerId = directSingerId.isNotEmpty
+              ? directSingerId
+              : (idenType == 1 || jumpType == 1)
+              ? _read(json, ['id', 'userid'])
+              : '';
+          final name = _read(json, [
+            'nickname',
+            'singername',
+            'name',
+            'author_name',
+            'username',
+          ]);
+          if (singerId.isEmpty || name.isEmpty) {
             return null;
           }
           return SearchCatalogItem(
@@ -423,7 +500,7 @@ class KugouApiClient {
             title: name,
             subtitle: '歌手',
             category: SearchCategory.artist,
-            imageUrl: _read(json, ['pic']),
+            imageUrl: _read(json, ['pic', 'k_pic', 'avatar', 'img']),
           );
         })
         .whereType<SearchCatalogItem>()
@@ -702,10 +779,12 @@ class KugouApiClient {
     final hash = _read(json, [
       'hash',
       'FileHash',
-    ], fallback: _read(audio, ['hash', 'hash_128']));
+      'file_hash',
+      'filehash',
+    ], fallback: _read(audio, ['hash', 'hash_128', 'file_hash']));
     var artist = _read(
       json,
-      ['singername', 'SingerName', 'author_name'],
+      ['singername', 'SingerName', 'author_name', 'singer_name', 'singer'],
       fallback: _read(base, [
         'author_name',
       ], fallback: _read(singerInfo, ['name'], fallback: '未知歌手')),
@@ -718,8 +797,10 @@ class KugouApiClient {
       'name',
       'audio_name',
       'songname',
+      'song_name',
       'FileName',
       'filename',
+      'file_name',
     ], fallback: _read(base, ['audio_name']));
     if (artist == '未知歌手' && title.contains(' - ')) {
       final parts = title.split(' - ');
@@ -732,11 +813,18 @@ class KugouApiClient {
       RegExp(r'\.(mp3|m4a|flac|wav|aac)$', caseSensitive: false),
       '',
     );
-    if (hash.isEmpty || title.isEmpty) return null;
+    final cloudIdentity = _read(json, [
+      'audio_id',
+      'audioid',
+      'mixsongid',
+      'album_audio_id',
+    ], fallback: _read(audio, ['audio_id']));
+    final identity = hash.isNotEmpty ? hash : cloudIdentity;
+    if (identity.isEmpty || title.isEmpty) return null;
 
     final cover = _read(
       json,
-      ['cover', 'img'],
+      ['cover', 'img', 'image', 'imgurl', 'sizable_cover'],
       fallback: _read(
         albumInfo,
         ['cover', 'sizable_cover'],
@@ -754,7 +842,7 @@ class KugouApiClient {
     if (duration > 10000) duration ~/= 1000;
 
     return Song(
-      id: hash,
+      id: identity,
       title: title,
       artist: artist,
       album: _read(json, [
@@ -763,7 +851,7 @@ class KugouApiClient {
       ], fallback: _read(albumInfo, ['album_name', 'name'], fallback: '未知专辑')),
       duration: Duration(seconds: duration),
       audioUrl: '',
-      hash: hash,
+      hash: hash.isEmpty ? null : hash,
       albumId: _nullableInt(
         json['album_id'] ??
             json['albumid'] ??
@@ -776,7 +864,7 @@ class KugouApiClient {
         json['mixsongid'] ?? json['album_audio_id'] ?? base['album_audio_id'],
       ),
       coverUrl: cover.isEmpty ? null : cover.replaceAll('{size}', '240'),
-      fileId: _nullableInt(json['fileid']),
+      fileId: _nullableInt(json['fileid'] ?? json['file_id']),
       artistId: _nullableInt(
         json['singerid'] ??
             json['author_id'] ??
@@ -785,7 +873,13 @@ class KugouApiClient {
             firstAuthor['author_id'],
       ),
       isCloud: cloud,
-      cloudAudioId: _nullableInt(json['audio_id'] ?? base['audio_id']),
+      cloudAudioId: _nullableInt(
+        json['audio_id'] ??
+            json['audioid'] ??
+            json['mixsongid'] ??
+            json['album_audio_id'] ??
+            base['audio_id'],
+      ),
       liked: liked,
     );
   }
@@ -889,7 +983,15 @@ List<Object?> _list(Object? value) => value is List ? value : const [];
 List<Object?> _findRecords(Object? value) {
   if (value is List) return value;
   if (value is Map) {
-    for (final key in ['songs', 'lists', 'list', 'info', 'data']) {
+    for (final key in [
+      'songs',
+      'lists',
+      'list',
+      'info',
+      'records',
+      'items',
+      'data',
+    ]) {
       final nested = value[key];
       if (nested is List) return nested;
       final found = _findRecords(nested);

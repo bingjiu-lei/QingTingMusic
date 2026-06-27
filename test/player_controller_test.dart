@@ -71,11 +71,27 @@ void main() {
     },
   );
 
-  test('albums and cloud songs are exposed newest first', () {
+  test('library collections are exposed newest first', () {
     final controller = MusicLibraryController(DemoMusicRepository())
+      ..favorites = [_song('old'), _song('new')]
+      ..playlists = [
+        _playlist('created-old', kind: MusicPlaylistKind.createdPlaylist),
+        _playlist('created-new', kind: MusicPlaylistKind.createdPlaylist),
+        _playlist('collected-old', kind: MusicPlaylistKind.collectedPlaylist),
+        _playlist('collected-new', kind: MusicPlaylistKind.collectedPlaylist),
+      ]
       ..albums = [_playlist('old'), _playlist('new')]
       ..cloudSongs = [_song('old'), _song('new')];
 
+    expect(controller.sortedFavorites.map((item) => item.id), ['new', 'old']);
+    expect(controller.createdPlaylists.map((item) => item.id), [
+      'created-new',
+      'created-old',
+    ]);
+    expect(controller.collectedPlaylists.map((item) => item.id), [
+      'collected-new',
+      'collected-old',
+    ]);
     expect(controller.sortedAlbums.map((item) => item.id), ['new', 'old']);
     expect(controller.sortedCloudSongs.map((item) => item.id), ['new', 'old']);
   });
@@ -90,8 +106,10 @@ Song _song(String id) => Song(
   audioUrl: 'https://example.com/$id.mp3',
 );
 
-MusicPlaylist _playlist(String id) =>
-    MusicPlaylist(id: id, listId: id, name: id, songCount: 1);
+MusicPlaylist _playlist(
+  String id, {
+  MusicPlaylistKind kind = MusicPlaylistKind.createdPlaylist,
+}) => MusicPlaylist(id: id, listId: id, name: id, songCount: 1, kind: kind);
 
 class _FakeAudioPlayerService extends AudioPlayerService {
   _FakeAudioPlayerService() : super(enabled: false);

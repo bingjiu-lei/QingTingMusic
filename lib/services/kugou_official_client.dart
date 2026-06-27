@@ -30,6 +30,11 @@ class KugouOfficialClient {
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3Z5syug0O24QyQO8bg27+0+4kBzTBTBOZ/WWU0WryL1JSXRTXLgFVxtzIY41Pe7lPOgsfTCn5kZcvKhYKJesKnnJDNr5/abvTGf+rHG3YRwsCHcQ08/q6ifSioBszvb3QiwIDAQAB
 -----END PUBLIC KEY-----
 ''';
+  static const _publicRsaKey = '''
+-----BEGIN PUBLIC KEY-----
+MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HXqTW6lQ7LC8jr9fWZTwusknp+sVGzwd40MwP6U5yDE27M/X1+UR4tvOGOqp94TJtQ1EPnWGWXngpeIW5GxoQGao1rmYWAu6oi1z9XkChrsUdC6DJE5E221wf/4WLFxwAtRQIDAQAB
+-----END PUBLIC KEY-----
+''';
 
   final Dio _dio;
   static final _random = Random.secure();
@@ -157,6 +162,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3
       '/song/url' => _songUrl(params, cookie),
       '/user/cloud' => _cloudSongs(params, cookie),
       '/user/cloud/url' => _cloudSongUrl(params, cookie),
+      '/user/follow' => _userFollow(cookie),
       '/playlist/track/all' => _android(
         '/v4/get_list_all_file',
         {},
@@ -323,6 +329,29 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3
       'name': params['name'] ?? '',
       'with_res_tag': 0,
     }, cookie);
+  }
+
+  _OfficialRequest _userFollow(Map<String, String> cookie) {
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return _android(
+      '/v4/follow_list',
+      {'plat': 1},
+      cookie,
+      method: 'POST',
+      data: {
+        'merge': 2,
+        'need_iden_type': 1,
+        'ext_params': 'k_pic,jumptype,singerid,score',
+        'userid': cookie['userid'] ?? '0',
+        'type': 0,
+        'id_type': 0,
+        'p': _rsaEncrypt({
+          'clienttime': clienttime,
+          'token': cookie['token'] ?? '',
+        }, _publicRsaKey).toUpperCase(),
+      },
+      headers: {'x-router': 'relationuser.kugou.com'},
+    );
   }
 
   _OfficialRequest _search(
@@ -608,7 +637,11 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3
   }
 
   String _rsaEncrypt2(Object data) {
-    final publicKey = _parsePublicKey(_publicLiteRsaKey);
+    return _rsaEncrypt(data, _publicLiteRsaKey);
+  }
+
+  String _rsaEncrypt(Object data, String pem) {
+    final publicKey = _parsePublicKey(pem);
     final engine = PKCS1Encoding(RSAEngine())
       ..init(true, PublicKeyParameter<RSAPublicKey>(publicKey));
     final encrypted = engine.process(
