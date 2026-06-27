@@ -15,6 +15,8 @@
 - 运行 `git status --short`，保留用户和其他协作者尚未提交的改动。
 - 一次只处理明确的一组相关需求，不顺手重构无关模块。
 - 开始修改前先确认需求是否已经完成，避免重复实现。
+- 如果 IDEA MCP 可用，优先用它定位文件、类、方法、符号和调用关系；定位后只读取相关小片段，减少无关上下文。
+- 命令行主要用于 `rg` 批量文本搜索、Git 历史和差异、格式化、测试、构建、提交与推送。
 
 ## 架构边界
 
@@ -48,6 +50,19 @@
 - 简单 UI、文案、间距和局部交互可以快速处理，但仍要遵守现有主题和组件风格。
 - 播放状态、API、账号会话、缓存、分页、后台运行和跨模块重构必须整体分析后再修改。
 - 涉及第三方官方接口、隐藏功能、下载功能或版权边界时，必须先分析方案和风险，不直接实现。
+- 修复用户反馈的 bug 时，先定位“数据源、解析层、状态层、展示层、播放层”中的具体责任点，再改代码；不要只凭截图在页面层兜底。
+- 一次修复不要同时改变多个排序入口。列表原始顺序、控制器派生顺序、页面展示顺序只能选一层负责反转或排序。
+- 用户已经确认正常的行为不要顺手重写。比如收藏歌单详情不倒序、创建歌单详情倒序、我的音乐默认页等，除非用户明确要求。
+- 对照 EchoMusic 时只读相关模块和 mapper，不全仓库大范围检索；优先查看 `server/module`、`src/renderer/api`、`src/renderer/utils/mappers`、相关 view 文件。
+
+## API 与音乐库规则
+
+- 真实 API 问题先用小范围命令确认接口路径、请求参数、返回字段和本地 mapper，再改 UI。
+- API 字段解析要兼容常见别名，例如 `hash/FileHash/file_hash`、`audio_id/audioid/mixsongid/album_audio_id`、`filename/file_name/songname/audio_name`。
+- 云盘歌曲可能没有 `hash`，列表展示可以用 `audio_id/mixsongid/album_audio_id` 作为身份；播放时再按可用字段解析 URL。
+- 歌手收藏接口只展示歌手，不混入用户；字段判断要参考 `singerid`、`iden_type`、`jumptype`，但不要因为某个字段缺失就把全部数据过滤为空。
+- 分页接口优先做有限分页和去重，避免只加载第一页；同时设置上限，防止接口异常导致无限请求。
+- 缓存只作为首屏加速。刷新失败时保留旧数据并提示，不要把空响应直接覆盖掉已有可用数据。
 
 ## 验证
 
@@ -56,6 +71,9 @@
 - 需要完整 UI 回归时运行 `.\scripts\verify.ps1 -FullTests`；如需限制等待时间，可加 `-FullTestTimeoutSeconds 180`。
 - 只想快速检查代码时可以运行 `.\scripts\verify.ps1 -SkipBuild`。
 - 修改播放器时至少运行 `flutter test test\player_controller_test.dart` 和 Windows Release 构建。
+- 修改音乐库、排序、分页、API mapper 时，至少运行核心测试并补充或确认排序测试，避免“修 A 反 B”。
+- 修改 Windows 图标、安装包、版本号或发布资源时，必须跑 Windows 构建或 `.\scripts\package.ps1`。
+- 如果 `flutter analyze`、Widget 测试或构建超时，先检查并清理残留 `dart/flutter_tester` 进程，再重试一次；仍超时则如实说明，不反复耗时重跑。
 - 修改 Flutter 插件时提交自动生成的 Windows 插件注册文件。
 - 如果完整 Widget 测试仍因持续动画超时，必须如实说明，并运行静态检查、相关单测和 Windows 构建。
 
