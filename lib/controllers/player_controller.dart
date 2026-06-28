@@ -70,6 +70,7 @@ class PlayerController extends ChangeNotifier {
   Duration position = Duration.zero;
   Duration bufferedPosition = Duration.zero;
   Duration duration = Duration.zero;
+  double volume = 0.78;
   String? errorText;
   String? playbackNotice;
   final List<Song> recentSongs = [];
@@ -402,6 +403,30 @@ class PlayerController extends ChangeNotifier {
     position = target;
     notifyListeners();
     await audioService.seek(target);
+  }
+
+  Future<void> setVolume(double value) async {
+    volume = value.clamp(0.0, 1.0);
+    notifyListeners();
+    await audioService.setVolume(volume);
+  }
+
+  void updateSongFavorite(Song song, bool liked) {
+    bool sameSong(Song item) =>
+        item.id == song.id || (song.hash != null && item.hash == song.hash);
+    if (currentSong != null && sameSong(currentSong!)) {
+      currentSong = currentSong!.copyWith(liked: liked);
+    }
+    queue = List.unmodifiable([
+      for (final item in queue)
+        sameSong(item) ? item.copyWith(liked: liked) : item,
+    ]);
+    for (var index = 0; index < recentSongs.length; index++) {
+      if (sameSong(recentSongs[index])) {
+        recentSongs[index] = recentSongs[index].copyWith(liked: liked);
+      }
+    }
+    notifyListeners();
   }
 
   @override

@@ -152,6 +152,10 @@ class AudioPlayerService {
 
   Future<void> seek(Duration position) async => _player?.seek(position);
 
+  Future<void> setVolume(double value) async {
+    await _player?.setVolume(value.clamp(0.0, 1.0));
+  }
+
   Future<void> dispose() async {
     await _eventSubscription?.cancel();
     await _player?.dispose();

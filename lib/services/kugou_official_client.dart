@@ -11,6 +11,8 @@ import 'package:pointycastle/export.dart' hide State;
 
 import '../models/kugou_session.dart';
 
+// ignore_for_file: unused_field
+
 class KugouOfficialClient {
   KugouOfficialClient({Dio? dio}) : _dio = dio ?? _createDio();
 
@@ -161,6 +163,8 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       '/search' => _search(params, cookie),
       '/song/url' => _songUrl(params, cookie),
       '/privilege/lite' => _privilegeLite(params, cookie),
+      '/playlist/tracks/add' => _playlistTracksAdd(params, cookie),
+      '/playlist/tracks/del' => _playlistTracksDel(params, cookie),
       '/user/cloud' => _cloudSongs(params, cookie),
       '/user/cloud/url' => _cloudSongUrl(params, cookie),
       '/user/follow' => _userFollow(cookie),
@@ -360,6 +364,86 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       headers: {'x-router': 'relationuser.kugou.com'},
     );
   }
+
+  _OfficialRequest _playlistTracksAdd(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return _android(
+      '/cloudlist.service/v6/add_song',
+      {
+        'last_time': clienttime,
+        'last_area': 'gztx',
+        'userid': cookie['userid'] ?? '0',
+        'token': cookie['token'] ?? '',
+      },
+      cookie,
+      method: 'POST',
+      data: {
+        'userid': cookie['userid'] ?? '0',
+        'token': cookie['token'] ?? '',
+        'listid': params['listid'] ?? '',
+        'list_ver': 0,
+        'type': 0,
+        'slow_upload': 1,
+        'scene': 'false;null',
+        'data': _playlistAddResources(params['data']),
+      },
+    );
+  }
+
+  _OfficialRequest _playlistTracksDel(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    return _android(
+      '/v4/delete_songs',
+      {},
+      cookie,
+      method: 'POST',
+      data: {
+        'userid': cookie['userid'] ?? '0',
+        'token': cookie['token'] ?? '',
+        'listid': params['listid'] ?? '',
+        'list_ver': 0,
+        'type': 0,
+        'data': [
+          for (final fileId in _splitIds(params['fileids']))
+            {'fileid': _toInt(fileId)},
+        ],
+      },
+      headers: {'x-router': 'cloudlist.service.kugou.com'},
+    );
+  }
+
+  List<Map<String, Object?>> _playlistAddResources(Object? value) {
+    return [
+      for (final raw in (value?.toString() ?? '').split(','))
+        if (raw.trim().isNotEmpty) _playlistAddResource(raw),
+    ];
+  }
+
+  Map<String, Object?> _playlistAddResource(String value) {
+    final parts = value.split('|');
+    return {
+      'number': 1,
+      'name': parts.isNotEmpty ? parts[0].trim() : '',
+      'hash': parts.length > 1 ? parts[1].trim() : '',
+      'size': 0,
+      'sort': 0,
+      'timelen': 0,
+      'bitrate': 0,
+      'album_id': parts.length > 2 ? _toInt(parts[2]) : 0,
+      'mixsongid': parts.length > 3 ? _toInt(parts[3]) : 0,
+    };
+  }
+
+  List<String> _splitIds(Object? value) => (value?.toString() ?? '')
+      .split(',')
+      .map((item) => item.trim())
+      .where((item) => item.isNotEmpty)
+      .toList();
 
   _OfficialRequest _search(
     Map<String, Object?> params,

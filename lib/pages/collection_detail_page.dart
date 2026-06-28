@@ -21,9 +21,11 @@ class CollectionDetailPage extends StatefulWidget {
     required this.onBack,
     required this.onPlay,
     required this.onLike,
+    required this.onAddToPlaylist,
     required this.onOpenArtist,
     required this.onOpenAlbum,
     required this.onOpenCatalog,
+    this.onRemoveFromPlaylist,
     this.currentSong,
     this.isPlaying = false,
   });
@@ -38,6 +40,8 @@ class CollectionDetailPage extends StatefulWidget {
   final VoidCallback onBack;
   final SongPlayRequest onPlay;
   final ValueChanged<Song> onLike;
+  final ValueChanged<Song> onAddToPlaylist;
+  final ValueChanged<Song>? onRemoveFromPlaylist;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
@@ -148,6 +152,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         isPlaying: widget.isPlaying,
         onPlay: widget.onPlay,
         onLike: widget.onLike,
+        onAddToPlaylist: widget.onAddToPlaylist,
+        onRemoveFromPlaylist: widget.onRemoveFromPlaylist,
         onArtist: widget.onOpenArtist,
         onAlbum: widget.kind == CollectionDetailKind.album
             ? null

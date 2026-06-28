@@ -1,15 +1,24 @@
 import 'package:flutter/material.dart';
 
 import '../controllers/player_controller.dart';
+import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
 import 'song_row.dart';
 
 class PlayerBar extends StatelessWidget {
-  const PlayerBar({super.key, required this.controller, this.onQueuePressed});
+  const PlayerBar({
+    super.key,
+    required this.controller,
+    this.onQueuePressed,
+    this.onLike,
+    this.onAddToPlaylist,
+  });
 
   final PlayerController controller;
   final VoidCallback? onQueuePressed;
+  final ValueChanged<Song>? onLike;
+  final ValueChanged<Song>? onAddToPlaylist;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +86,25 @@ class PlayerBar extends StatelessWidget {
                           ],
                         ),
                 ),
+                if (song != null && !compact) ...[
+                  IconButton(
+                    tooltip: song.liked ? '取消收藏' : '收藏',
+                    onPressed: onLike == null ? null : () => onLike!(song),
+                    icon: Icon(
+                      song.liked
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: song.liked ? AppColors.primary : AppColors.muted,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: '添加到歌单',
+                    onPressed: onAddToPlaylist == null
+                        ? null
+                        : () => onAddToPlaylist!(song),
+                    icon: const Icon(Icons.playlist_add_rounded),
+                  ),
+                ],
                 IconButton(
                   tooltip: controller.playbackMode.label,
                   onPressed: controller.cyclePlaybackMode,
@@ -152,10 +180,9 @@ class PlayerBar extends StatelessWidget {
                 ),
                 if (!compact) ...[
                   const SizedBox(width: 12),
-                  IconButton(
-                    tooltip: '音量',
-                    onPressed: () {},
-                    icon: const Icon(Icons.volume_up_rounded),
+                  _HoverVolumeControl(
+                    volume: controller.volume,
+                    onChanged: controller.setVolume,
                   ),
                   IconButton(
                     tooltip: '播放队列',
@@ -178,6 +205,97 @@ class PlayerBar extends StatelessWidget {
       PlaybackMode.repeatOne => Icons.repeat_one_rounded,
       PlaybackMode.shuffle => Icons.shuffle_rounded,
     };
+  }
+}
+
+class _HoverVolumeControl extends StatefulWidget {
+  const _HoverVolumeControl({required this.volume, required this.onChanged});
+
+  final double volume;
+  final ValueChanged<double> onChanged;
+
+  @override
+  State<_HoverVolumeControl> createState() => _HoverVolumeControlState();
+}
+
+class _HoverVolumeControlState extends State<_HoverVolumeControl> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: SizedBox(
+        width: 36,
+        height: 42,
+        child: Stack(
+          clipBehavior: Clip.none,
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              widget.volume <= 0.01
+                  ? Icons.volume_off_rounded
+                  : widget.volume < 0.45
+                  ? Icons.volume_down_rounded
+                  : Icons.volume_up_rounded,
+              color: AppColors.muted,
+              size: 21,
+            ),
+            Positioned(
+              bottom: 38,
+              child: IgnorePointer(
+                ignoring: !_hovered,
+                child: AnimatedOpacity(
+                  opacity: _hovered ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.divider),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: SizedBox(
+                      width: 42,
+                      height: 138,
+                      child: RotatedBox(
+                        quarterTurns: -1,
+                        child: SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            trackHeight: 3,
+                            activeTrackColor: AppColors.primary,
+                            inactiveTrackColor: AppColors.divider,
+                            thumbColor: AppColors.primary,
+                            thumbShape: const RoundSliderThumbShape(
+                              enabledThumbRadius: 5,
+                            ),
+                            overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 12,
+                            ),
+                            trackShape: const _EdgeToEdgeSliderTrackShape(),
+                          ),
+                          child: Slider(
+                            value: widget.volume,
+                            onChanged: widget.onChanged,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

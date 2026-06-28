@@ -792,6 +792,14 @@ class KugouApiClient {
       artist = parts.first.trim();
       title = parts.skip(1).join(' - ').trim();
     }
+    final extractedArtists = _extractArtists(json, fallbackName: artist);
+    final normalized = _normalizeTitleAndArtist(
+      title,
+      artist,
+      extractedArtists,
+    );
+    title = normalized.title;
+    artist = normalized.artist;
     if (hash.isEmpty || title.isEmpty) return null;
 
     final image = _read(json, [
@@ -825,6 +833,7 @@ class KugouApiClient {
       artistId: _nullableInt(
         json['SingerId'] ?? json['singerid'] ?? json['author_id'],
       ),
+      artists: _displayArtists(artist, extractedArtists),
     );
   }
 
@@ -870,6 +879,7 @@ class KugouApiClient {
     final firstAuthor = authors.isEmpty
         ? const <String, Object?>{}
         : _map(authors.first);
+    final artistList = _extractArtists(json, fallbackName: artist);
     var title = _read(json, [
       'name',
       'audio_name',
@@ -886,6 +896,9 @@ class KugouApiClient {
     }
     final prefix = '$artist - ';
     if (title.startsWith(prefix)) title = title.substring(prefix.length);
+    final normalized = _normalizeTitleAndArtist(title, artist, artistList);
+    title = normalized.title;
+    artist = normalized.artist;
     title = title.replaceFirst(
       RegExp(r'\.(mp3|m4a|flac|wav|aac)$', caseSensitive: false),
       '',
@@ -949,6 +962,7 @@ class KugouApiClient {
             singerInfo['id'] ??
             firstAuthor['author_id'],
       ),
+      artists: _displayArtists(artist, artistList),
       isCloud: cloud,
       cloudAudioId: _nullableInt(
         json['audio_id'] ??
@@ -1100,6 +1114,127 @@ String _read(
   }
   return fallback;
 }
+
+({String title, String artist}) _normalizeTitleAndArtist(
+  String title,
+  String artist,
+  List<SongArtist> artists,
+) {
+  var normalizedTitle = title.trim();
+  var normalizedArtist = artist.trim();
+  final prefix = '$normalizedArtist - ';
+  if (normalizedTitle.startsWith(prefix)) {
+    normalizedTitle = normalizedTitle.substring(prefix.length).trim();
+  }
+
+  final dashIndex = normalizedTitle.indexOf(' - ');
+  if (dashIndex > 0) {
+    final possibleArtists = normalizedTitle.substring(0, dashIndex).trim();
+    final pureTitle = normalizedTitle.substring(dashIndex + 3).trim();
+    final names = _splitArtists(possibleArtists);
+    final currentNames = artists.isEmpty
+        ? _splitArtists(normalizedArtist)
+        : artists;
+    final containsKnown = currentNames.any(
+      (item) => possibleArtists.contains(item.name),
+    );
+    if (names.length > 1 || containsKnown || normalizedArtist.isEmpty) {
+      normalizedArtist = _artistJoin(names);
+      normalizedTitle = pureTitle;
+    }
+  }
+
+  if (artists.length > 1) normalizedArtist = _artistJoin(artists);
+  return (title: normalizedTitle, artist: normalizedArtist);
+}
+
+List<SongArtist> _extractArtists(
+  Map<String, Object?> json, {
+  required String fallbackName,
+}) {
+  final result = <SongArtist>[];
+
+  void add(String name, Object? id) {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) return;
+    if (result.any((item) => item.name == cleanName)) return;
+    result.add(SongArtist(name: cleanName, id: _nullableInt(id)));
+  }
+
+  for (final source in [
+    json['authors'],
+    json['author'],
+    json['singers'],
+    json['singerinfo'],
+    _map(json['base'])['authors'],
+  ]) {
+    if (source is List) {
+      for (final item in source) {
+        final map = _map(item);
+        add(
+          _read(map, ['name', 'author_name', 'singername', 'SingerName']),
+          map['author_id'] ?? map['singerid'] ?? map['id'],
+        );
+      }
+    } else if (source is Map) {
+      final map = _map(source);
+      add(
+        _read(map, ['name', 'author_name', 'singername', 'SingerName']),
+        map['author_id'] ?? map['singerid'] ?? map['id'],
+      );
+    }
+  }
+
+  if (result.isEmpty) return _splitArtists(fallbackName);
+  return result;
+}
+
+List<SongArtist> _splitArtists(String value) {
+  final normalized = value
+      .replaceAll('、', '/')
+      .replaceAll('，', '/')
+      .replaceAll(',', '/')
+      .replaceAll('&', '/')
+      .replaceAll(RegExp(r'\s+feat\.?\s+', caseSensitive: false), '/')
+      .replaceAll(RegExp(r'\s+ft\.?\s+', caseSensitive: false), '/');
+  final seen = <String>{};
+  return [
+    for (final part in normalized.split('/'))
+      if (_isUsefulArtistName(part) && seen.add(part.trim()))
+        SongArtist(name: part.trim()),
+  ];
+}
+
+bool _isUsefulArtistName(String value) {
+  final text = value.trim();
+  if (text.isEmpty) return false;
+  return RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(text);
+}
+
+List<SongArtist> _displayArtists(String artist, List<SongArtist> extracted) {
+  final display = _splitArtists(artist);
+  if (display.length <= extracted.length && extracted.isNotEmpty) {
+    return extracted;
+  }
+  return [
+    for (final item in display)
+      SongArtist(
+        name: item.name,
+        id: extracted
+            .cast<SongArtist?>()
+            .firstWhere(
+              (candidate) => candidate?.name == item.name,
+              orElse: () => null,
+            )
+            ?.id,
+      ),
+  ];
+}
+
+String _artistJoin(List<SongArtist> artists) => artists
+    .map((item) => item.name)
+    .where((name) => name.isNotEmpty)
+    .join(' / ');
 
 String _coverFromTransParam(Object? value) {
   final text = value?.toString() ?? '';

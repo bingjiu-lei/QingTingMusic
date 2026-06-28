@@ -12,7 +12,10 @@ class SongRow extends StatefulWidget {
     required this.onPlay,
     this.onLike,
     this.onArtist,
+    this.onArtistLink,
     this.onAlbum,
+    this.onAddToPlaylist,
+    this.onRemoveFromPlaylist,
     this.isCurrent = false,
     this.isPlaying = false,
     this.compact = false,
@@ -24,7 +27,10 @@ class SongRow extends StatefulWidget {
   final VoidCallback onPlay;
   final VoidCallback? onLike;
   final VoidCallback? onArtist;
+  final ValueChanged<SongArtist>? onArtistLink;
   final VoidCallback? onAlbum;
+  final VoidCallback? onAddToPlaylist;
+  final VoidCallback? onRemoveFromPlaylist;
   final bool isCurrent;
   final bool isPlaying;
   final bool compact;
@@ -111,24 +117,10 @@ class _SongRowState extends State<SongRow> {
                       ),
                     ),
                     SizedBox(height: 3),
-                    MouseRegion(
-                      cursor: widget.onArtist == null
-                          ? MouseCursor.defer
-                          : SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: widget.onArtist,
-                        child: Text(
-                          widget.song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: widget.onArtist == null
-                                ? AppColors.muted
-                                : AppColors.primaryPressed,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
+                    _ArtistLine(
+                      song: widget.song,
+                      onArtist: widget.onArtist,
+                      onArtistLink: widget.onArtistLink,
                     ),
                   ],
                 ),
@@ -181,6 +173,46 @@ class _SongRowState extends State<SongRow> {
                     ),
                   ),
                 ),
+              if (widget.onAddToPlaylist != null)
+                SizedBox(
+                  width: 34,
+                  child: IgnorePointer(
+                    ignoring: !_hovered,
+                    child: AnimatedOpacity(
+                      opacity: _hovered ? 1 : 0,
+                      duration: const Duration(milliseconds: 120),
+                      child: IconButton(
+                        tooltip: '添加到歌单',
+                        onPressed: widget.onAddToPlaylist,
+                        icon: Icon(
+                          Icons.playlist_add_rounded,
+                          color: AppColors.muted,
+                          size: 19,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              if (widget.onRemoveFromPlaylist != null)
+                SizedBox(
+                  width: 34,
+                  child: IgnorePointer(
+                    ignoring: !_hovered,
+                    child: AnimatedOpacity(
+                      opacity: _hovered ? 1 : 0,
+                      duration: const Duration(milliseconds: 120),
+                      child: IconButton(
+                        tooltip: '从歌单移除',
+                        onPressed: widget.onRemoveFromPlaylist,
+                        icon: Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppColors.muted,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               SizedBox(width: 8),
               Text(
                 formatDuration(widget.song.duration),
@@ -193,6 +225,90 @@ class _SongRowState extends State<SongRow> {
       ),
     );
   }
+}
+
+class _ArtistLine extends StatelessWidget {
+  const _ArtistLine({required this.song, this.onArtist, this.onArtistLink});
+
+  final Song song;
+  final VoidCallback? onArtist;
+  final ValueChanged<SongArtist>? onArtistLink;
+
+  @override
+  Widget build(BuildContext context) {
+    final artists =
+        (song.artists.isEmpty
+                ? [SongArtist(name: song.artist, id: song.artistId)]
+                : song.artists)
+            .where((artist) => _hasVisibleText(artist.name))
+            .toList();
+    final fallbackArtist = _hasVisibleText(song.artist) ? song.artist : '未知歌手';
+    if (artists.isEmpty) {
+      return Text(
+        fallbackArtist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.muted, fontSize: 12),
+      );
+    }
+    if (artists.length <= 1 || onArtistLink == null) {
+      return MouseRegion(
+        cursor: onArtist == null ? MouseCursor.defer : SystemMouseCursors.click,
+        child: GestureDetector(
+          onTap: onArtist,
+          child: Text(
+            fallbackArtist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: onArtist == null
+                  ? AppColors.muted
+                  : AppColors.primaryPressed,
+              fontSize: 12,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 17,
+      child: ClipRect(
+        child: Row(
+          children: [
+            for (var index = 0; index < artists.length; index++) ...[
+              Flexible(
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: GestureDetector(
+                    onTap: () => onArtistLink!(artists[index]),
+                    child: Text(
+                      artists[index].name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.primaryPressed,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (index != artists.length - 1)
+                Text(
+                  ' / ',
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+bool _hasVisibleText(String value) {
+  return RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(value);
 }
 
 String formatDuration(Duration value) {

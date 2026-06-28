@@ -19,6 +19,7 @@ import '../services/search_history_service.dart';
 import '../services/recent_songs_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
+import '../widgets/add_to_playlist_dialog.dart';
 import '../widgets/login_dialog.dart';
 import '../widgets/play_queue_panel.dart';
 import '../widgets/player_bar.dart';
@@ -63,6 +64,7 @@ class _MusicShellState extends State<MusicShell> {
   List<SearchCatalogItem> detailRelatedItems = [];
   bool detailLoading = false;
   CollectionDetailKind detailKind = CollectionDetailKind.playlist;
+  MusicPlaylist? detailPlaylist;
   bool showQueuePanel = false;
 
   @override
@@ -148,6 +150,10 @@ class _MusicShellState extends State<MusicShell> {
                 : item,
           )
           .toList();
+      playerController.updateSongFavorite(
+        song,
+        libraryController.isFavorite(song),
+      );
       _refresh();
     } catch (error) {
       if (!mounted) return;
@@ -168,6 +174,7 @@ class _MusicShellState extends State<MusicShell> {
       detailKind = item.category == SearchCategory.artist
           ? CollectionDetailKind.artist
           : CollectionDetailKind.album;
+      detailPlaylist = null;
     });
     try {
       final results = await Future.wait<Object>([
@@ -205,6 +212,7 @@ class _MusicShellState extends State<MusicShell> {
       detailKind = playlist.kind == MusicPlaylistKind.album
           ? CollectionDetailKind.album
           : CollectionDetailKind.playlist;
+      detailPlaylist = playlist;
     });
     try {
       final songs = await libraryController.loadPlaylist(playlist);
@@ -245,6 +253,63 @@ class _MusicShellState extends State<MusicShell> {
         imageUrl: image,
       ),
     );
+  }
+
+  Future<void> _showAddToPlaylist(Song song) async {
+    try {
+      if (authController != null && !authController!.isLoggedIn) {
+        await _showLogin();
+        if (authController != null && !authController!.isLoggedIn) return;
+      }
+      await libraryController.ensureLoaded(LibrarySection.playlists);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (_) => AddToPlaylistDialog(
+          song: song,
+          playlists: libraryController.editablePlaylists,
+          onSelected: (playlist) {
+            unawaited(_addToPlaylist(playlist, song));
+          },
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _addToPlaylist(MusicPlaylist playlist, Song song) async {
+    try {
+      await libraryController.addToPlaylist(playlist, song);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('已添加到 ${playlist.name}')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _removeFromDetailPlaylist(Song song) async {
+    final playlist = detailPlaylist;
+    if (playlist == null) return;
+    try {
+      await libraryController.removeFromPlaylist(playlist, song);
+      setState(() {
+        detailSongs = detailSongs.where((item) => item.id != song.id).toList();
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
   }
 
   Future<void> _openAlbumFromSong(Song song) async {
@@ -310,6 +375,7 @@ class _MusicShellState extends State<MusicShell> {
                             setState(() {
                               selectedIndex = index;
                               detailTitle = null;
+                              detailPlaylist = null;
                             });
                           },
                           loginLabel:
@@ -331,6 +397,8 @@ class _MusicShellState extends State<MusicShell> {
                   ),
                   PlayerBar(
                     controller: playerController,
+                    onLike: _toggleFavorite,
+                    onAddToPlaylist: _showAddToPlaylist,
                     onQueuePressed: () {
                       setState(() => showQueuePanel = !showQueuePanel);
                     },
@@ -381,6 +449,11 @@ class _MusicShellState extends State<MusicShell> {
         onBack: () => setState(() => detailTitle = null),
         onPlay: _playSong,
         onLike: _toggleFavorite,
+        onAddToPlaylist: _showAddToPlaylist,
+        onRemoveFromPlaylist:
+            detailPlaylist?.kind == MusicPlaylistKind.createdPlaylist
+            ? _removeFromDetailPlaylist
+            : null,
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
         onOpenCatalog: _openCatalog,
@@ -394,6 +467,7 @@ class _MusicShellState extends State<MusicShell> {
         isPlaying: playerController.isPlaying,
         onPlay: _playSong,
         onLike: _toggleFavorite,
+        onAddToPlaylist: _showAddToPlaylist,
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
         onOpenPlaylist: _openPlaylist,
@@ -408,6 +482,7 @@ class _MusicShellState extends State<MusicShell> {
         onLogin: _showLogin,
         onOpenCatalog: _openCatalog,
         onLike: _toggleFavorite,
+        onAddToPlaylist: _showAddToPlaylist,
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
       ),

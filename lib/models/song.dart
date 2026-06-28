@@ -1,3 +1,19 @@
+class SongArtist {
+  const SongArtist({required this.name, this.id});
+
+  final String name;
+  final int? id;
+
+  Map<String, Object?> toJson() => {'name': name, 'id': id};
+
+  factory SongArtist.fromJson(Map<String, Object?> json) {
+    return SongArtist(
+      name: json['name']?.toString() ?? '',
+      id: int.tryParse(json['id']?.toString() ?? ''),
+    );
+  }
+}
+
 class Song {
   const Song({
     required this.id,
@@ -12,6 +28,7 @@ class Song {
     this.coverUrl,
     this.fileId,
     this.artistId,
+    this.artists = const [],
     this.isCloud = false,
     this.cloudAudioId,
     this.liked = false,
@@ -30,6 +47,7 @@ class Song {
   final String? coverUrl;
   final int? fileId;
   final int? artistId;
+  final List<SongArtist> artists;
   final bool isCloud;
   final int? cloudAudioId;
   final bool liked;
@@ -37,6 +55,9 @@ class Song {
 
   Song copyWith({
     String? audioUrl,
+    String? artist,
+    int? artistId,
+    List<SongArtist>? artists,
     int? fileId,
     bool? liked,
     String? playbackNotice,
@@ -44,7 +65,7 @@ class Song {
     return Song(
       id: id,
       title: title,
-      artist: artist,
+      artist: artist ?? this.artist,
       album: album,
       duration: duration,
       audioUrl: audioUrl ?? this.audioUrl,
@@ -53,7 +74,8 @@ class Song {
       albumAudioId: albumAudioId,
       coverUrl: coverUrl,
       fileId: fileId ?? this.fileId,
-      artistId: artistId,
+      artistId: artistId ?? this.artistId,
+      artists: artists ?? this.artists,
       isCloud: isCloud,
       cloudAudioId: cloudAudioId,
       liked: liked ?? this.liked,
@@ -74,6 +96,7 @@ class Song {
     'coverUrl': coverUrl,
     'fileId': fileId,
     'artistId': artistId,
+    'artists': artists.map((item) => item.toJson()).toList(),
     'isCloud': isCloud,
     'cloudAudioId': cloudAudioId,
     'liked': liked,
@@ -94,6 +117,11 @@ class Song {
       coverUrl: json['coverUrl']?.toString(),
       fileId: readInt(json['fileId']),
       artistId: readInt(json['artistId']),
+      artists: (json['artists'] is List ? json['artists'] as List : const [])
+          .whereType<Map>()
+          .map((item) => SongArtist.fromJson(item.cast<String, Object?>()))
+          .where((item) => item.name.isNotEmpty)
+          .toList(),
       isCloud: json['isCloud'] == true,
       cloudAudioId: readInt(json['cloudAudioId']),
       liked: json['liked'] == true,

@@ -19,6 +19,7 @@ class SearchPage extends StatefulWidget {
     required this.onLogin,
     required this.onOpenCatalog,
     required this.onLike,
+    required this.onAddToPlaylist,
     required this.onOpenArtist,
     required this.onOpenAlbum,
   });
@@ -30,6 +31,7 @@ class SearchPage extends StatefulWidget {
   final VoidCallback onLogin;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final ValueChanged<Song> onLike;
+  final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
 
@@ -135,6 +137,7 @@ class _SearchPageState extends State<SearchPage> {
         onLogin: widget.onLogin,
         onOpenCatalog: widget.onOpenCatalog,
         onLike: widget.onLike,
+        onAddToPlaylist: widget.onAddToPlaylist,
         onOpenArtist: widget.onOpenArtist,
         onOpenAlbum: widget.onOpenAlbum,
       );
@@ -177,6 +180,7 @@ class _SearchResults extends StatefulWidget {
     required this.onLogin,
     required this.onOpenCatalog,
     required this.onLike,
+    required this.onAddToPlaylist,
     required this.onOpenArtist,
     required this.onOpenAlbum,
   });
@@ -188,6 +192,7 @@ class _SearchResults extends StatefulWidget {
   final VoidCallback onLogin;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final ValueChanged<Song> onLike;
+  final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
 
@@ -310,7 +315,15 @@ class _SearchResultsState extends State<_SearchResults> {
             isPlaying: widget.isPlaying,
             onPlay: () => widget.onPlay(song, controller.results),
             onLike: () => widget.onLike(song),
+            onAddToPlaylist: () => widget.onAddToPlaylist(song),
             onArtist: () => widget.onOpenArtist(song),
+            onArtistLink: (artist) => widget.onOpenArtist(
+              song.copyWith(
+                artist: artist.name,
+                artistId: artist.id,
+                artists: [artist],
+              ),
+            ),
             onAlbum: () => widget.onOpenAlbum(song),
           );
         },

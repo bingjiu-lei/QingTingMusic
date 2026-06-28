@@ -20,6 +20,8 @@ class SongPanel extends StatefulWidget {
     this.onLike,
     this.onArtist,
     this.onAlbum,
+    this.onAddToPlaylist,
+    this.onRemoveFromPlaylist,
     this.showAlbum = true,
   });
 
@@ -33,6 +35,8 @@ class SongPanel extends StatefulWidget {
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onArtist;
   final ValueChanged<Song>? onAlbum;
+  final ValueChanged<Song>? onAddToPlaylist;
+  final ValueChanged<Song>? onRemoveFromPlaylist;
   final bool showAlbum;
 
   @override
@@ -111,9 +115,25 @@ class _SongPanelState extends State<SongPanel> {
                             onArtist: widget.onArtist == null
                                 ? null
                                 : () => widget.onArtist!(song),
+                            onArtistLink: widget.onArtist == null
+                                ? null
+                                : (artist) => widget.onArtist!(
+                                    song.copyWith(
+                                      artist: artist.name,
+                                      artistId: artist.id,
+                                      artists: [artist],
+                                    ),
+                                  ),
                             onAlbum: widget.onAlbum == null
                                 ? null
                                 : () => widget.onAlbum!(song),
+                            onAddToPlaylist: widget.onAddToPlaylist == null
+                                ? null
+                                : () => widget.onAddToPlaylist!(song),
+                            onRemoveFromPlaylist:
+                                widget.onRemoveFromPlaylist == null
+                                ? null
+                                : () => widget.onRemoveFromPlaylist!(song),
                             showAlbum: widget.showAlbum,
                           );
                         },

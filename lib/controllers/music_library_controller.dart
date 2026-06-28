@@ -54,6 +54,13 @@ class MusicLibraryController extends ChangeNotifier {
       .reversed
       .toList();
 
+  List<MusicPlaylist> get editablePlaylists => playlists
+      .where((item) => item.kind == MusicPlaylistKind.createdPlaylist)
+      .where((item) => item.listId != favoritePlaylist?.listId)
+      .toList()
+      .reversed
+      .toList();
+
   List<MusicPlaylist> get sortedAlbums => albums.reversed.toList();
 
   List<Song> get sortedCloudSongs => cloudSongs.reversed.toList();
@@ -213,5 +220,15 @@ class MusicLibraryController extends ChangeNotifier {
       await repository.removeSongFromPlaylist(favorite, existing);
     }
     await ensureLoaded(LibrarySection.songs, refresh: true);
+  }
+
+  Future<void> addToPlaylist(MusicPlaylist playlist, Song song) async {
+    await repository.addSongToPlaylist(playlist, song);
+    await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
+  Future<void> removeFromPlaylist(MusicPlaylist playlist, Song song) async {
+    await repository.removeSongFromPlaylist(playlist, song);
+    await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 }
