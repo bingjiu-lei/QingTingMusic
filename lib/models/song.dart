@@ -15,6 +15,7 @@ class Song {
     this.isCloud = false,
     this.cloudAudioId,
     this.liked = false,
+    this.playbackNotice,
   });
 
   final String id;
@@ -32,8 +33,14 @@ class Song {
   final bool isCloud;
   final int? cloudAudioId;
   final bool liked;
+  final String? playbackNotice;
 
-  Song copyWith({String? audioUrl, int? fileId, bool? liked}) {
+  Song copyWith({
+    String? audioUrl,
+    int? fileId,
+    bool? liked,
+    String? playbackNotice,
+  }) {
     return Song(
       id: id,
       title: title,
@@ -50,6 +57,7 @@ class Song {
       isCloud: isCloud,
       cloudAudioId: cloudAudioId,
       liked: liked ?? this.liked,
+      playbackNotice: playbackNotice ?? this.playbackNotice,
     );
   }
 

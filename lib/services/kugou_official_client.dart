@@ -160,6 +160,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       ),
       '/search' => _search(params, cookie),
       '/song/url' => _songUrl(params, cookie),
+      '/privilege/lite' => _privilegeLite(params, cookie),
       '/user/cloud' => _cloudSongs(params, cookie),
       '/user/cloud/url' => _cloudSongUrl(params, cookie),
       '/user/follow' => _userFollow(cookie),
@@ -269,6 +270,8 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       baseUrl: 'https://userservice.kugou.com',
       method: 'POST',
       data: aes.data,
+      appId: liteAppid,
+      clientVersion: liteClientver,
       responseType: ResponseType.bytes,
       decryptKey: aes.key,
     );
@@ -294,9 +297,13 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       {
         'clienttime': clienttime,
         'mid': cookie['KUGOU_API_MID'] ?? randomMid(),
-        'key': _signParamsKey(clienttime.toString()),
-        'clientver': clientver,
-        'appid': appid,
+        'key': _signParamsKey(
+          clienttime.toString(),
+          appId: liteAppid,
+          clientVersion: liteClientver,
+        ),
+        'clientver': liteClientver,
+        'appid': liteAppid,
         'p': p,
       },
       cookie,
@@ -348,7 +355,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         'p': _rsaEncrypt({
           'clienttime': clienttime,
           'token': cookie['token'] ?? '',
-        }, _publicRsaKey).toUpperCase(),
+        }, _publicLiteRsaKey).toUpperCase(),
       },
       headers: {'x-router': 'relationuser.kugou.com'},
     );
@@ -425,6 +432,50 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     );
   }
 
+  _OfficialRequest _privilegeLite(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    return _android(
+      '/v2/get_res_privilege/lite',
+      {},
+      cookie,
+      method: 'POST',
+      data: {
+        'appid': appid,
+        'area_code': 1,
+        'behavior': 'play',
+        'clientver': clientver,
+        'need_hash_offset': 1,
+        'relate': 1,
+        'support_verify': 1,
+        'resource': [
+          {
+            'type': 'audio',
+            'page_id': 0,
+            'hash': params['hash'] ?? '',
+            'album_id': _toInt(params['album_id']),
+          },
+        ],
+        'qualities': [
+          '128',
+          '320',
+          'flac',
+          'high',
+          'viper_atmos',
+          'viper_tape',
+          'viper_clear',
+          'super',
+          'multitrack',
+        ],
+      },
+      headers: {
+        'x-router': 'media.store.kugou.com',
+        'Content-Type': 'application/json',
+      },
+    );
+  }
+
   _OfficialRequest _android(
     String path,
     Map<String, Object?> params,
@@ -436,6 +487,8 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     bool encryptKey = false,
     bool notSignature = false,
     bool clearDefaultParams = false,
+    int appId = liteAppid,
+    int clientVersion = liteClientver,
     ResponseType? responseType,
     String? decryptKey,
   }) {
@@ -448,8 +501,8 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       'dfid': dfid,
       'mid': mid,
       'uuid': '-',
-      'appid': liteAppid,
-      'clientver': liteClientver,
+      'appid': appId,
+      'clientver': clientVersion,
       'clienttime': clienttime,
       if ((cookie['token'] ?? '').isNotEmpty) 'token': cookie['token'],
       if ((cookie['userid'] ?? '').isNotEmpty) 'userid': cookie['userid'],
@@ -482,6 +535,10 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         'dfid': dfid,
         'mid': mid,
         'clienttime': clienttime.toString(),
+        if (cookie.isNotEmpty)
+          HttpHeaders.cookieHeader: cookie.entries
+              .map((entry) => '${entry.key}=${entry.value}')
+              .join('; '),
         'kg-rc': '1',
         'kg-thash': '5d816a0',
         'kg-rec': '1',
@@ -566,8 +623,13 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     return _md5('musicclound$hash$pid$_cloudKeySalt');
   }
 
-  String _signParamsKey(String data) {
-    return _md5('$appid$_standardParamKeySalt$clientver$data');
+  String _signParamsKey(
+    String data, {
+    int appId = liteAppid,
+    int clientVersion = liteClientver,
+  }) {
+    final salt = appId == liteAppid ? _androidSalt : _standardParamKeySalt;
+    return _md5('$appId$salt$clientVersion$data');
   }
 
   static String _md5Static(String input) =>

@@ -24,6 +24,13 @@ class KugouApiException implements Exception {
   String toString() => message;
 }
 
+class _PlaybackCandidate {
+  const _PlaybackCandidate({required this.hash, this.quality});
+
+  final String hash;
+  final Object? quality;
+}
+
 class KugouQrCode {
   const KugouQrCode({
     required this.key,
@@ -195,6 +202,9 @@ class KugouApiClient {
       ),
       response.headers.map['set-cookie'] ?? const [],
     );
+    if (await _usesOfficialApi()) {
+      await registerDevice();
+    }
     await _storage.save(session);
     return KugouQrCheckResult(status: status, session: session);
   }
@@ -542,23 +552,90 @@ class KugouApiClient {
       throw const KugouApiException('歌曲缺少播放信息');
     }
 
-    final response = await _get(
-      song.isCloud ? '/user/cloud/url' : '/song/url',
-      authenticated: true,
-      queryParameters: {
-        'hash': song.hash,
-        'album_id': song.albumId ?? 0,
-        'album_audio_id': song.albumAudioId ?? 0,
-        if (song.isCloud) 'audio_id': song.cloudAudioId ?? 0,
-        if (song.isCloud) 'name': '${song.artist} - ${song.title}',
-        'quality': 128,
-      },
-    );
-    final url = _findAudioUrl(response.data);
-    if (url == null) {
-      throw const KugouApiException('暂时无法获取这首歌的播放地址');
+    final directUrl = await _resolveSongUrl(song);
+    if (directUrl != null) return song.copyWith(audioUrl: directUrl);
+
+    if (!song.isCloud) {
+      final candidates = await _resolvePrivilegeCandidates(song);
+      for (final candidate in candidates) {
+        if (candidate.hash.toLowerCase() == song.hash!.toLowerCase()) continue;
+        final candidateUrl = await _resolveSongUrl(
+          song,
+          hash: candidate.hash,
+          quality: candidate.quality,
+        );
+        if (candidateUrl != null) {
+          return song.copyWith(audioUrl: candidateUrl);
+        }
+      }
+
+      final cloudMatch = await _findMatchingCloudSong(song);
+      if (cloudMatch != null) {
+        final cloudUrl = await _resolveSongUrl(cloudMatch);
+        if (cloudUrl != null) {
+          return song.copyWith(audioUrl: cloudUrl, playbackNotice: '已切换云盘版本');
+        }
+      }
     }
-    return song.copyWith(audioUrl: url);
+
+    throw const KugouApiException('该歌曲无版权或需付费');
+  }
+
+  Future<String?> _resolveSongUrl(
+    Song song, {
+    String? hash,
+    Object? quality,
+  }) async {
+    final targetHash = hash ?? song.hash;
+    if (targetHash == null || targetHash.isEmpty) return null;
+    try {
+      final response = await _get(
+        song.isCloud ? '/user/cloud/url' : '/song/url',
+        authenticated: true,
+        queryParameters: {
+          'hash': targetHash,
+          'album_id': song.albumId ?? 0,
+          'album_audio_id': song.albumAudioId ?? 0,
+          if (song.isCloud) 'audio_id': song.cloudAudioId ?? 0,
+          if (song.isCloud) 'name': '${song.artist} - ${song.title}',
+          if (!song.isCloud) 'ppage_id': 356753938,
+          'quality': quality ?? 128,
+        },
+      );
+      return _findAudioUrl(response.data);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<_PlaybackCandidate>> _resolvePrivilegeCandidates(
+    Song song,
+  ) async {
+    final hash = song.hash;
+    if (hash == null || hash.isEmpty || song.isCloud) return const [];
+    try {
+      final response = await _get(
+        '/privilege/lite',
+        authenticated: true,
+        queryParameters: {'hash': hash, 'album_id': song.albumId ?? 0},
+      );
+      return _findRelateGoods(response.data);
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<Song?> _findMatchingCloudSong(Song song) async {
+    if (song.isCloud || !session.isLoggedIn) return null;
+    try {
+      final cloudSongs = await getCloudSongs();
+      for (final cloudSong in cloudSongs) {
+        if (_isSameSong(song, cloudSong)) return cloudSong;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   Future<Response<Object?>> _get(
@@ -1063,4 +1140,72 @@ String? _findAudioUrl(Object? value) {
     return value;
   }
   return null;
+}
+
+List<_PlaybackCandidate> _findRelateGoods(Object? value) {
+  final goods = <_PlaybackCandidate>[];
+
+  void visit(Object? item) {
+    if (item is List) {
+      for (final child in item) {
+        visit(child);
+      }
+      return;
+    }
+    if (item is! Map) return;
+    final json = _map(item);
+    final hash = _read(json, ['hash', 'Hash', 'file_hash']);
+    if (hash.isNotEmpty) {
+      goods.add(
+        _PlaybackCandidate(
+          hash: hash,
+          quality: json['quality'] ?? json['level'],
+        ),
+      );
+    }
+    final relateGoods = json['relate_goods'] ?? json['relateGoods'];
+    if (relateGoods != null) visit(relateGoods);
+  }
+
+  visit(value);
+  final seen = <String>{};
+  return goods.where((item) => seen.add(item.hash.toLowerCase())).toList();
+}
+
+bool _isSameSong(Song source, Song target) {
+  final sourceHash = source.hash?.toLowerCase() ?? '';
+  final targetHash = target.hash?.toLowerCase() ?? '';
+  if (sourceHash.isNotEmpty && sourceHash == targetHash) return true;
+
+  final sourceTitle = _normalizeSongText(source.title);
+  final targetTitle = _normalizeSongText(target.title);
+  if (sourceTitle.isEmpty || sourceTitle != targetTitle) return false;
+
+  final sourceArtist = _normalizeArtistText(source.artist);
+  final targetArtist = _normalizeArtistText(target.artist);
+  if (sourceArtist.isNotEmpty && targetArtist.isNotEmpty) {
+    return sourceArtist == targetArtist ||
+        sourceArtist.contains(targetArtist) ||
+        targetArtist.contains(sourceArtist);
+  }
+
+  final sourceAlbum = _normalizeSongText(source.album);
+  final targetAlbum = _normalizeSongText(target.album);
+  return sourceAlbum.isNotEmpty && sourceAlbum == targetAlbum;
+}
+
+String _normalizeSongText(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac)$'), '')
+      .replaceAll(RegExp(r'[\s《》〈〉「」『』【】\[\]（）()_-]+'), '')
+      .trim();
+}
+
+String _normalizeArtistText(String value) {
+  return value
+      .toLowerCase()
+      .replaceAll(RegExp(r'\s+'), '')
+      .replaceAll(RegExp(r'(、|,|，|/|&|feat\.?|ft\.?).*'), '')
+      .trim();
 }

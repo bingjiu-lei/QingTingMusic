@@ -209,6 +209,19 @@ class MusicSearchController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void invalidateCachedResults() {
+    _songCache.clear();
+    _catalogCache.clear();
+    _catalogRequests.clear();
+    if (hasSearched) {
+      results = const [];
+      catalogResults = const [];
+      errorText = null;
+      requiresLogin = false;
+    }
+    notifyListeners();
+  }
+
   Future<void> useHistory(String value) async {
     await updateKeyword(value);
     await search(value);

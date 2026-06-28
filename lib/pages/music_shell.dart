@@ -386,7 +386,13 @@ class _MusicShellState extends State<MusicShell> {
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
       ),
-      _ => SettingsPage(),
+      _ => SettingsPage(
+        onEndpointChanged: () {
+          libraryController.invalidateLoadedState();
+          searchController.invalidateCachedResults();
+          unawaited(libraryController.ensureLoaded(LibrarySection.songs));
+        },
+      ),
     };
   }
 }

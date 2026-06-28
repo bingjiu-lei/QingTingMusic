@@ -95,6 +95,24 @@ void main() {
     expect(controller.sortedAlbums.map((item) => item.id), ['new', 'old']);
     expect(controller.sortedCloudSongs.map((item) => item.id), ['new', 'old']);
   });
+
+  test(
+    'shows a temporary notice when playback uses a cloud replacement',
+    () async {
+      final audio = _FakeAudioPlayerService();
+      final controller = PlayerController(
+        audioService: audio,
+        resolveSong: (song) async => song.copyWith(playbackNotice: '已切换云盘版本'),
+      );
+
+      await controller.playSong(_song('cloud-match'));
+
+      expect(controller.playbackNotice, '已切换云盘版本');
+      expect(audio.opened.single.id, 'cloud-match');
+
+      controller.dispose();
+    },
+  );
 }
 
 Song _song(String id) => Song(

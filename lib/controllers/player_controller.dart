@@ -55,8 +55,10 @@ class PlayerController extends ChangeNotifier {
   Duration bufferedPosition = Duration.zero;
   Duration duration = Duration.zero;
   String? errorText;
+  String? playbackNotice;
   final List<Song> recentSongs = [];
   bool _handlingCompletion = false;
+  Timer? _noticeTimer;
 
   Future<void> _handleCompletion() async {
     if (_handlingCompletion || isPreparing || currentSong == null) return;
@@ -95,6 +97,8 @@ class PlayerController extends ChangeNotifier {
 
     try {
       errorText = null;
+      playbackNotice = null;
+      _noticeTimer?.cancel();
       currentSong = song;
       position = Duration.zero;
       bufferedPosition = Duration.zero;
@@ -109,6 +113,7 @@ class PlayerController extends ChangeNotifier {
         rethrow;
       }
       currentSong = playableSong;
+      _showPlaybackNotice(playableSong.playbackNotice);
       recentSongs.removeWhere((item) => item.id == playableSong.id);
       recentSongs.insert(0, playableSong);
       if (recentSongs.length > RecentSongsService.maxItems) {
@@ -201,6 +206,16 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
+  void _showPlaybackNotice(String? message) {
+    _noticeTimer?.cancel();
+    playbackNotice = message == null || message.isEmpty ? null : message;
+    if (playbackNotice == null) return;
+    _noticeTimer = Timer(const Duration(seconds: 4), () {
+      playbackNotice = null;
+      notifyListeners();
+    });
+  }
+
   Future<void> togglePlay() async {
     final song = currentSong;
     if (song == null) return;
@@ -251,6 +266,7 @@ class PlayerController extends ChangeNotifier {
     for (final subscription in _subscriptions) {
       subscription.cancel();
     }
+    _noticeTimer?.cancel();
     audioService.dispose();
     super.dispose();
   }

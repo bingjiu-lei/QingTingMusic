@@ -5,7 +5,9 @@ import '../theme/app_theme.dart';
 import '../widgets/page_header.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({super.key, this.onEndpointChanged});
+
+  final VoidCallback? onEndpointChanged;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -51,6 +53,7 @@ class _SettingsPageState extends State<SettingsPage> {
         _controller.text = active;
         _saved = true;
       });
+      widget.onEndpointChanged?.call();
     } catch (error) {
       if (mounted) setState(() => _errorText = error.toString());
     } finally {

@@ -77,11 +77,14 @@ class MusicLibraryController extends ChangeNotifier {
     cloudSongs = snapshot.cloudSongs;
     followedArtists = snapshot.artists;
     albums = snapshot.albums;
-    if (playlists.isNotEmpty) loaded.add(LibrarySection.playlists);
-    if (favorites.isNotEmpty) loaded.add(LibrarySection.songs);
-    if (cloudSongs.isNotEmpty) loaded.add(LibrarySection.cloud);
-    if (followedArtists.isNotEmpty) loaded.add(LibrarySection.artists);
-    if (albums.isNotEmpty) loaded.add(LibrarySection.albums);
+    notifyListeners();
+  }
+
+  void invalidateLoadedState() {
+    loaded.clear();
+    loading.clear();
+    errors.clear();
+    _playlistRequest = null;
     notifyListeners();
   }
 

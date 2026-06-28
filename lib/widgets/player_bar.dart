@@ -58,15 +58,18 @@ class PlayerBar extends StatelessWidget {
                             const SizedBox(height: 4),
                             Text(
                               controller.errorText ??
+                                  controller.playbackNotice ??
                                   (controller.isPreparing
                                       ? '正在准备播放'
                                       : song.artist),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: controller.errorText == null
-                                    ? AppColors.muted
-                                    : AppColors.danger,
+                                color: controller.errorText != null
+                                    ? AppColors.danger
+                                    : controller.playbackNotice != null
+                                    ? AppColors.primary
+                                    : AppColors.muted,
                                 fontSize: 12,
                               ),
                             ),
