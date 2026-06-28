@@ -29,7 +29,7 @@ class LibraryPage extends StatefulWidget {
   final List<Song> recentSongs;
   final Song? currentSong;
   final bool isPlaying;
-  final ValueChanged<Song> onPlay;
+  final SongPlayRequest onPlay;
   final ValueChanged<Song> onLike;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;

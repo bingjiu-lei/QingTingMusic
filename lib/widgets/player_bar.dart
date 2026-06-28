@@ -6,9 +6,10 @@ import 'album_art.dart';
 import 'song_row.dart';
 
 class PlayerBar extends StatelessWidget {
-  const PlayerBar({super.key, required this.controller});
+  const PlayerBar({super.key, required this.controller, this.onQueuePressed});
 
   final PlayerController controller;
+  final VoidCallback? onQueuePressed;
 
   @override
   Widget build(BuildContext context) {
@@ -77,6 +78,15 @@ class PlayerBar extends StatelessWidget {
                         ),
                 ),
                 IconButton(
+                  tooltip: controller.playbackMode.label,
+                  onPressed: controller.cyclePlaybackMode,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(38, 38),
+                    iconSize: 21,
+                  ),
+                  icon: Icon(_modeIcon(controller.playbackMode)),
+                ),
+                IconButton(
                   tooltip: '上一首',
                   onPressed: song == null ? null : controller.playPrevious,
                   style: IconButton.styleFrom(
@@ -117,7 +127,7 @@ class PlayerBar extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: '下一首',
-                  onPressed: song == null ? null : controller.playNext,
+                  onPressed: song == null ? null : () => controller.playNext(),
                   style: IconButton.styleFrom(
                     minimumSize: const Size(42, 42),
                     iconSize: 24,
@@ -149,7 +159,7 @@ class PlayerBar extends StatelessWidget {
                   ),
                   IconButton(
                     tooltip: '播放队列',
-                    onPressed: () {},
+                    onPressed: onQueuePressed,
                     icon: const Icon(Icons.queue_music_rounded),
                   ),
                 ],
@@ -159,6 +169,15 @@ class PlayerBar extends StatelessWidget {
         },
       ),
     );
+  }
+
+  IconData _modeIcon(PlaybackMode mode) {
+    return switch (mode) {
+      PlaybackMode.sequence => Icons.format_list_numbered_rounded,
+      PlaybackMode.repeatAll => Icons.repeat_rounded,
+      PlaybackMode.repeatOne => Icons.repeat_one_rounded,
+      PlaybackMode.shuffle => Icons.shuffle_rounded,
+    };
   }
 }
 

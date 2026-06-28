@@ -5,6 +5,8 @@ import '../theme/app_theme.dart';
 import 'list_scroll_actions.dart';
 import 'song_row.dart';
 
+typedef SongPlayRequest = void Function(Song song, List<Song> queue);
+
 class SongPanel extends StatefulWidget {
   const SongPanel({
     super.key,
@@ -18,11 +20,12 @@ class SongPanel extends StatefulWidget {
     this.onLike,
     this.onArtist,
     this.onAlbum,
+    this.showAlbum = true,
   });
 
   final String title;
   final List<Song> songs;
-  final ValueChanged<Song> onPlay;
+  final SongPlayRequest onPlay;
   final Song? currentSong;
   final bool isPlaying;
   final bool compactRows;
@@ -30,6 +33,7 @@ class SongPanel extends StatefulWidget {
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onArtist;
   final ValueChanged<Song>? onAlbum;
+  final bool showAlbum;
 
   @override
   State<SongPanel> createState() => _SongPanelState();
@@ -100,7 +104,7 @@ class _SongPanelState extends State<SongPanel> {
                             compact: widget.compactRows,
                             isCurrent: widget.currentSong?.id == song.id,
                             isPlaying: widget.isPlaying,
-                            onPlay: () => widget.onPlay(song),
+                            onPlay: () => widget.onPlay(song, widget.songs),
                             onLike: widget.onLike == null
                                 ? null
                                 : () => widget.onLike!(song),
@@ -110,6 +114,7 @@ class _SongPanelState extends State<SongPanel> {
                             onAlbum: widget.onAlbum == null
                                 ? null
                                 : () => widget.onAlbum!(song),
+                            showAlbum: widget.showAlbum,
                           );
                         },
                       ),

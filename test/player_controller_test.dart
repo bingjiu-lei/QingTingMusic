@@ -26,6 +26,81 @@ void main() {
     controller.dispose();
   });
 
+  test(
+    'advances on completion even when final position is not emitted',
+    () async {
+      final audio = _FakeAudioPlayerService();
+      final controller = PlayerController(audioService: audio);
+      final songs = [_song('one'), _song('two')];
+
+      await controller.playSong(songs.first, fromQueue: songs);
+      await Future<void>.delayed(const Duration(milliseconds: 850));
+      audio.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+
+      expect(controller.currentSong?.id, 'two');
+      expect(audio.opened.map((song) => song.id), ['one', 'two']);
+
+      controller.dispose();
+    },
+  );
+
+  test(
+    'advances when playback stalls near the end without completion',
+    () async {
+      final audio = _FakeAudioPlayerService();
+      final controller = PlayerController(audioService: audio);
+      final songs = [_song('one'), _song('two')];
+
+      await controller.playSong(songs.first, fromQueue: songs);
+      await Future<void>.delayed(const Duration(milliseconds: 850));
+      audio.seekTo(songs.first.duration - const Duration(seconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 1900));
+
+      expect(controller.currentSong?.id, 'two');
+      expect(audio.opened.map((song) => song.id), ['one', 'two']);
+
+      controller.dispose();
+    },
+  );
+
+  test('stops at the end in sequence mode', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final songs = [_song('one'), _song('two')];
+
+    await controller.playSong(songs.last, fromQueue: songs);
+    audio.finish(songs.last.duration);
+    audio.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+
+    expect(controller.currentSong?.id, 'two');
+    expect(controller.isPlaying, isFalse);
+    expect(audio.opened.map((song) => song.id), ['two']);
+
+    controller.dispose();
+  });
+
+  test('replays current song in repeat one mode', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final songs = [_song('one'), _song('two')];
+
+    controller
+      ..cyclePlaybackMode()
+      ..cyclePlaybackMode();
+    await controller.playSong(songs.first, fromQueue: songs);
+    audio.finish(songs.first.duration);
+    audio.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+
+    expect(controller.playbackMode, PlaybackMode.repeatOne);
+    expect(controller.currentSong?.id, 'one');
+    expect(audio.opened.map((song) => song.id), ['one', 'one']);
+
+    controller.dispose();
+  });
+
   test('ignores a stale completion event while a song is starting', () async {
     final audio = _FakeAudioPlayerService();
     final controller = PlayerController(audioService: audio);

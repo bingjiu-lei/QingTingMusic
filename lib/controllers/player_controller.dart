@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -7,6 +8,17 @@ import '../services/audio_player_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/recent_songs_service.dart';
 import '../services/playback_log_service.dart';
+
+enum PlaybackMode {
+  sequence('顺序播放'),
+  repeatAll('列表循环'),
+  repeatOne('单曲循环'),
+  shuffle('随机播放');
+
+  const PlaybackMode(this.label);
+
+  final String label;
+}
 
 class PlayerController extends ChangeNotifier {
   PlayerController({
@@ -17,10 +29,12 @@ class PlayerController extends ChangeNotifier {
     _subscriptions = [
       audioService.playingStream.listen((value) {
         isPlaying = value;
+        if (!value) _nearEndTimer?.cancel();
         notifyListeners();
       }),
       audioService.positionStream.listen((value) {
         position = value;
+        _watchNearEnd();
         notifyListeners();
       }),
       audioService.bufferedPositionStream.listen((value) {
@@ -29,6 +43,7 @@ class PlayerController extends ChangeNotifier {
       }),
       audioService.durationStream.listen((value) {
         if (value != null && value != Duration.zero) duration = value;
+        _watchNearEnd();
         notifyListeners();
       }),
       audioService.completedStream.listen((_) {
@@ -48,6 +63,7 @@ class PlayerController extends ChangeNotifier {
   late final List<StreamSubscription<Object?>> _subscriptions;
 
   List<Song> queue = const [];
+  PlaybackMode playbackMode = PlaybackMode.sequence;
   Song? currentSong;
   bool isPlaying = false;
   bool isPreparing = false;
@@ -59,16 +75,28 @@ class PlayerController extends ChangeNotifier {
   final List<Song> recentSongs = [];
   bool _handlingCompletion = false;
   Timer? _noticeTimer;
+  Timer? _nearEndTimer;
+  DateTime? _songStartedAt;
+  final Random _random = Random();
+
+  int get queueIndex {
+    final song = currentSong;
+    if (song == null) return -1;
+    return queue.indexWhere((item) => item.id == song.id);
+  }
 
   Future<void> _handleCompletion() async {
     if (_handlingCompletion || isPreparing || currentSong == null) return;
     await Future<void>.delayed(const Duration(milliseconds: 120));
     if (isPreparing || duration <= Duration.zero) return;
     final remaining = duration - position;
-    if (remaining > const Duration(seconds: 2)) return;
+    final playedLongEnough =
+        DateTime.now().difference(_songStartedAt ?? DateTime.now()) >
+        const Duration(milliseconds: 700);
+    if (!playedLongEnough && remaining > const Duration(seconds: 2)) return;
     _handlingCompletion = true;
     try {
-      await playNext();
+      await playNext(autoAdvance: true);
     } finally {
       _handlingCompletion = false;
     }
@@ -99,6 +127,7 @@ class PlayerController extends ChangeNotifier {
       errorText = null;
       playbackNotice = null;
       _noticeTimer?.cancel();
+      _nearEndTimer?.cancel();
       currentSong = song;
       position = Duration.zero;
       bufferedPosition = Duration.zero;
@@ -131,6 +160,7 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       try {
         await audioService.open(playableSong);
+        _songStartedAt = DateTime.now();
       } catch (error, stackTrace) {
         await PlaybackLogService.write('open', error, stackTrace);
         rethrow;
@@ -198,6 +228,82 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void cyclePlaybackMode() {
+    final values = PlaybackMode.values;
+    final nextIndex = (values.indexOf(playbackMode) + 1) % values.length;
+    playbackMode = values[nextIndex];
+    notifyListeners();
+  }
+
+  void replaceQueue(List<Song> songs, {Song? current}) {
+    queue = List.unmodifiable(_dedupeSongs(songs));
+    if (current != null && !queue.any((item) => item.id == current.id)) {
+      queue = List.unmodifiable([current, ...queue]);
+    }
+    notifyListeners();
+  }
+
+  Future<void> playQueueSong(Song song) async {
+    await playSong(song, fromQueue: queue.isEmpty ? [song] : queue);
+  }
+
+  Future<void> removeFromQueue(Song song) async {
+    final wasCurrent = currentSong?.id == song.id;
+    final nextQueue = queue.where((item) => item.id != song.id).toList();
+    queue = List.unmodifiable(nextQueue);
+    notifyListeners();
+    if (!wasCurrent) return;
+    if (queue.isEmpty) {
+      await audioService.pause();
+      currentSong = null;
+      isPlaying = false;
+      position = Duration.zero;
+      bufferedPosition = Duration.zero;
+      duration = Duration.zero;
+      notifyListeners();
+      return;
+    }
+    await playSong(queue.first, fromQueue: queue);
+  }
+
+  void clearQueue() {
+    final song = currentSong;
+    queue = song == null ? const [] : List.unmodifiable([song]);
+    notifyListeners();
+  }
+
+  void _watchNearEnd() {
+    final song = currentSong;
+    if (!isPlaying ||
+        isPreparing ||
+        song == null ||
+        duration <= Duration.zero) {
+      _nearEndTimer?.cancel();
+      return;
+    }
+
+    final remaining = duration - position;
+    if (remaining > const Duration(milliseconds: 1500)) {
+      _nearEndTimer?.cancel();
+      return;
+    }
+
+    if (_nearEndTimer?.isActive ?? false) return;
+    final songId = song.id;
+    _nearEndTimer = Timer(const Duration(milliseconds: 1700), () {
+      if (currentSong?.id != songId ||
+          !isPlaying ||
+          isPreparing ||
+          duration <= Duration.zero) {
+        return;
+      }
+      final latestRemaining = duration - position;
+      if (latestRemaining <= const Duration(milliseconds: 1500)) {
+        unawaited(_handleCompletion());
+      }
+    });
+  }
+
   Future<void> _saveRecentSongs() async {
     try {
       await recentSongsService?.save(recentSongs);
@@ -243,14 +349,51 @@ class PlayerController extends ChangeNotifier {
 
   Future<void> playPrevious() async => _playOffset(-1);
 
-  Future<void> playNext() async => _playOffset(1);
+  Future<void> playNext({bool autoAdvance = false}) async {
+    if (autoAdvance && playbackMode == PlaybackMode.repeatOne) {
+      final song = currentSong;
+      if (song != null) await playSong(song, fromQueue: queue);
+      return;
+    }
+    await _playOffset(1, autoAdvance: autoAdvance);
+  }
 
-  Future<void> _playOffset(int offset) async {
+  Future<void> _playOffset(int offset, {bool autoAdvance = false}) async {
     final song = currentSong;
     if (song == null || queue.isEmpty) return;
     final currentIndex = queue.indexWhere((item) => item.id == song.id);
-    final targetIndex = (currentIndex + offset + queue.length) % queue.length;
+    if (currentIndex < 0) return;
+    final targetIndex = _targetIndex(currentIndex, offset, autoAdvance);
+    if (targetIndex == null) {
+      await audioService.pause();
+      _nearEndTimer?.cancel();
+      isPlaying = false;
+      position = duration;
+      notifyListeners();
+      return;
+    }
     await playSong(queue[targetIndex], fromQueue: queue);
+  }
+
+  int? _targetIndex(int currentIndex, int offset, bool autoAdvance) {
+    if (queue.length == 1) {
+      return playbackMode == PlaybackMode.repeatAll ||
+              playbackMode == PlaybackMode.repeatOne
+          ? 0
+          : null;
+    }
+    if (playbackMode == PlaybackMode.shuffle && offset > 0) {
+      var next = _random.nextInt(queue.length);
+      if (next == currentIndex) next = (next + 1) % queue.length;
+      return next;
+    }
+
+    final raw = currentIndex + offset;
+    if (raw >= 0 && raw < queue.length) return raw;
+    if (playbackMode == PlaybackMode.repeatAll || !autoAdvance) {
+      return (raw + queue.length) % queue.length;
+    }
+    return null;
   }
 
   Future<void> seekByRatio(double ratio) async {
@@ -267,7 +410,16 @@ class PlayerController extends ChangeNotifier {
       subscription.cancel();
     }
     _noticeTimer?.cancel();
+    _nearEndTimer?.cancel();
     audioService.dispose();
     super.dispose();
   }
+}
+
+List<Song> _dedupeSongs(List<Song> songs) {
+  final seen = <String>{};
+  return [
+    for (final song in songs)
+      if (seen.add(song.id)) song,
+  ];
 }

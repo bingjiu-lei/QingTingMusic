@@ -6,6 +6,7 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import '../widgets/list_scroll_actions.dart';
 import '../widgets/search_catalog_list.dart';
+import '../widgets/song_panel.dart';
 import '../widgets/song_row.dart';
 
 class SearchPage extends StatefulWidget {
@@ -25,7 +26,7 @@ class SearchPage extends StatefulWidget {
   final MusicSearchController controller;
   final Song? currentSong;
   final bool isPlaying;
-  final ValueChanged<Song> onPlay;
+  final SongPlayRequest onPlay;
   final VoidCallback onLogin;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final ValueChanged<Song> onLike;
@@ -183,7 +184,7 @@ class _SearchResults extends StatefulWidget {
   final MusicSearchController controller;
   final Song? currentSong;
   final bool isPlaying;
-  final ValueChanged<Song> onPlay;
+  final SongPlayRequest onPlay;
   final VoidCallback onLogin;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final ValueChanged<Song> onLike;
@@ -307,7 +308,7 @@ class _SearchResultsState extends State<_SearchResults> {
             index: index,
             isCurrent: widget.currentSong?.id == song.id,
             isPlaying: widget.isPlaying,
-            onPlay: () => widget.onPlay(song),
+            onPlay: () => widget.onPlay(song, controller.results),
             onLike: () => widget.onLike(song),
             onArtist: () => widget.onOpenArtist(song),
             onAlbum: () => widget.onOpenAlbum(song),

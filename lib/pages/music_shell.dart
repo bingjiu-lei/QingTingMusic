@@ -20,6 +20,7 @@ import '../services/recent_songs_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
 import '../widgets/login_dialog.dart';
+import '../widgets/play_queue_panel.dart';
 import '../widgets/player_bar.dart';
 import '../widgets/sidebar.dart';
 import 'library_page.dart';
@@ -62,6 +63,7 @@ class _MusicShellState extends State<MusicShell> {
   List<SearchCatalogItem> detailRelatedItems = [];
   bool detailLoading = false;
   CollectionDetailKind detailKind = CollectionDetailKind.playlist;
+  bool showQueuePanel = false;
 
   @override
   void initState() {
@@ -104,23 +106,15 @@ class _MusicShellState extends State<MusicShell> {
     if (mounted) setState(() {});
   }
 
-  Future<void> _playSong(Song song) async {
+  Future<void> _playSong(Song song, List<Song> sourceQueue) async {
     if (playerController.currentSong?.id == song.id &&
         playerController.isPlaying) {
       await playerController.togglePlay();
       return;
     }
-    final queues = [
-      searchController.results,
-      detailSongs,
-      libraryController.favorites,
-      libraryController.cloudSongs,
-      playerController.recentSongs,
-    ];
-    final queue = queues.firstWhere(
-      (items) => items.any((item) => item.id == song.id),
-      orElse: () => [song],
-    );
+    final queue = sourceQueue.any((item) => item.id == song.id)
+        ? sourceQueue
+        : [song];
     await playerController.playSong(song, fromQueue: queue);
   }
 
@@ -301,38 +295,69 @@ class _MusicShellState extends State<MusicShell> {
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compactSidebar = constraints.maxWidth < 1050;
-          return Column(
+          return Stack(
             children: [
-              AppWindowCaption(enabled: widget.enableWindowControls),
-              Expanded(
-                child: Row(
-                  children: [
-                    AppSidebar(
-                      compact: compactSidebar,
-                      selectedIndex: selectedIndex,
-                      onChanged: (index) {
-                        setState(() {
-                          selectedIndex = index;
-                          detailTitle = null;
-                        });
-                      },
-                      loginLabel: authController?.session.displayName ?? '演示模式',
-                      isLoggedIn: authController?.isLoggedIn ?? false,
-                      onLogin: _showLogin,
-                      isDark: widget.themeController.isDark,
-                      onToggleTheme: widget.themeController.toggle,
+              Column(
+                children: [
+                  AppWindowCaption(enabled: widget.enableWindowControls),
+                  Expanded(
+                    child: Row(
+                      children: [
+                        AppSidebar(
+                          compact: compactSidebar,
+                          selectedIndex: selectedIndex,
+                          onChanged: (index) {
+                            setState(() {
+                              selectedIndex = index;
+                              detailTitle = null;
+                            });
+                          },
+                          loginLabel:
+                              authController?.session.displayName ?? '演示模式',
+                          isLoggedIn: authController?.isLoggedIn ?? false,
+                          onLogin: _showLogin,
+                          isDark: widget.themeController.isDark,
+                          onToggleTheme: widget.themeController.toggle,
+                        ),
+                        VerticalDivider(width: 1),
+                        Expanded(
+                          child: ColoredBox(
+                            color: AppColors.page,
+                            child: _selectedPage(),
+                          ),
+                        ),
+                      ],
                     ),
-                    VerticalDivider(width: 1),
-                    Expanded(
-                      child: ColoredBox(
-                        color: AppColors.page,
-                        child: _selectedPage(),
+                  ),
+                  PlayerBar(
+                    controller: playerController,
+                    onQueuePressed: () {
+                      setState(() => showQueuePanel = !showQueuePanel);
+                    },
+                  ),
+                ],
+              ),
+              if (showQueuePanel)
+                Positioned.fill(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => showQueuePanel = false),
+                    child: ColoredBox(
+                      color: Colors.black.withValues(alpha: 0.18),
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () {},
+                          child: PlayQueuePanel(
+                            controller: playerController,
+                            onClose: () =>
+                                setState(() => showQueuePanel = false),
+                          ),
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
-              PlayerBar(controller: playerController),
             ],
           );
         },

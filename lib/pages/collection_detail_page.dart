@@ -36,7 +36,7 @@ class CollectionDetailPage extends StatefulWidget {
   final List<SearchCatalogItem> relatedItems;
   final bool isLoading;
   final VoidCallback onBack;
-  final ValueChanged<Song> onPlay;
+  final SongPlayRequest onPlay;
   final ValueChanged<Song> onLike;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
@@ -104,7 +104,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                     FilledButton.icon(
                       onPressed: widget.songs.isEmpty
                           ? null
-                          : () => widget.onPlay(widget.songs.first),
+                          : () =>
+                                widget.onPlay(widget.songs.first, widget.songs),
                       icon: Icon(Icons.play_arrow_rounded, size: 19),
                       label: Text('播放全部'),
                     ),
@@ -148,7 +149,10 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         onPlay: widget.onPlay,
         onLike: widget.onLike,
         onArtist: widget.onOpenArtist,
-        onAlbum: widget.onOpenAlbum,
+        onAlbum: widget.kind == CollectionDetailKind.album
+            ? null
+            : widget.onOpenAlbum,
+        showAlbum: widget.kind != CollectionDetailKind.album,
         emptyText: '暂无歌曲',
       );
     }
