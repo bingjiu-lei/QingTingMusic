@@ -57,6 +57,7 @@ class _MusicShellState extends State<MusicShell> {
   late final MusicLibraryController libraryController;
 
   int selectedIndex = 0;
+  int librarySelectedTab = 0;
   String? detailTitle;
   String? detailSubtitle;
   String? detailImageUrl;
@@ -65,6 +66,9 @@ class _MusicShellState extends State<MusicShell> {
   bool detailLoading = false;
   CollectionDetailKind detailKind = CollectionDetailKind.playlist;
   MusicPlaylist? detailPlaylist;
+  String? detailIdentity;
+  int detailSelectedTab = 0;
+  final List<_DetailSnapshot> detailHistory = [];
   bool showQueuePanel = false;
 
   @override
@@ -164,7 +168,10 @@ class _MusicShellState extends State<MusicShell> {
   }
 
   Future<void> _openCatalog(SearchCatalogItem item) async {
+    final identity = 'catalog:${item.category.name}:${item.id}';
+    if (detailIdentity == identity) return;
     setState(() {
+      _pushCurrentDetail();
       detailTitle = item.title;
       detailSubtitle = item.subtitle;
       detailImageUrl = item.imageUrl;
@@ -175,6 +182,8 @@ class _MusicShellState extends State<MusicShell> {
           ? CollectionDetailKind.artist
           : CollectionDetailKind.album;
       detailPlaylist = null;
+      detailIdentity = identity;
+      detailSelectedTab = 0;
     });
     try {
       final results = await Future.wait<Object>([
@@ -202,7 +211,10 @@ class _MusicShellState extends State<MusicShell> {
   }
 
   Future<void> _openPlaylist(MusicPlaylist playlist) async {
+    final identity = 'playlist:${playlist.kind.name}:${playlist.id}';
+    if (detailIdentity == identity) return;
     setState(() {
+      _pushCurrentDetail();
       detailTitle = playlist.name;
       detailSubtitle = '${playlist.songCount} 首歌曲';
       detailImageUrl = playlist.coverUrl;
@@ -213,6 +225,8 @@ class _MusicShellState extends State<MusicShell> {
           ? CollectionDetailKind.album
           : CollectionDetailKind.playlist;
       detailPlaylist = playlist;
+      detailIdentity = identity;
+      detailSelectedTab = 0;
     });
     try {
       final songs = await libraryController.loadPlaylist(playlist);
@@ -231,11 +245,13 @@ class _MusicShellState extends State<MusicShell> {
   }
 
   Future<void> _openArtistFromSong(Song song) async {
+    final artistName = _navigableArtistName(song.artist);
+    if (artistName == null) return;
     var id = song.artistId?.toString() ?? '';
     String? image = song.coverUrl;
     if (id.isEmpty) {
       final matches = await repository.searchCatalog(
-        song.artist,
+        artistName,
         SearchCategory.artist,
       );
       if (matches.isNotEmpty) {
@@ -247,7 +263,7 @@ class _MusicShellState extends State<MusicShell> {
     await _openCatalog(
       SearchCatalogItem(
         id: id,
-        title: song.artist,
+        title: artistName,
         subtitle: '歌手',
         category: SearchCategory.artist,
         imageUrl: image,
@@ -337,6 +353,49 @@ class _MusicShellState extends State<MusicShell> {
     );
   }
 
+  void _pushCurrentDetail() {
+    if (detailTitle == null) return;
+    detailHistory.add(
+      _DetailSnapshot(
+        identity: detailIdentity,
+        title: detailTitle!,
+        subtitle: detailSubtitle,
+        imageUrl: detailImageUrl,
+        songs: detailSongs,
+        relatedItems: detailRelatedItems,
+        isLoading: detailLoading,
+        kind: detailKind,
+        playlist: detailPlaylist,
+        selectedTab: detailSelectedTab,
+      ),
+    );
+  }
+
+  void _popDetail() {
+    if (detailHistory.isEmpty) {
+      setState(() {
+        detailTitle = null;
+        detailPlaylist = null;
+        detailIdentity = null;
+        detailSelectedTab = 0;
+      });
+      return;
+    }
+    final previous = detailHistory.removeLast();
+    setState(() {
+      detailIdentity = previous.identity;
+      detailTitle = previous.title;
+      detailSubtitle = previous.subtitle;
+      detailImageUrl = previous.imageUrl;
+      detailSongs = previous.songs;
+      detailRelatedItems = previous.relatedItems;
+      detailLoading = previous.isLoading;
+      detailKind = previous.kind;
+      detailPlaylist = previous.playlist;
+      detailSelectedTab = previous.selectedTab;
+    });
+  }
+
   @override
   void dispose() {
     playerController
@@ -376,6 +435,9 @@ class _MusicShellState extends State<MusicShell> {
                               selectedIndex = index;
                               detailTitle = null;
                               detailPlaylist = null;
+                              detailIdentity = null;
+                              detailSelectedTab = 0;
+                              detailHistory.clear();
                             });
                           },
                           loginLabel:
@@ -436,7 +498,7 @@ class _MusicShellState extends State<MusicShell> {
   Widget _selectedPage() {
     if (detailTitle != null) {
       return CollectionDetailPage(
-        key: ValueKey('$detailKind:$detailTitle'),
+        key: ValueKey(detailIdentity ?? '$detailKind:$detailTitle'),
         kind: detailKind,
         title: detailTitle!,
         subtitle: detailSubtitle ?? '',
@@ -446,7 +508,14 @@ class _MusicShellState extends State<MusicShell> {
         isLoading: detailLoading,
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
-        onBack: () => setState(() => detailTitle = null),
+        selectedTab: detailSelectedTab,
+        onTabChanged: (index) => setState(() => detailSelectedTab = index),
+        storageKeyPrefix: detailIdentity ?? '$detailKind:$detailTitle',
+        openedFromArtist:
+            detailKind == CollectionDetailKind.album &&
+            detailHistory.isNotEmpty &&
+            detailHistory.last.kind == CollectionDetailKind.artist,
+        onBack: _popDetail,
         onPlay: _playSong,
         onLike: _toggleFavorite,
         onAddToPlaylist: _showAddToPlaylist,
@@ -473,6 +542,8 @@ class _MusicShellState extends State<MusicShell> {
         onOpenPlaylist: _openPlaylist,
         onOpenCatalog: _openCatalog,
         onLogin: _showLogin,
+        selectedTab: librarySelectedTab,
+        onTabChanged: (index) => setState(() => librarySelectedTab = index),
       ),
       1 => SearchPage(
         controller: searchController,
@@ -495,4 +566,46 @@ class _MusicShellState extends State<MusicShell> {
       ),
     };
   }
+}
+
+String? _navigableArtistName(String value) {
+  final cleaned = value
+      .replaceAll(RegExp(r'^[\s/\\|,，、]+|[\s/\\|,，、]+$'), '')
+      .trim();
+  if (!RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(cleaned)) return null;
+  final lower = cleaned.toLowerCase();
+  if (lower == '未知歌手' ||
+      lower == 'unknown' ||
+      lower == 'unknown artist' ||
+      lower == 'null' ||
+      cleaned == '群星') {
+    return null;
+  }
+  return cleaned;
+}
+
+class _DetailSnapshot {
+  const _DetailSnapshot({
+    required this.identity,
+    required this.title,
+    required this.subtitle,
+    required this.imageUrl,
+    required this.songs,
+    required this.relatedItems,
+    required this.isLoading,
+    required this.kind,
+    required this.playlist,
+    required this.selectedTab,
+  });
+
+  final String? identity;
+  final String title;
+  final String? subtitle;
+  final String? imageUrl;
+  final List<Song> songs;
+  final List<SearchCatalogItem> relatedItems;
+  final bool isLoading;
+  final CollectionDetailKind kind;
+  final MusicPlaylist? playlist;
+  final int selectedTab;
 }

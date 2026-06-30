@@ -93,6 +93,7 @@ class _SongPanelState extends State<SongPanel> {
                 : Stack(
                     children: [
                       ListView.separated(
+                        key: widget.key is PageStorageKey ? widget.key : null,
                         controller: _scrollController,
                         itemCount: widget.songs.length,
                         separatorBuilder: (_, _) => Divider(

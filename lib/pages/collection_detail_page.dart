@@ -25,6 +25,10 @@ class CollectionDetailPage extends StatefulWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     required this.onOpenCatalog,
+    required this.selectedTab,
+    required this.onTabChanged,
+    required this.storageKeyPrefix,
+    this.openedFromArtist = false,
     this.onRemoveFromPlaylist,
     this.currentSong,
     this.isPlaying = false,
@@ -42,9 +46,13 @@ class CollectionDetailPage extends StatefulWidget {
   final ValueChanged<Song> onLike;
   final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song>? onRemoveFromPlaylist;
-  final ValueChanged<Song> onOpenArtist;
+  final ValueChanged<Song>? onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
+  final int selectedTab;
+  final ValueChanged<int> onTabChanged;
+  final String storageKeyPrefix;
+  final bool openedFromArtist;
   final Song? currentSong;
   final bool isPlaying;
 
@@ -53,8 +61,6 @@ class CollectionDetailPage extends StatefulWidget {
 }
 
 class _CollectionDetailPageState extends State<CollectionDetailPage> {
-  int selectedTab = 0;
-
   List<String> get tabs => switch (widget.kind) {
     CollectionDetailKind.playlist => ['歌曲', '歌手', '专辑'],
     CollectionDetailKind.artist => ['歌曲', '专辑'],
@@ -64,10 +70,15 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   @override
   void didUpdateWidget(covariant CollectionDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.title != widget.title || oldWidget.kind != widget.kind) {
-      selectedTab = 0;
+    if (widget.selectedTab >= tabs.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onTabChanged(0);
+      });
     }
   }
+
+  int get selectedTab =>
+      widget.selectedTab >= tabs.length ? 0 : widget.selectedTab;
 
   @override
   Widget build(BuildContext context) {
@@ -125,7 +136,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                 _DetailTab(
                   label: tabs[index],
                   selected: selectedTab == index,
-                  onTap: () => setState(() => selectedTab = index),
+                  onTap: () => widget.onTabChanged(index),
                 ),
                 if (index != tabs.length - 1) SizedBox(width: 26),
               ],
@@ -144,17 +155,19 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
 
   Widget _content() {
     final tab = tabs[selectedTab];
+    final songs = _songsForDisplay();
     if (tab == '歌曲') {
       return SongPanel(
+        key: PageStorageKey('${widget.storageKeyPrefix}:songs'),
         title: '歌曲',
-        songs: widget.songs,
+        songs: songs,
         currentSong: widget.currentSong,
         isPlaying: widget.isPlaying,
         onPlay: widget.onPlay,
         onLike: widget.onLike,
         onAddToPlaylist: widget.onAddToPlaylist,
         onRemoveFromPlaylist: widget.onRemoveFromPlaylist,
-        onArtist: widget.onOpenArtist,
+        onArtist: _enableArtistLinks ? widget.onOpenArtist : null,
         onAlbum: widget.kind == CollectionDetailKind.album
             ? null
             : widget.onOpenAlbum,
@@ -166,27 +179,52 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         tab == '专辑' &&
         widget.relatedItems.isNotEmpty) {
       return _CatalogGrid(
+        storageKey: PageStorageKey('${widget.storageKeyPrefix}:artist-albums'),
         items: widget.relatedItems,
         onTap: widget.onOpenCatalog,
       );
     }
     return _FacetGrid(
-      songs: widget.songs,
+      songs: songs,
       artists: tab == '歌手',
+      storageKey: PageStorageKey('${widget.storageKeyPrefix}:facet:$tab'),
       onTap: tab == '歌手' ? widget.onOpenArtist : widget.onOpenAlbum,
     );
+  }
+
+  bool get _enableArtistLinks =>
+      widget.onOpenArtist != null &&
+      widget.kind != CollectionDetailKind.artist &&
+      !widget.openedFromArtist;
+
+  List<Song> _songsForDisplay() {
+    if (widget.kind != CollectionDetailKind.artist) return widget.songs;
+    return widget.songs
+        .map(
+          (song) => song.copyWith(
+            artist: widget.title,
+            artists: [SongArtist(name: widget.title)],
+          ),
+        )
+        .toList();
   }
 }
 
 class _CatalogGrid extends StatelessWidget {
-  const _CatalogGrid({required this.items, required this.onTap});
+  const _CatalogGrid({
+    required this.items,
+    required this.onTap,
+    required this.storageKey,
+  });
 
   final List<SearchCatalogItem> items;
   final ValueChanged<SearchCatalogItem> onTap;
+  final PageStorageKey<String> storageKey;
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
+      key: storageKey,
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 230,
         mainAxisExtent: 72,
@@ -298,20 +336,27 @@ class _FacetGrid extends StatelessWidget {
   const _FacetGrid({
     required this.songs,
     required this.artists,
+    required this.storageKey,
     required this.onTap,
   });
 
   final List<Song> songs;
   final bool artists;
-  final ValueChanged<Song> onTap;
+  final PageStorageKey<String> storageKey;
+  final ValueChanged<Song>? onTap;
 
   @override
   Widget build(BuildContext context) {
     final unique = <String, Song>{};
     for (final song in songs) {
-      final key = artists ? song.artist : '${song.albumId}:${song.album}';
+      final artistLabel = _facetArtistLabel(song.artist);
+      if (artists && artistLabel == '群星') continue;
+      final key = artists ? artistLabel : '${song.albumId}:${song.album}';
       if (key.trim().isNotEmpty && key != '未知歌手' && key != 'null:未知专辑') {
-        unique.putIfAbsent(key, () => song);
+        unique.putIfAbsent(
+          key,
+          () => artists ? song.copyWith(artist: artistLabel) : song,
+        );
       }
     }
     final values = unique.values.toList();
@@ -324,6 +369,7 @@ class _FacetGrid extends StatelessWidget {
       );
     }
     return GridView.builder(
+      key: storageKey,
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 230,
         mainAxisExtent: 72,
@@ -337,7 +383,7 @@ class _FacetGrid extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
-            onTap: () => onTap(song),
+            onTap: onTap == null ? null : () => onTap!(song),
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: EdgeInsets.all(10),
@@ -379,4 +425,20 @@ class _FacetGrid extends StatelessWidget {
       },
     );
   }
+}
+
+String _facetArtistLabel(String value) {
+  final cleaned = value
+      .replaceAll(RegExp(r'^[\s/\\|,，、]+|[\s/\\|,，、]+$'), '')
+      .trim();
+  final hasText = RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(cleaned);
+  if (!hasText) return '群星';
+  final lower = cleaned.toLowerCase();
+  if (lower == '未知歌手' ||
+      lower == 'unknown' ||
+      lower == 'unknown artist' ||
+      lower == 'null') {
+    return '群星';
+  }
+  return cleaned;
 }

@@ -24,6 +24,8 @@ class LibraryPage extends StatefulWidget {
     required this.onOpenPlaylist,
     required this.onOpenCatalog,
     required this.onLogin,
+    required this.selectedTab,
+    required this.onTabChanged,
   });
 
   final MusicLibraryController controller;
@@ -38,14 +40,14 @@ class LibraryPage extends StatefulWidget {
   final ValueChanged<MusicPlaylist> onOpenPlaylist;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final VoidCallback onLogin;
+  final int selectedTab;
+  final ValueChanged<int> onTabChanged;
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
 }
 
 class _LibraryPageState extends State<LibraryPage> {
-  int selectedTab = 0;
-
   static const tabs = [
     ('歌曲', LibrarySection.songs),
     ('歌单', LibrarySection.playlists),
@@ -71,9 +73,9 @@ class _LibraryPageState extends State<LibraryPage> {
                 for (var index = 0; index < tabs.length; index++) ...[
                   _LibraryTab(
                     label: tabs[index].$1,
-                    selected: selectedTab == index,
+                    selected: widget.selectedTab == index,
                     onTap: () {
-                      setState(() => selectedTab = index);
+                      widget.onTabChanged(index);
                       widget.controller.ensureLoaded(tabs[index].$2);
                     },
                   ),
@@ -91,34 +93,44 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _content() {
     final controller = widget.controller;
-    final section = tabs[selectedTab].$2;
+    final section = tabs[widget.selectedTab].$2;
     final content = switch (section) {
       LibrarySection.songs => _songs(
         '歌曲',
         controller.sortedFavorites,
         '还没有收藏的歌曲',
+        storageKey: const PageStorageKey('library-songs-scroll'),
       ),
       LibrarySection.playlists => _PlaylistGroups(
         created: controller.createdPlaylists,
         collected: controller.collectedPlaylists,
         onOpen: widget.onOpenPlaylist,
+        storageKey: const PageStorageKey('library-playlists-scroll'),
       ),
       LibrarySection.albums => _PlaylistGrid(
         playlists: controller.sortedAlbums,
         onOpen: widget.onOpenPlaylist,
         emptyText: '还没有收藏的专辑',
+        storageKey: const PageStorageKey('library-albums-scroll'),
       ),
       LibrarySection.artists => SearchCatalogList(
         items: controller.followedArtists,
         emptyText: '还没有收藏的歌手',
         onSelected: widget.onOpenCatalog,
+        storageKey: const PageStorageKey('library-artists-scroll'),
       ),
       LibrarySection.cloud => _songs(
         '云盘歌曲',
         controller.sortedCloudSongs,
         '云盘中还没有歌曲',
+        storageKey: const PageStorageKey('library-cloud-scroll'),
       ),
-      LibrarySection.recent => _songs('最近播放', widget.recentSongs, '还没有播放记录'),
+      LibrarySection.recent => _songs(
+        '最近播放',
+        widget.recentSongs,
+        '还没有播放记录',
+        storageKey: const PageStorageKey('library-recent-scroll'),
+      ),
     };
 
     final error = controller.errors[section];
@@ -144,7 +156,10 @@ class _LibraryPageState extends State<LibraryPage> {
       children: [
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
-          child: KeyedSubtree(key: ValueKey(selectedTab), child: content),
+          child: KeyedSubtree(
+            key: ValueKey(widget.selectedTab),
+            child: content,
+          ),
         ),
         if (controller.isLoading(section))
           const Positioned(
@@ -157,8 +172,14 @@ class _LibraryPageState extends State<LibraryPage> {
     );
   }
 
-  Widget _songs(String title, List<Song> songs, String emptyText) {
+  Widget _songs(
+    String title,
+    List<Song> songs,
+    String emptyText, {
+    PageStorageKey<String>? storageKey,
+  }) {
     return SongPanel(
+      key: storageKey,
       title: title,
       songs: songs,
       currentSong: widget.currentSong,
@@ -178,11 +199,13 @@ class _PlaylistGroups extends StatelessWidget {
     required this.created,
     required this.collected,
     required this.onOpen,
+    required this.storageKey,
   });
 
   final List<MusicPlaylist> created;
   final List<MusicPlaylist> collected;
   final ValueChanged<MusicPlaylist> onOpen;
+  final PageStorageKey<String> storageKey;
 
   @override
   Widget build(BuildContext context) {
@@ -192,6 +215,7 @@ class _PlaylistGroups extends StatelessWidget {
       );
     }
     return CustomScrollView(
+      key: storageKey,
       slivers: [
         if (created.isNotEmpty) ...[
           const SliverToBoxAdapter(child: _SectionTitle('创建')),
@@ -257,11 +281,13 @@ class _PlaylistGrid extends StatelessWidget {
   const _PlaylistGrid({
     required this.playlists,
     required this.onOpen,
+    required this.storageKey,
     this.emptyText = '还没有歌单',
   });
 
   final List<MusicPlaylist> playlists;
   final ValueChanged<MusicPlaylist> onOpen;
+  final PageStorageKey<String> storageKey;
   final String emptyText;
 
   @override
@@ -272,6 +298,7 @@ class _PlaylistGrid extends StatelessWidget {
       );
     }
     return GridView.builder(
+      key: storageKey,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 260,
         mainAxisExtent: 76,

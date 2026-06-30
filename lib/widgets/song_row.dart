@@ -236,13 +236,8 @@ class _ArtistLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artists =
-        (song.artists.isEmpty
-                ? [SongArtist(name: song.artist, id: song.artistId)]
-                : song.artists)
-            .where((artist) => _hasVisibleText(artist.name))
-            .toList();
-    final fallbackArtist = _hasVisibleText(song.artist) ? song.artist : '未知歌手';
+    final artists = _visibleArtists(song);
+    final fallbackArtist = _fallbackArtistLabel(song.artist);
     if (artists.isEmpty) {
       return Text(
         fallbackArtist,
@@ -251,45 +246,56 @@ class _ArtistLine extends StatelessWidget {
         style: TextStyle(color: AppColors.muted, fontSize: 12),
       );
     }
-    if (artists.length <= 1 || onArtistLink == null) {
+    if (artists.length == 1) {
+      final artist = artists.first;
+      final onTap = onArtistLink == null
+          ? onArtist
+          : () => onArtistLink!(artist);
       return MouseRegion(
-        cursor: onArtist == null ? MouseCursor.defer : SystemMouseCursors.click,
+        cursor: onTap == null ? MouseCursor.defer : SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: onArtist,
+          onTap: onTap,
           child: Text(
-            fallbackArtist,
+            artist.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: onArtist == null
-                  ? AppColors.muted
-                  : AppColors.primaryPressed,
+              color: onTap == null ? AppColors.muted : AppColors.primaryPressed,
               fontSize: 12,
             ),
           ),
         ),
       );
     }
+    if (onArtistLink == null) {
+      return Text(
+        _artistJoin(artists),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: AppColors.muted, fontSize: 12),
+      );
+    }
 
     return SizedBox(
       height: 17,
-      child: ClipRect(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             for (var index = 0; index < artists.length; index++) ...[
-              Flexible(
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () => onArtistLink!(artists[index]),
-                    child: Text(
-                      artists[index].name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.primaryPressed,
-                        fontSize: 12,
-                      ),
+              MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: InkWell(
+                  onTap: () => onArtistLink!(artists[index]),
+                  borderRadius: BorderRadius.circular(4),
+                  child: Text(
+                    artists[index].name,
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: AppColors.primaryPressed,
+                      fontSize: 12,
                     ),
                   ),
                 ),
@@ -307,8 +313,58 @@ class _ArtistLine extends StatelessWidget {
   }
 }
 
+List<SongArtist> _visibleArtists(Song song) {
+  final source = song.artists.isEmpty
+      ? [SongArtist(name: song.artist, id: song.artistId)]
+      : song.artists;
+  final result = <SongArtist>[];
+  final seen = <String>{};
+  for (final artist in source) {
+    final name = _normalizeArtistName(artist.name);
+    if (!_hasVisibleText(name) ||
+        _isPlaceholderArtist(name) ||
+        !seen.add(name)) {
+      continue;
+    }
+    result.add(SongArtist(name: name, id: artist.id));
+  }
+  if (result.isNotEmpty) return result;
+
+  final fallbackNames = song.artist
+      .split(RegExp(r'\s*/\s*'))
+      .map(_normalizeArtistName)
+      .where((name) => _hasVisibleText(name) && !_isPlaceholderArtist(name));
+  for (final name in fallbackNames) {
+    if (seen.add(name)) result.add(SongArtist(name: name));
+  }
+  return result;
+}
+
+String _artistJoin(List<SongArtist> artists) =>
+    artists.map((artist) => artist.name).join(' / ');
+
+String _fallbackArtistLabel(String value) {
+  final cleaned = _normalizeArtistName(value);
+  if (_hasVisibleText(cleaned) && !_isPlaceholderArtist(cleaned)) {
+    return cleaned;
+  }
+  return '群星';
+}
+
+String _normalizeArtistName(String value) {
+  return value.replaceAll(RegExp(r'^[\s/\\|,，、]+|[\s/\\|,，、]+$'), '').trim();
+}
+
 bool _hasVisibleText(String value) {
   return RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(value);
+}
+
+bool _isPlaceholderArtist(String value) {
+  final text = value.trim().toLowerCase();
+  return text == '未知歌手' ||
+      text == 'unknown' ||
+      text == 'unknown artist' ||
+      text == 'null';
 }
 
 String formatDuration(Duration value) {

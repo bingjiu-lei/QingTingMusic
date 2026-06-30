@@ -9,11 +9,13 @@ class SearchCatalogList extends StatelessWidget {
     required this.items,
     required this.emptyText,
     required this.onSelected,
+    this.storageKey,
   });
 
   final List<SearchCatalogItem> items;
   final String emptyText;
   final ValueChanged<SearchCatalogItem> onSelected;
+  final PageStorageKey<String>? storageKey;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +29,7 @@ class SearchCatalogList extends StatelessWidget {
     }
 
     return ListView.separated(
+      key: storageKey,
       padding: EdgeInsets.zero,
       itemCount: items.length,
       separatorBuilder: (_, _) =>

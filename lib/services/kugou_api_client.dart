@@ -1155,8 +1155,8 @@ List<SongArtist> _extractArtists(
   final result = <SongArtist>[];
 
   void add(String name, Object? id) {
-    final cleanName = name.trim();
-    if (cleanName.isEmpty) return;
+    final cleanName = _cleanArtistName(name);
+    if (!_isUsefulArtistName(cleanName)) return;
     if (result.any((item) => item.name == cleanName)) return;
     result.add(SongArtist(name: cleanName, id: _nullableInt(id)));
   }
@@ -1172,15 +1172,29 @@ List<SongArtist> _extractArtists(
       for (final item in source) {
         final map = _map(item);
         add(
-          _read(map, ['name', 'author_name', 'singername', 'SingerName']),
-          map['author_id'] ?? map['singerid'] ?? map['id'],
+          _read(map, [
+            'name',
+            'author_name',
+            'authorname',
+            'AuthorName',
+            'singername',
+            'SingerName',
+          ]),
+          map['author_id'] ?? map['authorid'] ?? map['singerid'] ?? map['id'],
         );
       }
     } else if (source is Map) {
       final map = _map(source);
       add(
-        _read(map, ['name', 'author_name', 'singername', 'SingerName']),
-        map['author_id'] ?? map['singerid'] ?? map['id'],
+        _read(map, [
+          'name',
+          'author_name',
+          'authorname',
+          'AuthorName',
+          'singername',
+          'SingerName',
+        ]),
+        map['author_id'] ?? map['authorid'] ?? map['singerid'] ?? map['id'],
       );
     }
   }
@@ -1206,9 +1220,18 @@ List<SongArtist> _splitArtists(String value) {
 }
 
 bool _isUsefulArtistName(String value) {
-  final text = value.trim();
+  final text = _cleanArtistName(value);
   if (text.isEmpty) return false;
-  return RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(text);
+  if (!RegExp(r'[\p{L}\p{N}]', unicode: true).hasMatch(text)) return false;
+  final lower = text.toLowerCase();
+  return lower != '未知歌手' &&
+      lower != 'unknown' &&
+      lower != 'unknown artist' &&
+      lower != 'null';
+}
+
+String _cleanArtistName(String value) {
+  return value.replaceAll(RegExp(r'^[\s/\\|,，、]+|[\s/\\|,，、]+$'), '').trim();
 }
 
 List<SongArtist> _displayArtists(String artist, List<SongArtist> extracted) {
