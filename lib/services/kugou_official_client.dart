@@ -27,6 +27,10 @@ class KugouOfficialClient {
   static const _standardSignKeySalt = '57ae12eb6890223e355ccfcb74edf70d';
   static const _cloudKeySalt = 'ebd1ac3134c880bda6a2194537843caa0162e2e7';
   static const _standardParamKeySalt = 'OIlwieks28dk2k092lksi2UIkp';
+  static const _liteLoginT2Key = 'fd14b35e3f81af3817a20ae7adae7020';
+  static const _liteLoginT2Iv = '17a20ae7adae7020';
+  static const _liteLoginT1Key = '5e4ef500e9597fe004bd09a46d8add98';
+  static const _liteLoginT1Iv = '04bd09a46d8add98';
   static const _publicLiteRsaKey = '''
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3Z5syug0O24QyQO8bg27+0+4kBzTBTBOZ/WWU0WryL1JSXRTXLgFVxtzIY41Pe7lPOgsfTCn5kZcvKhYKJesKnnJDNr5/abvTGf+rHG3YRwsCHcQ08/q6ifSioBszvb3QiwIDAQAB
@@ -80,11 +84,32 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         extra: {'baseUrl': request.baseUrl},
       ),
     );
+    final decoded = _decodeBody(response.data, decryptKey: request.decryptKey);
     return {
       'statusCode': response.statusCode,
-      'data': _decodeBody(response.data, decryptKey: request.decryptKey),
+      'data': _decodeLoginBody(decoded, request.loginDecryptKey),
       'setCookie': response.headers.map['set-cookie'] ?? const <String>[],
     };
+  }
+
+  Object? _decodeLoginBody(Object? data, String? loginDecryptKey) {
+    if (loginDecryptKey == null || data is! Map) return data;
+    final body = Map<String, Object?>.from(data.cast<String, Object?>());
+    final rawData = body['data'];
+    if (rawData is! Map) return body;
+    final loginData = Map<String, Object?>.from(
+      rawData.cast<String, Object?>(),
+    );
+    final secuParams = loginData['secu_params']?.toString() ?? '';
+    if (secuParams.isEmpty) return body;
+    final decrypted = _loginAesDecrypt(secuParams, loginDecryptKey);
+    if (decrypted is Map) {
+      loginData.addAll(decrypted.cast<String, Object?>());
+    } else if (decrypted is String && decrypted.isNotEmpty) {
+      loginData['token'] = decrypted;
+    }
+    body['data'] = loginData;
+    return body;
   }
 
   Object? _decodeBody(Object? data, {String? decryptKey}) {
@@ -146,6 +171,8 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         },
         cookie,
       ),
+      '/captcha/sent' => _sendSmsCode(params, cookie),
+      '/login/cellphone' => _loginByCellphone(params, cookie),
       '/register/dev' => _registerDevice(params, cookie),
       '/search/suggest' => _android(
         '/v2/getSearchTip',
@@ -278,6 +305,84 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       clientVersion: liteClientver,
       responseType: ResponseType.bytes,
       decryptKey: aes.key,
+    );
+  }
+
+  _OfficialRequest _sendSmsCode(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    return _android(
+      '/v7/send_mobile_code',
+      {},
+      cookie,
+      baseUrl: 'http://login.user.kugou.com',
+      method: 'POST',
+      data: {'businessid': 5, 'mobile': params['mobile'] ?? '', 'plat': 3},
+    );
+  }
+
+  _OfficialRequest _loginByCellphone(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    final dateTime = DateTime.now().millisecondsSinceEpoch;
+    final encrypt = _loginAesEncrypt({
+      'mobile': params['mobile'] ?? '',
+      'code': params['code'] ?? '',
+    });
+    final mobile = params['mobile']?.toString() ?? '';
+    final maskedMobile = mobile.length == 11
+        ? '${mobile.substring(0, 2)}*****${mobile.substring(10, 11)}'
+        : mobile;
+    final guid = cookie['KUGOU_API_GUID'] ?? randomGuid();
+    final mac = cookie['KUGOU_API_MAC'] ?? randomMac();
+    final dev = cookie['KUGOU_API_DEV'] ?? randomDeviceId();
+    final dfid = cookie['dfid'] ?? _randomString(24);
+    final t2 = _aesCbcEncryptHex(
+      '$guid|0f607264fc6318a92b9e13c65db7cd3c|$mac|$dev|$dateTime',
+      key: _liteLoginT2Key,
+      iv: _liteLoginT2Iv,
+    );
+    final t1 = _aesCbcEncryptHex(
+      '|$dateTime',
+      key: _liteLoginT1Key,
+      iv: _liteLoginT1Iv,
+    );
+    return _android(
+      '/v7/login_by_verifycode',
+      {},
+      {
+        ...cookie,
+        'dfid': dfid,
+        'KUGOU_API_GUID': guid,
+        'KUGOU_API_MAC': mac,
+        'KUGOU_API_DEV': dev,
+      },
+      baseUrl: 'https://loginserviceretry.kugou.com',
+      method: 'POST',
+      data: {
+        'plat': 1,
+        'support_multi': 1,
+        't1': t1,
+        't2': t2,
+        'clienttime_ms': dateTime,
+        'mobile': maskedMobile,
+        'key': _signParamsKey(dateTime.toString()),
+        'pk': _rsaEncrypt({
+          'clienttime_ms': dateTime,
+          'key': encrypt.key,
+        }, _publicLiteRsaKey).toUpperCase(),
+        'params': encrypt.data,
+        'dfid': dfid,
+        'dev': dev,
+        'gitversion': '5f0b7c4',
+      },
+      headers: {
+        'support-calm': '1',
+        'User-Agent': 'Android16-1070-11440-130-0-LOGIN-wifi',
+      },
+      loginDecryptKey: encrypt.key,
     );
   }
 
@@ -575,6 +680,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     int clientVersion = liteClientver,
     ResponseType? responseType,
     String? decryptKey,
+    String? loginDecryptKey,
   }) {
     final dfid = cookie['dfid']?.isNotEmpty == true ? cookie['dfid']! : '-';
     final mid = cookie['KUGOU_API_MID']?.isNotEmpty == true
@@ -614,6 +720,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       method: method,
       responseType: responseType,
       decryptKey: decryptKey,
+      loginDecryptKey: loginDecryptKey,
       headers: {
         'User-Agent': 'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi',
         'dfid': dfid,
@@ -782,6 +889,65 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     }
   }
 
+  _LoginAesPayload _loginAesEncrypt(Object data) {
+    final useData = data is String ? data : jsonEncode(data);
+    final key = _randomString(16).toLowerCase();
+    return _LoginAesPayload(_aesCbcEncryptHex(useData, key: key), key);
+  }
+
+  Object? _loginAesDecrypt(String data, String key) {
+    final keyMd5 = _md5(key).substring(0, 32);
+    final iv = keyMd5.substring(keyMd5.length - 16);
+    final cipher =
+        PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
+          ..init(
+            false,
+            PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(
+              ParametersWithIV<KeyParameter>(
+                KeyParameter(Uint8List.fromList(utf8.encode(keyMd5))),
+                Uint8List.fromList(utf8.encode(iv)),
+              ),
+              null,
+            ),
+          );
+    final decrypted = cipher.process(_hexToBytes(data));
+    final text = utf8.decode(decrypted, allowMalformed: true);
+    try {
+      return jsonDecode(text);
+    } catch (_) {
+      return text;
+    }
+  }
+
+  String _aesCbcEncryptHex(String data, {required String key, String? iv}) {
+    final useKey = iv == null ? _md5(key).substring(0, 32) : key;
+    final useIv = iv ?? useKey.substring(useKey.length - 16);
+    final cipher =
+        PaddedBlockCipherImpl(PKCS7Padding(), CBCBlockCipher(AESEngine()))
+          ..init(
+            true,
+            PaddedBlockCipherParameters<ParametersWithIV<KeyParameter>, Null>(
+              ParametersWithIV<KeyParameter>(
+                KeyParameter(Uint8List.fromList(utf8.encode(useKey))),
+                Uint8List.fromList(utf8.encode(useIv)),
+              ),
+              null,
+            ),
+          );
+    final encrypted = cipher.process(Uint8List.fromList(utf8.encode(data)));
+    return encrypted
+        .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
+        .join();
+  }
+
+  Uint8List _hexToBytes(String value) {
+    final clean = value.length.isOdd ? '0$value' : value;
+    return Uint8List.fromList([
+      for (var i = 0; i < clean.length; i += 2)
+        int.parse(clean.substring(i, i + 2), radix: 16),
+    ]);
+  }
+
   String _rsaEncrypt2(Object data) {
     return _rsaEncrypt(data, _publicLiteRsaKey);
   }
@@ -822,6 +988,13 @@ class _PlaylistAesPayload {
   final String key;
 }
 
+class _LoginAesPayload {
+  const _LoginAesPayload(this.data, this.key);
+
+  final String data;
+  final String key;
+}
+
 class _OfficialRequest {
   const _OfficialRequest({
     required this.baseUrl,
@@ -832,6 +1005,7 @@ class _OfficialRequest {
     this.data,
     this.responseType,
     this.decryptKey,
+    this.loginDecryptKey,
   });
 
   final String baseUrl;
@@ -842,6 +1016,7 @@ class _OfficialRequest {
   final Object? data;
   final ResponseType? responseType;
   final String? decryptKey;
+  final String? loginDecryptKey;
 }
 
 Dio _createDio() {

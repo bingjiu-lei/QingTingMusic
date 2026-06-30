@@ -50,6 +50,26 @@ class KugouQrCheckResult {
   final KugouSession? session;
 }
 
+class KugouWxLoginCode {
+  const KugouWxLoginCode({
+    required this.uuid,
+    required this.imageDataUrl,
+    this.qrText,
+  });
+
+  final String uuid;
+  final String imageDataUrl;
+  final String? qrText;
+}
+
+class KugouWxCheckResult {
+  const KugouWxCheckResult({required this.status, this.openCode, this.session});
+
+  final int status;
+  final String? openCode;
+  final KugouSession? session;
+}
+
 class KugouApiClient {
   KugouApiClient({
     Dio? dio,
@@ -209,9 +229,164 @@ class KugouApiClient {
     return KugouQrCheckResult(status: status, session: session);
   }
 
+  Future<void> sendSmsCode(String mobile) async {
+    final normalized = mobile.trim();
+    if (!RegExp(r'^1\d{10}$').hasMatch(normalized)) {
+      throw const KugouApiException('请输入正确的手机号');
+    }
+    final response = await _get(
+      '/captcha/sent',
+      queryParameters: {
+        'mobile': normalized,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+      bypassCache: true,
+    );
+    final body = _map(response.data);
+    final status = _toInt(body['status'] ?? body['code']);
+    final errorCode = _toInt(body['error_code'] ?? body['errcode']);
+    final ok =
+        status == 1 ||
+        status == 200 ||
+        errorCode == 0 ||
+        body['data'] == true ||
+        _toInt(_map(body['data'])['status']) == 1;
+    if (!ok) {
+      throw KugouApiException(
+        _read(body, ['error', 'message', 'msg'], fallback: '验证码发送失败，请稍后重试'),
+      );
+    }
+  }
+
+  Future<KugouSession> loginBySms(String mobile, String code) async {
+    final normalized = mobile.trim();
+    final smsCode = code.trim();
+    if (!RegExp(r'^1\d{10}$').hasMatch(normalized)) {
+      throw const KugouApiException('请输入正确的手机号');
+    }
+    if (smsCode.isEmpty) {
+      throw const KugouApiException('请输入验证码');
+    }
+    if (!session.hasDevice) await registerDevice();
+    final response = await _get(
+      '/login/cellphone',
+      queryParameters: {
+        'mobile': normalized,
+        'code': smsCode,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+      bypassCache: true,
+    );
+    session = await _applyLoginResponse(response);
+    return session;
+  }
+
+  Future<KugouWxLoginCode> createWxLogin() async {
+    if (await _usesOfficialApi()) {
+      throw const KugouApiException('微信登录需要后端 API 支持，请先在设置中填写支持微信登录的接口地址');
+    }
+    final response = await _get('/login/wx/create', bypassCache: true);
+    final body = _map(response.data);
+    final data = _map(body['data'] ?? body);
+    final uuid = _read(data, ['uuid'], fallback: _read(body, ['uuid']));
+    final qrcode = _map(data['qrcode'] ?? body['qrcode']);
+    var image = _read(qrcode, [
+      'qrcodebase64',
+    ], fallback: _read(data, ['qrcodebase64', 'base64', 'qrcode_img']));
+    final qrText = _read(qrcode, [
+      'qrcodeurl',
+    ], fallback: _read(data, ['qrcodeurl', 'qrText']));
+    if (image.isNotEmpty && !image.startsWith('data:')) {
+      image = 'data:image/jpeg;base64,$image';
+    }
+    if (uuid.isEmpty || (image.isEmpty && qrText.isEmpty)) {
+      throw const KugouApiException('微信二维码生成失败');
+    }
+    return KugouWxLoginCode(uuid: uuid, imageDataUrl: image, qrText: qrText);
+  }
+
+  Future<KugouWxCheckResult> checkWxLogin(String uuid) async {
+    if (await _usesOfficialApi()) {
+      throw const KugouApiException('微信登录需要后端 API 支持');
+    }
+    final response = await _get(
+      '/login/wx/check',
+      queryParameters: {
+        'uuid': uuid,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+      bypassCache: true,
+    );
+    final body = _map(response.data);
+    final data = _map(body['data'] ?? body);
+    final status = _toInt(
+      data['wx_errcode'] ??
+          data['status'] ??
+          body['wx_errcode'] ??
+          body['status'],
+    );
+    final openCode = _read(data, [
+      'wx_code',
+      'code',
+    ], fallback: _read(body, ['wx_code', 'code']));
+    return KugouWxCheckResult(status: status, openCode: openCode);
+  }
+
+  Future<KugouSession> loginByOpenPlat(String code) async {
+    if (await _usesOfficialApi()) {
+      throw const KugouApiException('微信登录需要后端 API 支持');
+    }
+    final response = await _get(
+      '/login/openplat',
+      queryParameters: {'code': code, 'plat': 2},
+      bypassCache: true,
+    );
+    session = await _applyLoginResponse(response);
+    return session;
+  }
+
   Future<void> logout() async {
     session = session.loggedOut();
     await _storage.save(session);
+  }
+
+  Future<KugouSession> _applyLoginResponse(Response<Object?> response) async {
+    final body = _map(response.data);
+    final data = _map(body['data'] ?? body);
+    final status = _toInt(body['status'] ?? body['code'] ?? data['status']);
+    if (status != 0 && status != 1 && status != 200) {
+      throw KugouApiException(
+        _read(body, ['error', 'message', 'msg'], fallback: '登录失败，请稍后重试'),
+      );
+    }
+    final token = _read(data, ['token'], fallback: _read(body, ['token']));
+    final userId = _read(data, [
+      'userid',
+      'user_id',
+    ], fallback: _read(body, ['userid', 'user_id']));
+    if (token.isEmpty || userId.isEmpty || userId == '0') {
+      throw KugouApiException(
+        _read(body, ['error', 'message', 'msg'], fallback: '登录成功，但未获得有效凭证'),
+      );
+    }
+    session = _mergeCookies(
+      session.copyWith(
+        token: token,
+        userId: userId,
+        nickname: _read(data, [
+          'nickname',
+          'username',
+          'nick_name',
+        ], fallback: _read(body, ['nickname', 'username', 'nick_name'])),
+      ),
+      response.headers.map['set-cookie'] ?? const [],
+    );
+    if (await _usesOfficialApi()) {
+      await registerDevice();
+    } else {
+      await _storage.save(session);
+    }
+    return session;
   }
 
   Future<List<String>> searchSuggestions(String keyword) async {
