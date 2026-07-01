@@ -248,6 +248,24 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         },
         headers: {'x-router': 'cloudlist.service.kugou.com'},
       ),
+      '/youth/day/vip' => _android(
+        '/youth/v1/recharge/receive_vip_listen_song',
+        {'source_id': 90139, 'receive_day': params['receive_day'] ?? ''},
+        cookie,
+        method: 'POST',
+        headers: {'content-type': 'application/x-www-form-urlencoded'},
+      ),
+      '/youth/day/vip/upgrade' => _android(
+        '/youth/v1/listen_song/upgrade_vip_reward',
+        {'kugouid': _toInt(cookie['userid'] ?? params['userid']), 'ad_type': 1},
+        cookie,
+        method: 'POST',
+      ),
+      '/youth/month/vip/record' => _android(
+        '/youth/v1/activity/get_month_vip_record',
+        {'latest_limit': 100},
+        cookie,
+      ),
       _ => _android(path, params, cookie, method: method),
     };
   }

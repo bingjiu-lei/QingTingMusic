@@ -22,6 +22,8 @@ enum AuthState {
 
 enum LoginMethod { qrcode, sms, wechat }
 
+enum VipClaimState { idle, checking, claimed, failed }
+
 class AuthController extends ChangeNotifier {
   AuthController(this.apiClient);
 
@@ -37,9 +39,14 @@ class AuthController extends ChangeNotifier {
   int? lastQrStatus;
   int? lastWxStatus;
   int smsCountdown = 0;
+  VipClaimState vipClaimState = VipClaimState.idle;
+  String? vipClaimMessage;
   Timer? _pollTimer;
   Timer? _smsTimer;
+  Timer? _vipDayTimer;
   bool _checking = false;
+  bool _claimingVip = false;
+  String? _lastVipClaimDate;
   String? _qrKey;
   String? _wxUuid;
 
@@ -52,6 +59,10 @@ class AuthController extends ChangeNotifier {
     try {
       await apiClient.initialize();
       state = isLoggedIn ? AuthState.loggedIn : AuthState.loggedOut;
+      if (isLoggedIn) {
+        _startVipDayWatcher();
+        unawaited(ensureDailyVip());
+      }
     } on KugouApiException catch (error) {
       state = AuthState.error;
       errorText = error.message;
@@ -169,6 +180,8 @@ class AuthController extends ChangeNotifier {
       _smsTimer?.cancel();
       smsCountdown = 0;
       state = AuthState.loggedIn;
+      _startVipDayWatcher();
+      unawaited(ensureDailyVip());
       notifyListeners();
     } on KugouApiException catch (error) {
       state = AuthState.smsReady;
@@ -192,6 +205,8 @@ class AuthController extends ChangeNotifier {
         case 4:
           _pollTimer?.cancel();
           state = AuthState.loggedIn;
+          _startVipDayWatcher();
+          unawaited(ensureDailyVip());
           break;
         case 2:
           state = AuthState.waitingConfirm;
@@ -225,6 +240,8 @@ class AuthController extends ChangeNotifier {
         _pollTimer?.cancel();
         await apiClient.loginByOpenPlat(result.openCode!);
         state = AuthState.loggedIn;
+        _startVipDayWatcher();
+        unawaited(ensureDailyVip());
       } else if (result.status == 404 || result.status == 408) {
         state = AuthState.waitingScan;
       } else if (result.status == 402 || result.status == 403) {
@@ -261,6 +278,7 @@ class AuthController extends ChangeNotifier {
   Future<void> logout() async {
     _pollTimer?.cancel();
     _smsTimer?.cancel();
+    _vipDayTimer?.cancel();
     await apiClient.logout();
     qrImageDataUrl = null;
     qrText = null;
@@ -270,14 +288,60 @@ class AuthController extends ChangeNotifier {
     smsCountdown = 0;
     lastQrStatus = null;
     lastWxStatus = null;
+    vipClaimState = VipClaimState.idle;
+    vipClaimMessage = null;
+    _lastVipClaimDate = null;
     state = AuthState.loggedOut;
     notifyListeners();
+  }
+
+  Future<void> ensureDailyVip() async {
+    if (!isLoggedIn || _claimingVip) return;
+    _claimingVip = true;
+    vipClaimState = VipClaimState.checking;
+    vipClaimMessage = '正在检查今日 VIP';
+    notifyListeners();
+    try {
+      final result = await apiClient.ensureDailyVip();
+      vipClaimState = VipClaimState.claimed;
+      vipClaimMessage = result.already ? '今日 VIP 已领取' : '已自动领取今日 VIP';
+      _lastVipClaimDate = _todayString();
+    } catch (_) {
+      vipClaimState = VipClaimState.failed;
+      vipClaimMessage = 'VIP 状态稍后重试';
+    } finally {
+      _claimingVip = false;
+      notifyListeners();
+    }
+  }
+
+  void _startVipDayWatcher() {
+    _vipDayTimer?.cancel();
+    _vipDayTimer = Timer.periodic(
+      const Duration(minutes: 15),
+      (_) => _markVipExpiredIfDayChanged(),
+    );
+  }
+
+  void _markVipExpiredIfDayChanged() {
+    if (!isLoggedIn || _lastVipClaimDate == null) return;
+    if (_lastVipClaimDate == _todayString()) return;
+    vipClaimState = VipClaimState.idle;
+    vipClaimMessage = '今日 VIP 未领取';
+    notifyListeners();
+  }
+
+  String _todayString() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${now.year}-${two(now.month)}-${two(now.day)}';
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
     _smsTimer?.cancel();
+    _vipDayTimer?.cancel();
     super.dispose();
   }
 }

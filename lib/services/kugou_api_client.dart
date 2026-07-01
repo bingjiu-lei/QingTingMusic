@@ -70,6 +70,13 @@ class KugouWxCheckResult {
   final KugouSession? session;
 }
 
+class DailyVipClaimResult {
+  const DailyVipClaimResult({required this.claimed, required this.already});
+
+  final bool claimed;
+  final bool already;
+}
+
 class KugouApiClient {
   KugouApiClient({
     Dio? dio,
@@ -348,6 +355,49 @@ class KugouApiClient {
   Future<void> logout() async {
     session = session.loggedOut();
     await _storage.save(session);
+  }
+
+  Future<DailyVipClaimResult> ensureDailyVip() async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    final today = _todayString();
+    final recordResponse = await _get(
+      '/youth/month/vip/record',
+      authenticated: true,
+      bypassCache: true,
+    );
+    final records = _findRecords(recordResponse.data);
+    final already = records.any((item) {
+      final json = _map(item);
+      final day = _read(json, ['day', 'date', 'receive_day']);
+      return day == today;
+    });
+    if (already) return const DailyVipClaimResult(claimed: true, already: true);
+
+    final claimResponse = await _get(
+      '/youth/day/vip',
+      authenticated: true,
+      queryParameters: {'receive_day': today},
+      bypassCache: true,
+    );
+    final claimBody = _map(claimResponse.data);
+    final claimStatus = _toInt(claimBody['status'] ?? claimBody['code']);
+    final claimError = _toInt(claimBody['error_code'] ?? claimBody['errcode']);
+    if (claimStatus != 1 && claimStatus != 200 && claimError != 0) {
+      throw KugouApiException(
+        _read(claimBody, ['message', 'msg', 'error'], fallback: 'VIP 领取失败'),
+      );
+    }
+
+    try {
+      await _get(
+        '/youth/day/vip/upgrade',
+        authenticated: true,
+        bypassCache: true,
+      );
+    } catch (_) {
+      // 升级权益失败不影响每日畅听会员的领取状态。
+    }
+    return const DailyVipClaimResult(claimed: true, already: false);
   }
 
   Future<KugouSession> _applyLoginResponse(Response<Object?> response) async {
@@ -1288,6 +1338,12 @@ String _read(
     if (value.isNotEmpty) return value;
   }
   return fallback;
+}
+
+String _todayString() {
+  final now = DateTime.now();
+  String two(int value) => value.toString().padLeft(2, '0');
+  return '${now.year}-${two(now.month)}-${two(now.day)}';
 }
 
 ({String title, String artist}) _normalizeTitleAndArtist(

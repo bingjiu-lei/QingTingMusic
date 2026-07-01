@@ -10,6 +10,7 @@ class AppSidebar extends StatelessWidget {
     required this.compact,
     required this.loginLabel,
     required this.isLoggedIn,
+    required this.vipTooltip,
     required this.onLogin,
     required this.isDark,
     required this.onToggleTheme,
@@ -20,6 +21,7 @@ class AppSidebar extends StatelessWidget {
   final bool compact;
   final String loginLabel;
   final bool isLoggedIn;
+  final String vipTooltip;
   final VoidCallback onLogin;
   final bool isDark;
   final VoidCallback onToggleTheme;
@@ -61,6 +63,7 @@ class AppSidebar extends StatelessWidget {
             compact: compact,
             label: loginLabel,
             isLoggedIn: isLoggedIn,
+            vipTooltip: vipTooltip,
             onTap: onLogin,
           ),
         ],
@@ -74,18 +77,21 @@ class _LoginEntry extends StatelessWidget {
     required this.compact,
     required this.label,
     required this.isLoggedIn,
+    required this.vipTooltip,
     required this.onTap,
   });
 
   final bool compact;
   final String label;
   final bool isLoggedIn;
+  final String vipTooltip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final tooltip = isLoggedIn ? '$label\n$vipTooltip' : '登录晴听音乐';
     return Tooltip(
-      message: compact ? label : '',
+      message: tooltip,
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(8),
@@ -100,12 +106,22 @@ class _LoginEntry extends StatelessWidget {
                   : MainAxisAlignment.start,
               children: [
                 if (!compact) SizedBox(width: 12),
-                Icon(
-                  isLoggedIn
-                      ? Icons.account_circle_rounded
-                      : Icons.person_outline_rounded,
-                  color: isLoggedIn ? AppColors.primary : AppColors.muted,
-                  size: 20,
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutCubic,
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: isLoggedIn ? AppColors.selected : Colors.transparent,
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    isLoggedIn
+                        ? Icons.diamond_rounded
+                        : Icons.person_outline_rounded,
+                    color: isLoggedIn ? AppColors.primary : AppColors.muted,
+                    size: isLoggedIn ? 16 : 18,
+                  ),
                 ),
                 if (!compact) ...[
                   SizedBox(width: 12),

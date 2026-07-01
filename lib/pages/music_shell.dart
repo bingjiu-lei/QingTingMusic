@@ -129,12 +129,26 @@ class _MusicShellState extends State<MusicShell> {
     if (controller == null) return;
     await showDialog<void>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (_) => LoginDialog(controller: controller),
     );
     if (controller.isLoggedIn) {
       await libraryController.ensureLoaded(LibrarySection.songs, refresh: true);
     }
+  }
+
+  Future<void> _handleAccountEntry() async {
+    final auth = authController;
+    if (auth == null || !auth.isLoggedIn) {
+      await _showLogin();
+      return;
+    }
+    if (auth.vipClaimState != VipClaimState.claimed &&
+        auth.vipClaimState != VipClaimState.checking) {
+      await auth.ensureDailyVip();
+      return;
+    }
+    await _showLogin();
   }
 
   Future<void> _toggleFavorite(Song song) async {
@@ -443,7 +457,8 @@ class _MusicShellState extends State<MusicShell> {
                           loginLabel:
                               authController?.session.displayName ?? '演示模式',
                           isLoggedIn: authController?.isLoggedIn ?? false,
-                          onLogin: _showLogin,
+                          vipTooltip: _vipTooltip,
+                          onLogin: _handleAccountEntry,
                           isDark: widget.themeController.isDark,
                           onToggleTheme: widget.themeController.toggle,
                         ),
@@ -564,6 +579,17 @@ class _MusicShellState extends State<MusicShell> {
           unawaited(libraryController.ensureLoaded(LibrarySection.songs));
         },
       ),
+    };
+  }
+
+  String get _vipTooltip {
+    final auth = authController;
+    if (auth == null || !auth.isLoggedIn) return '登录后自动领取每日 VIP';
+    return switch (auth.vipClaimState) {
+      VipClaimState.checking => '正在检查今日 VIP',
+      VipClaimState.claimed => auth.vipClaimMessage ?? '今日 VIP 已领取',
+      VipClaimState.failed => auth.vipClaimMessage ?? 'VIP 状态稍后重试',
+      VipClaimState.idle => auth.vipClaimMessage ?? '今日 VIP 未领取',
     };
   }
 }
