@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qing_ting_music/models/song.dart';
+import 'package:qing_ting_music/controllers/player_controller.dart';
 import 'package:qing_ting_music/services/app_storage_service.dart';
 import 'package:qing_ting_music/services/api_endpoint_service.dart';
 import 'package:qing_ting_music/services/cache_management_service.dart';
+import 'package:qing_ting_music/services/playback_state_service.dart';
 import 'package:qing_ting_music/services/recent_songs_service.dart';
 
 void main() {
@@ -50,6 +52,44 @@ void main() {
     await service.save([song]);
     final restored = await service.load();
     expect(restored.single.title, song.title);
+  });
+
+  test('persists playback queue, position and mode', () async {
+    final service = PlaybackStateService();
+    const songs = [
+      Song(
+        id: 'one',
+        title: '第一首',
+        artist: '晴听音乐',
+        album: '播放现场',
+        duration: Duration(minutes: 3),
+        audioUrl: 'https://example.com/one.mp3',
+      ),
+      Song(
+        id: 'two',
+        title: '第二首',
+        artist: '晴听音乐',
+        album: '播放现场',
+        duration: Duration(minutes: 4),
+        audioUrl: 'https://example.com/two.mp3',
+      ),
+    ];
+
+    await service.save(
+      PlaybackSnapshot(
+        queue: songs,
+        currentSong: songs.last,
+        position: const Duration(seconds: 82),
+        playbackMode: PlaybackMode.shuffle,
+      ),
+    );
+
+    final restored = await service.load();
+
+    expect(restored?.queue.map((song) => song.id), ['one', 'two']);
+    expect(restored?.currentSong?.id, 'two');
+    expect(restored?.position, const Duration(seconds: 82));
+    expect(restored?.playbackMode, PlaybackMode.shuffle);
   });
 
   test('clears managed cache without deleting login and settings', () async {

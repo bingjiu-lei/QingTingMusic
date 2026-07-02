@@ -18,6 +18,7 @@ import '../services/cache_management_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/search_history_service.dart';
 import '../services/recent_songs_service.dart';
+import '../services/playback_state_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
 import '../widgets/add_to_playlist_dialog.dart';
@@ -92,6 +93,7 @@ class _MusicShellState extends State<MusicShell> {
       audioService: AudioPlayerService(enabled: widget.enableAudio),
       resolveSong: repository.resolvePlayback,
       recentSongsService: RecentSongsService(),
+      playbackStateService: PlaybackStateService(),
     )..addListener(_refresh);
     searchController = MusicSearchController(
       repository: repository,

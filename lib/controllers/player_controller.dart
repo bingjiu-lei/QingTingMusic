@@ -8,6 +8,7 @@ import '../services/audio_player_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/recent_songs_service.dart';
 import '../services/playback_log_service.dart';
+import '../services/playback_state_service.dart';
 
 enum PlaybackMode {
   sequence('顺序播放'),
@@ -25,16 +26,19 @@ class PlayerController extends ChangeNotifier {
     required this.audioService,
     this.resolveSong,
     this.recentSongsService,
+    this.playbackStateService,
   }) {
     _subscriptions = [
       audioService.playingStream.listen((value) {
         isPlaying = value;
         if (!value) _nearEndTimer?.cancel();
+        _schedulePlaybackStateSave();
         notifyListeners();
       }),
       audioService.positionStream.listen((value) {
         position = value;
         _watchNearEnd();
+        _schedulePlaybackStateSave();
         notifyListeners();
       }),
       audioService.bufferedPositionStream.listen((value) {
@@ -60,6 +64,7 @@ class PlayerController extends ChangeNotifier {
   final AudioPlayerService audioService;
   final Future<Song> Function(Song song)? resolveSong;
   final RecentSongsService? recentSongsService;
+  final PlaybackStateService? playbackStateService;
   late final List<StreamSubscription<Object?>> _subscriptions;
 
   List<Song> queue = const [];
@@ -77,8 +82,10 @@ class PlayerController extends ChangeNotifier {
   bool _handlingCompletion = false;
   Timer? _noticeTimer;
   Timer? _nearEndTimer;
+  Timer? _savePlaybackTimer;
   DateTime? _songStartedAt;
   final Random _random = Random();
+  bool _hasOpenSource = false;
 
   int get queueIndex {
     final song = currentSong;
@@ -108,10 +115,26 @@ class PlayerController extends ChangeNotifier {
     recentSongs
       ..clear()
       ..addAll(saved);
+    final snapshot = await playbackStateService?.load();
+    if (snapshot != null) {
+      queue = List.unmodifiable(_dedupeSongs(snapshot.queue));
+      currentSong = snapshot.currentSong;
+      playbackMode = snapshot.playbackMode;
+      position = snapshot.position;
+      duration = snapshot.currentSong?.duration ?? Duration.zero;
+      bufferedPosition = Duration.zero;
+      isPlaying = false;
+      isPreparing = false;
+      _hasOpenSource = false;
+    }
     notifyListeners();
   }
 
-  Future<void> playSong(Song song, {List<Song>? fromQueue}) async {
+  Future<void> playSong(
+    Song song, {
+    List<Song>? fromQueue,
+    Duration startPosition = Duration.zero,
+  }) async {
     if (fromQueue != null && fromQueue.isNotEmpty) {
       queue = List.unmodifiable(fromQueue);
     } else if (!queue.any((item) => item.id == song.id)) {
@@ -130,10 +153,11 @@ class PlayerController extends ChangeNotifier {
       _noticeTimer?.cancel();
       _nearEndTimer?.cancel();
       currentSong = song;
-      position = Duration.zero;
+      position = _safeStartPosition(startPosition, song.duration);
       bufferedPosition = Duration.zero;
       duration = song.duration;
       isPreparing = true;
+      _hasOpenSource = false;
       notifyListeners();
       Song playableSong;
       try {
@@ -153,7 +177,9 @@ class PlayerController extends ChangeNotifier {
       if (!audioService.isEnabled) {
         isPlaying = true;
         isPreparing = false;
+        _hasOpenSource = true;
         unawaited(_saveRecentSongs());
+        _schedulePlaybackStateSave(immediate: true);
         notifyListeners();
         return;
       }
@@ -161,12 +187,17 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       try {
         await audioService.open(playableSong);
+        _hasOpenSource = true;
+        if (position > Duration.zero) {
+          await audioService.seek(position);
+        }
         _songStartedAt = DateTime.now();
       } catch (error, stackTrace) {
         await PlaybackLogService.write('open', error, stackTrace);
         rethrow;
       }
       unawaited(_saveRecentSongs());
+      _schedulePlaybackStateSave(immediate: true);
       isPreparing = false;
       notifyListeners();
     } on AuthenticationRequiredException {
@@ -219,13 +250,16 @@ class PlayerController extends ChangeNotifier {
       bufferedPosition = previousBufferedPosition;
       duration = previousDuration;
       isPlaying = true;
+      _hasOpenSource = true;
     } else {
       currentSong = attemptedSong;
       position = Duration.zero;
       bufferedPosition = Duration.zero;
       duration = attemptedSong.duration;
       isPlaying = false;
+      _hasOpenSource = false;
     }
+    _schedulePlaybackStateSave();
     notifyListeners();
   }
 
@@ -233,6 +267,7 @@ class PlayerController extends ChangeNotifier {
     final values = PlaybackMode.values;
     final nextIndex = (values.indexOf(playbackMode) + 1) % values.length;
     playbackMode = values[nextIndex];
+    _schedulePlaybackStateSave(immediate: true);
     notifyListeners();
   }
 
@@ -241,6 +276,7 @@ class PlayerController extends ChangeNotifier {
     if (current != null && !queue.any((item) => item.id == current.id)) {
       queue = List.unmodifiable([current, ...queue]);
     }
+    _schedulePlaybackStateSave();
     notifyListeners();
   }
 
@@ -252,6 +288,7 @@ class PlayerController extends ChangeNotifier {
     final wasCurrent = currentSong?.id == song.id;
     final nextQueue = queue.where((item) => item.id != song.id).toList();
     queue = List.unmodifiable(nextQueue);
+    _schedulePlaybackStateSave();
     notifyListeners();
     if (!wasCurrent) return;
     if (queue.isEmpty) {
@@ -261,6 +298,8 @@ class PlayerController extends ChangeNotifier {
       position = Duration.zero;
       bufferedPosition = Duration.zero;
       duration = Duration.zero;
+      _hasOpenSource = false;
+      _schedulePlaybackStateSave(immediate: true);
       notifyListeners();
       return;
     }
@@ -270,6 +309,7 @@ class PlayerController extends ChangeNotifier {
   void clearQueue() {
     final song = currentSong;
     queue = song == null ? const [] : List.unmodifiable([song]);
+    _schedulePlaybackStateSave(immediate: true);
     notifyListeners();
   }
 
@@ -287,7 +327,9 @@ class PlayerController extends ChangeNotifier {
     errorText = null;
     playbackNotice = null;
     recentSongs.clear();
+    _hasOpenSource = false;
     unawaited(_saveRecentSongs());
+    await playbackStateService?.clear();
     notifyListeners();
   }
 
@@ -349,17 +391,22 @@ class PlayerController extends ChangeNotifier {
       await audioService.pause();
       if (!audioService.isEnabled) {
         isPlaying = false;
+        _schedulePlaybackStateSave(immediate: true);
         notifyListeners();
       }
       return;
     }
 
-    if (song.audioUrl.isNotEmpty) {
+    if (song.audioUrl.isNotEmpty && _hasOpenSource) {
       unawaited(audioService.play());
       return;
     }
 
-    await playSong(song);
+    await playSong(
+      song,
+      fromQueue: queue.isEmpty ? [song] : queue,
+      startPosition: position,
+    );
     if (!audioService.isEnabled) {
       isPlaying = true;
       notifyListeners();
@@ -388,6 +435,8 @@ class PlayerController extends ChangeNotifier {
       _nearEndTimer?.cancel();
       isPlaying = false;
       position = duration;
+      _hasOpenSource = false;
+      _schedulePlaybackStateSave(immediate: true);
       notifyListeners();
       return;
     }
@@ -426,6 +475,7 @@ class PlayerController extends ChangeNotifier {
         ? duration
         : target;
     position = safeTarget < Duration.zero ? Duration.zero : safeTarget;
+    _schedulePlaybackStateSave();
     notifyListeners();
     await audioService.seek(position);
   }
@@ -434,6 +484,30 @@ class PlayerController extends ChangeNotifier {
     volume = value.clamp(0.0, 1.0);
     notifyListeners();
     await audioService.setVolume(volume);
+  }
+
+  void _schedulePlaybackStateSave({bool immediate = false}) {
+    if (playbackStateService == null) return;
+    _savePlaybackTimer?.cancel();
+    final delay = immediate ? Duration.zero : const Duration(seconds: 2);
+    _savePlaybackTimer = Timer(delay, () {
+      unawaited(_savePlaybackState());
+    });
+  }
+
+  Future<void> _savePlaybackState() async {
+    try {
+      await playbackStateService?.save(
+        PlaybackSnapshot(
+          queue: queue,
+          currentSong: currentSong,
+          position: position,
+          playbackMode: playbackMode,
+        ),
+      );
+    } catch (error, stackTrace) {
+      await PlaybackLogService.write('playback-state', error, stackTrace);
+    }
   }
 
   void updateSongFavorite(Song song, bool liked) {
@@ -461,6 +535,8 @@ class PlayerController extends ChangeNotifier {
     }
     _noticeTimer?.cancel();
     _nearEndTimer?.cancel();
+    _savePlaybackTimer?.cancel();
+    unawaited(_savePlaybackState());
     audioService.dispose();
     super.dispose();
   }
@@ -472,4 +548,12 @@ List<Song> _dedupeSongs(List<Song> songs) {
     for (final song in songs)
       if (seen.add(song.id)) song,
   ];
+}
+
+Duration _safeStartPosition(Duration value, Duration duration) {
+  if (value <= Duration.zero) return Duration.zero;
+  if (duration <= Duration.zero) return value;
+  final latestSafe = duration - const Duration(seconds: 2);
+  if (latestSafe <= Duration.zero) return Duration.zero;
+  return value > latestSafe ? latestSafe : value;
 }

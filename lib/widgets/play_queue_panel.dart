@@ -6,7 +6,7 @@ import '../theme/app_theme.dart';
 import 'album_art.dart';
 import 'song_row.dart';
 
-class PlayQueuePanel extends StatelessWidget {
+class PlayQueuePanel extends StatefulWidget {
   const PlayQueuePanel({
     super.key,
     required this.controller,
@@ -17,19 +17,88 @@ class PlayQueuePanel extends StatelessWidget {
   final VoidCallback onClose;
 
   @override
+  State<PlayQueuePanel> createState() => _PlayQueuePanelState();
+}
+
+class _PlayQueuePanelState extends State<PlayQueuePanel> {
+  static const _itemExtent = 58.0;
+  static const _listTopPadding = 10.0;
+
+  final _scrollController = ScrollController();
+  int _lastScrolledIndex = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleControllerChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToCurrent(force: true);
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant PlayQueuePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleControllerChanged);
+      widget.controller.addListener(_handleControllerChanged);
+      _lastScrolledIndex = -1;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToCurrent(force: true);
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _handleControllerChanged() {
+    _scrollToCurrent();
+  }
+
+  void _scrollToCurrent({bool force = false}) {
+    final index = widget.controller.queueIndex;
+    if (index < 0 || (!force && index == _lastScrolledIndex)) return;
+    _lastScrolledIndex = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final viewport = _scrollController.position.viewportDimension;
+      final target =
+          _listTopPadding + index * _itemExtent - (viewport - _itemExtent) / 2;
+      final safeTarget = target.clamp(
+        _scrollController.position.minScrollExtent,
+        _scrollController.position.maxScrollExtent,
+      );
+      _scrollController.animateTo(
+        safeTarget,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: controller,
+      animation: widget.controller,
       builder: (context, _) {
-        final queue = controller.queue;
-        final currentIndex = controller.queueIndex;
+        final queue = widget.controller.queue;
+        final currentIndex = widget.controller.queueIndex;
         return Container(
           width: 388,
           height: double.infinity,
           margin: const EdgeInsets.only(top: 36, bottom: 92),
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: AppColors.surface,
-            border: Border(left: BorderSide(color: AppColors.divider)),
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(16),
+            ),
+            border: Border.all(color: AppColors.divider),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(
@@ -73,12 +142,14 @@ class PlayQueuePanel extends StatelessWidget {
                     ),
                     IconButton(
                       tooltip: '清空队列',
-                      onPressed: queue.isEmpty ? null : controller.clearQueue,
+                      onPressed: queue.isEmpty
+                          ? null
+                          : widget.controller.clearQueue,
                       icon: const Icon(Icons.delete_outline_rounded),
                     ),
                     IconButton(
                       tooltip: '关闭',
-                      onPressed: onClose,
+                      onPressed: widget.onClose,
                       icon: const Icon(Icons.close_rounded),
                     ),
                   ],
@@ -94,18 +165,21 @@ class PlayQueuePanel extends StatelessWidget {
                         ),
                       )
                     : ListView.builder(
+                        controller: _scrollController,
                         padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
                         itemCount: queue.length,
                         itemBuilder: (context, index) {
                           final song = queue[index];
-                          final current = controller.currentSong?.id == song.id;
+                          final current =
+                              widget.controller.currentSong?.id == song.id;
                           return _QueueTile(
                             song: song,
                             index: index,
                             current: current,
-                            playing: current && controller.isPlaying,
-                            onPlay: () => controller.playQueueSong(song),
-                            onRemove: () => controller.removeFromQueue(song),
+                            playing: current && widget.controller.isPlaying,
+                            onPlay: () => widget.controller.playQueueSong(song),
+                            onRemove: () =>
+                                widget.controller.removeFromQueue(song),
                           );
                         },
                       ),
@@ -153,10 +227,10 @@ class _QueueTileState extends State<_QueueTile> {
             : _hovered
             ? AppColors.surfaceMuted
             : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
         child: InkWell(
           onTap: widget.onPlay,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(12),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             child: Row(

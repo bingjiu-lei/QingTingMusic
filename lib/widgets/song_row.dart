@@ -57,13 +57,16 @@ class _SongRowState extends State<SongRow> {
         child: Container(
           height: height,
           padding: EdgeInsets.symmetric(horizontal: 8),
-          color: active
-              ? AppColors.selected
-              : _hovered
-              ? AppColors.primary.withValues(
-                  alpha: AppColors.isDark ? 0.08 : 0.04,
-                )
-              : Colors.transparent,
+          decoration: BoxDecoration(
+            color: active
+                ? AppColors.selected
+                : _hovered
+                ? AppColors.primary.withValues(
+                    alpha: AppColors.isDark ? 0.08 : 0.04,
+                  )
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Row(
             children: [
               SizedBox(
