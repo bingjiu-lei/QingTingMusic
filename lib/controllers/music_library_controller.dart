@@ -212,7 +212,7 @@ class MusicLibraryController extends ChangeNotifier {
     return repository.getPlaylistSongs(playlist);
   }
 
-  bool isFavorite(Song song) => favorites.any((item) => item.hash == song.hash);
+  bool isFavorite(Song song) => favorites.any((item) => _sameSong(item, song));
 
   Song withFavoriteState(Song song) {
     return song.copyWith(liked: isFavorite(song));
@@ -224,13 +224,18 @@ class MusicLibraryController extends ChangeNotifier {
       throw const KugouApiException('没有找到默认收藏歌单');
     }
     final existing = favorites.cast<Song?>().firstWhere(
-      (item) => item?.hash == song.hash,
+      (item) => item != null && _sameSong(item, song),
       orElse: () => null,
     );
     if (existing == null) {
       await repository.addSongToPlaylist(favorite, song);
     } else {
       await repository.removeSongFromPlaylist(favorite, existing);
+      favorites = favorites
+          .where((item) => !_sameSong(item, existing))
+          .toList(growable: false);
+      unawaited(_saveCache());
+      notifyListeners();
     }
     await ensureLoaded(LibrarySection.songs, refresh: true);
   }
@@ -243,5 +248,17 @@ class MusicLibraryController extends ChangeNotifier {
   Future<void> removeFromPlaylist(MusicPlaylist playlist, Song song) async {
     await repository.removeSongFromPlaylist(playlist, song);
     await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
+  bool _sameSong(Song left, Song right) {
+    final leftHash = left.hash;
+    final rightHash = right.hash;
+    if (leftHash != null &&
+        leftHash.isNotEmpty &&
+        rightHash != null &&
+        rightHash.isNotEmpty) {
+      return leftHash == rightHash;
+    }
+    return left.id == right.id;
   }
 }
