@@ -14,6 +14,7 @@ import '../models/song.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../services/audio_player_service.dart';
+import '../services/cache_management_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/search_history_service.dart';
 import '../services/recent_songs_service.dart';
@@ -55,6 +56,7 @@ class _MusicShellState extends State<MusicShell> {
   late final PlayerController playerController;
   late final MusicSearchController searchController;
   late final MusicLibraryController libraryController;
+  final cacheManagementService = CacheManagementService();
 
   int selectedIndex = 0;
   int librarySelectedTab = 0;
@@ -70,6 +72,8 @@ class _MusicShellState extends State<MusicShell> {
   int detailSelectedTab = 0;
   final List<_DetailSnapshot> detailHistory = [];
   bool showQueuePanel = false;
+  String? _activeUserId;
+  bool _resettingAccountState = false;
 
   @override
   void initState() {
@@ -78,7 +82,8 @@ class _MusicShellState extends State<MusicShell> {
       repository = demoRepository;
     } else {
       apiClient = KugouApiClient();
-      authController = AuthController(apiClient!)..addListener(_refresh);
+      authController = AuthController(apiClient!)
+        ..addListener(_handleAuthChanged);
       repository = KugouMusicRepository(apiClient!);
     }
     playerController = PlayerController(
@@ -102,7 +107,11 @@ class _MusicShellState extends State<MusicShell> {
     final auth = authController;
     if (auth != null) {
       await auth.initialize();
-      if (!auth.isLoggedIn) return;
+      _activeUserId = auth.isLoggedIn ? auth.session.userId : null;
+      if (!auth.isLoggedIn) {
+        await _resetAccountScopedData();
+        return;
+      }
     }
     await libraryController.ensureLoaded(LibrarySection.songs);
     unawaited(libraryController.refreshCachedInBackground());
@@ -110,6 +119,56 @@ class _MusicShellState extends State<MusicShell> {
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  void _handleAuthChanged() {
+    final auth = authController;
+    final nextUserId = auth != null && auth.isLoggedIn
+        ? auth.session.userId
+        : null;
+    final shouldReset =
+        (_activeUserId != null && nextUserId == null) ||
+        (_activeUserId != null &&
+            nextUserId != null &&
+            _activeUserId != nextUserId);
+    _activeUserId = nextUserId;
+    if (shouldReset) {
+      unawaited(_resetAccountScopedData(reloadAfterLogin: nextUserId != null));
+    }
+    _refresh();
+  }
+
+  Future<void> _resetAccountScopedData({bool reloadAfterLogin = false}) async {
+    if (_resettingAccountState) return;
+    _resettingAccountState = true;
+    try {
+      await cacheManagementService.clearCache();
+      await playerController.clearAccountState();
+      searchController.clearAccountState();
+      libraryController.clearAccountState();
+      if (!mounted) return;
+      setState(() {
+        detailTitle = null;
+        detailSubtitle = null;
+        detailImageUrl = null;
+        detailSongs = [];
+        detailRelatedItems = [];
+        detailLoading = false;
+        detailPlaylist = null;
+        detailIdentity = null;
+        detailSelectedTab = 0;
+        detailHistory.clear();
+      });
+      if (reloadAfterLogin) {
+        await libraryController.ensureLoaded(
+          LibrarySection.songs,
+          refresh: true,
+        );
+        unawaited(libraryController.refreshCachedInBackground());
+      }
+    } finally {
+      _resettingAccountState = false;
+    }
   }
 
   Future<void> _playSong(Song song, List<Song> sourceQueue) async {
@@ -422,7 +481,7 @@ class _MusicShellState extends State<MusicShell> {
       ..removeListener(_refresh)
       ..dispose();
     authController
-      ?..removeListener(_refresh)
+      ?..removeListener(_handleAuthChanged)
       ..dispose();
     super.dispose();
   }

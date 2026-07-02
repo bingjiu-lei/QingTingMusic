@@ -273,6 +273,24 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> clearAccountState() async {
+    _noticeTimer?.cancel();
+    _nearEndTimer?.cancel();
+    await audioService.pause();
+    queue = const [];
+    currentSong = null;
+    isPlaying = false;
+    isPreparing = false;
+    position = Duration.zero;
+    bufferedPosition = Duration.zero;
+    duration = Duration.zero;
+    errorText = null;
+    playbackNotice = null;
+    recentSongs.clear();
+    unawaited(_saveRecentSongs());
+    notifyListeners();
+  }
+
   void _watchNearEnd() {
     final song = currentSong;
     if (!isPlaying ||

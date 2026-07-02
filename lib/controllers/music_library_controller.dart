@@ -95,6 +95,19 @@ class MusicLibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clearAccountState() {
+    playlists = const [];
+    favorites = const [];
+    cloudSongs = const [];
+    followedArtists = const [];
+    albums = const [];
+    loaded.clear();
+    loading.clear();
+    errors.clear();
+    _playlistRequest = null;
+    notifyListeners();
+  }
+
   Future<void> ensureLoaded(
     LibrarySection section, {
     bool refresh = false,

@@ -5,9 +5,14 @@ import 'package:just_audio/just_audio.dart';
 
 import '../models/song.dart';
 import 'app_storage_service.dart';
+import 'cache_management_service.dart';
 
 class AudioPlayerService {
-  AudioPlayerService({required bool enabled}) {
+  AudioPlayerService({
+    required bool enabled,
+    CacheManagementService? cacheManagementService,
+  }) : _cacheManagementService =
+           cacheManagementService ?? CacheManagementService() {
     _player = enabled ? AudioPlayer() : null;
     _eventSubscription = _player?.playbackEventStream.listen(
       (_) {},
@@ -18,6 +23,7 @@ class AudioPlayerService {
   }
 
   late final AudioPlayer? _player;
+  final CacheManagementService _cacheManagementService;
   StreamSubscription<PlaybackEvent>? _eventSubscription;
   final StreamController<String> _errors = StreamController.broadcast();
 
@@ -119,6 +125,7 @@ class AudioPlayerService {
       if (!await _isReadableAudio(completed)) {
         throw FileSystemException('下载后的音频文件不可读取', completed.path);
       }
+      unawaited(_cacheManagementService.trimToLimit());
       return completed;
     } finally {
       client.close(force: true);

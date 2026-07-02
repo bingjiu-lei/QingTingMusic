@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qing_ting_music/models/song.dart';
 import 'package:qing_ting_music/services/app_storage_service.dart';
 import 'package:qing_ting_music/services/api_endpoint_service.dart';
+import 'package:qing_ting_music/services/cache_management_service.dart';
 import 'package:qing_ting_music/services/recent_songs_service.dart';
 
 void main() {
@@ -49,5 +50,32 @@ void main() {
     await service.save([song]);
     final restored = await service.load();
     expect(restored.single.title, song.title);
+  });
+
+  test('clears managed cache without deleting login and settings', () async {
+    await AppStorageService.file('session.dat').writeAsString('login');
+    await AppStorageService.file('settings.json').writeAsString('{}');
+    await AppStorageService.file('preferences.json').writeAsString('{}');
+    await AppStorageService.file('library-cache.json').writeAsString('{}');
+    await AppStorageService.file('search-cache.json').writeAsString('{}');
+    await AppStorageService.directory('audio').create(recursive: true);
+    await File(
+      '${AppStorageService.directory('audio').path}\\song.mp3',
+    ).writeAsString('cache');
+
+    final service = CacheManagementService();
+    expect(await service.cacheSizeBytes(), greaterThan(0));
+
+    await service.clearCache();
+
+    expect(await AppStorageService.file('session.dat').exists(), isTrue);
+    expect(await AppStorageService.file('settings.json').exists(), isTrue);
+    expect(await AppStorageService.file('preferences.json').exists(), isTrue);
+    expect(
+      await AppStorageService.file('library-cache.json').exists(),
+      isFalse,
+    );
+    expect(await AppStorageService.file('search-cache.json').exists(), isFalse);
+    expect(await AppStorageService.directory('audio').exists(), isFalse);
   });
 }
