@@ -22,6 +22,7 @@ import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
 import '../widgets/add_to_playlist_dialog.dart';
 import '../widgets/login_dialog.dart';
+import '../widgets/now_playing_page.dart';
 import '../widgets/play_queue_panel.dart';
 import '../widgets/player_bar.dart';
 import '../widgets/sidebar.dart';
@@ -72,6 +73,7 @@ class _MusicShellState extends State<MusicShell> {
   int detailSelectedTab = 0;
   final List<_DetailSnapshot> detailHistory = [];
   bool showQueuePanel = false;
+  bool showNowPlayingPage = false;
   String? _activeUserId;
   bool _resettingAccountState = false;
 
@@ -158,6 +160,7 @@ class _MusicShellState extends State<MusicShell> {
         detailIdentity = null;
         detailSelectedTab = 0;
         detailHistory.clear();
+        showNowPlayingPage = false;
       });
       if (reloadAfterLogin) {
         await libraryController.ensureLoaded(
@@ -426,6 +429,11 @@ class _MusicShellState extends State<MusicShell> {
     );
   }
 
+  Future<void> _openAlbumFromNowPlaying(Song song) async {
+    setState(() => showNowPlayingPage = false);
+    await _openAlbumFromSong(song);
+  }
+
   void _pushCurrentDetail() {
     if (detailTitle == null) return;
     detailHistory.add(
@@ -511,6 +519,7 @@ class _MusicShellState extends State<MusicShell> {
                               detailIdentity = null;
                               detailSelectedTab = 0;
                               detailHistory.clear();
+                              showNowPlayingPage = false;
                             });
                           },
                           loginLabel:
@@ -533,6 +542,10 @@ class _MusicShellState extends State<MusicShell> {
                   ),
                   PlayerBar(
                     controller: playerController,
+                    onNowPlayingPressed: playerController.currentSong == null
+                        ? null
+                        : () => setState(() => showNowPlayingPage = true),
+                    onOpenAlbum: _openAlbumFromSong,
                     onLike: _toggleFavorite,
                     onAddToPlaylist: _showAddToPlaylist,
                     onQueuePressed: () {
@@ -562,6 +575,52 @@ class _MusicShellState extends State<MusicShell> {
                     ),
                   ),
                 ),
+              Positioned(
+                left: 0,
+                top: 36,
+                right: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  ignoring: !showNowPlayingPage,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    reverseDuration: const Duration(milliseconds: 180),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      final curved = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                        reverseCurve: Curves.easeInCubic,
+                      );
+                      return FadeTransition(
+                        opacity: curved,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.025),
+                            end: Offset.zero,
+                          ).animate(curved),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: showNowPlayingPage
+                        ? NowPlayingPage(
+                            key: const ValueKey('now-playing-page'),
+                            controller: playerController,
+                            onClose: () =>
+                                setState(() => showNowPlayingPage = false),
+                            loadLyrics: repository.getLyrics,
+                            onLike: _toggleFavorite,
+                            onAddToPlaylist: _showAddToPlaylist,
+                            onOpenAlbum: _openAlbumFromNowPlaying,
+                          )
+                        : const SizedBox.shrink(
+                            key: ValueKey('now-playing-empty'),
+                          ),
+                  ),
+                ),
+              ),
             ],
           );
         },

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qing_ting_music/controllers/music_library_controller.dart';
 import 'package:qing_ting_music/data/music_repository.dart';
+import 'package:qing_ting_music/models/lyric.dart';
 import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/search_catalog_item.dart';
 import 'package:qing_ting_music/models/song.dart';
@@ -107,6 +108,9 @@ class _FakeMusicRepository implements MusicRepository {
 
   @override
   Future<Song> resolvePlayback(Song song) async => song;
+
+  @override
+  Future<List<LyricLine>> getLyrics(Song song) async => const [];
 
   @override
   Future<List<SearchCatalogItem>> searchCatalog(

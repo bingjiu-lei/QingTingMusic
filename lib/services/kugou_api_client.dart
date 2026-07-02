@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import '../models/kugou_session.dart';
+import '../models/lyric.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
@@ -806,6 +808,38 @@ class KugouApiClient {
     throw const KugouApiException('该歌曲无版权或需付费');
   }
 
+  Future<List<LyricLine>> getLyrics(Song song) async {
+    final hash = song.hash?.trim() ?? '';
+    if (hash.isEmpty) return const [];
+    final searchResponse = await _get(
+      '/search/lyric',
+      queryParameters: {
+        'hash': hash,
+        'keywords': '${song.artist} - ${song.title}',
+        'duration': song.duration.inMilliseconds,
+        if (song.albumAudioId != null) 'album_audio_id': song.albumAudioId,
+        'man': 'no',
+      },
+      bypassCache: true,
+    );
+    final candidate = _lyricCandidate(searchResponse.data);
+    if (candidate == null) return const [];
+
+    final lyricResponse = await _get(
+      '/lyric',
+      queryParameters: {
+        'id': candidate.id,
+        'accesskey': candidate.accessKey,
+        'decode': 'true',
+        'fmt': 'lrc',
+      },
+      bypassCache: true,
+    );
+    final content = _lyricContent(lyricResponse.data);
+    if (content.isEmpty) return const [];
+    return _parseLrc(content);
+  }
+
   Future<String?> _resolveSongUrl(
     Song song, {
     String? hash,
@@ -1233,6 +1267,79 @@ class KugouApiClient {
     );
   }
 
+  LyricCandidate? _lyricCandidate(Object? response) {
+    final body = _map(response);
+    final data = _map(body['data']);
+    final candidates = <Object?>[
+      ..._list(body['candidates']),
+      ..._list(body['info']),
+      ..._list(data['candidates']),
+      ..._list(data['info']),
+      if (body['id'] != null || body['accesskey'] != null) body,
+      if (data['id'] != null || data['accesskey'] != null) data,
+    ];
+    for (final value in candidates) {
+      final json = _map(value);
+      final id = _read(json, ['id', 'download_id']);
+      final accessKey = _read(json, ['accesskey', 'access_key']);
+      if (id.isNotEmpty && accessKey.isNotEmpty) {
+        return LyricCandidate(id: id, accessKey: accessKey);
+      }
+    }
+    return null;
+  }
+
+  String _lyricContent(Object? response) {
+    final body = _map(response);
+    final data = _map(body['data']);
+    final content = _read(body, [
+      'decodeContent',
+      'lyric',
+    ], fallback: _read(data, ['decodeContent', 'lyric']));
+    if (content.isNotEmpty) return _cleanLyricText(content);
+
+    final encoded = _read(body, [
+      'content',
+    ], fallback: _read(data, ['content']));
+    if (encoded.isEmpty) return '';
+    try {
+      return _cleanLyricText(utf8.decode(base64Decode(encoded)));
+    } catch (_) {
+      return '';
+    }
+  }
+
+  List<LyricLine> _parseLrc(String content) {
+    final lines = <LyricLine>[];
+    final timeTag = RegExp(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]');
+    for (final rawLine in content.split(RegExp(r'\r?\n'))) {
+      final matches = timeTag.allMatches(rawLine).toList();
+      if (matches.isEmpty) continue;
+      final text = rawLine.replaceAll(timeTag, '').trim();
+      if (text.isEmpty) continue;
+      for (final match in matches) {
+        final minutes = int.tryParse(match.group(1) ?? '') ?? 0;
+        final seconds = int.tryParse(match.group(2) ?? '') ?? 0;
+        final fraction = match.group(3) ?? '0';
+        final milliseconds = int.parse(
+          fraction.padRight(3, '0').substring(0, 3),
+        );
+        lines.add(
+          LyricLine(
+            time: Duration(
+              minutes: minutes,
+              seconds: seconds,
+              milliseconds: milliseconds,
+            ),
+            text: text,
+          ),
+        );
+      }
+    }
+    lines.sort((left, right) => left.time.compareTo(right.time));
+    return lines;
+  }
+
   KugouSession _mergeCookies(KugouSession current, List<String> setCookies) {
     final values = <String, String>{};
     for (final header in setCookies) {
@@ -1338,6 +1445,15 @@ String _read(
     if (value.isNotEmpty) return value;
   }
   return fallback;
+}
+
+String _cleanLyricText(String value) {
+  return value
+      .replaceFirst('\uFEFF', '')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&quot;', '"')
+      .replaceAll('&amp;', '&')
+      .trim();
 }
 
 String _todayString() {

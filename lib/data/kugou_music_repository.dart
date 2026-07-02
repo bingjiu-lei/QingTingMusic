@@ -1,4 +1,5 @@
 import '../models/song.dart';
+import '../models/lyric.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 import '../services/kugou_api_client.dart';
@@ -76,5 +77,10 @@ class KugouMusicRepository implements MusicRepository {
   @override
   Future<Song> resolvePlayback(Song song) {
     return apiClient.resolvePlayback(song);
+  }
+
+  @override
+  Future<List<LyricLine>> getLyrics(Song song) {
+    return apiClient.getLyrics(song);
   }
 }

@@ -1,4 +1,5 @@
 import '../models/song.dart';
+import '../models/lyric.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 
@@ -33,4 +34,6 @@ abstract interface class MusicRepository {
   Future<void> removeSongFromPlaylist(MusicPlaylist playlist, Song song);
 
   Future<Song> resolvePlayback(Song song);
+
+  Future<List<LyricLine>> getLyrics(Song song);
 }

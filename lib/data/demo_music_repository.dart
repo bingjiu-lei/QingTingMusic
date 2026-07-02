@@ -1,4 +1,5 @@
 import '../models/song.dart';
+import '../models/lyric.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 import 'music_repository.dart';
@@ -110,4 +111,7 @@ class DemoMusicRepository implements MusicRepository {
 
   @override
   Future<Song> resolvePlayback(Song song) async => song;
+
+  @override
+  Future<List<LyricLine>> getLyrics(Song song) async => const [];
 }

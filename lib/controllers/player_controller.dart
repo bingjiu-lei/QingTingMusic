@@ -418,9 +418,16 @@ class PlayerController extends ChangeNotifier {
   Future<void> seekByRatio(double ratio) async {
     final safeRatio = ratio.clamp(0.0, 1.0);
     final target = duration * safeRatio;
-    position = target;
+    await seek(target);
+  }
+
+  Future<void> seek(Duration target) async {
+    final safeTarget = duration > Duration.zero && target > duration
+        ? duration
+        : target;
+    position = safeTarget < Duration.zero ? Duration.zero : safeTarget;
     notifyListeners();
-    await audioService.seek(target);
+    await audioService.seek(position);
   }
 
   Future<void> setVolume(double value) async {

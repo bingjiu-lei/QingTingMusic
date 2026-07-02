@@ -13,12 +13,16 @@ class PlayerBar extends StatelessWidget {
     super.key,
     required this.controller,
     this.onQueuePressed,
+    this.onNowPlayingPressed,
+    this.onOpenAlbum,
     this.onLike,
     this.onAddToPlaylist,
   });
 
   final PlayerController controller;
   final VoidCallback? onQueuePressed;
+  final VoidCallback? onNowPlayingPressed;
+  final ValueChanged<Song>? onOpenAlbum;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
 
@@ -38,10 +42,21 @@ class PlayerBar extends StatelessWidget {
             padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 22),
             child: Row(
               children: [
-                AlbumArt(
-                  size: 58,
-                  emphasized: song != null,
-                  imageUrl: song?.coverUrl,
+                MouseRegion(
+                  cursor: song == null || onNowPlayingPressed == null
+                      ? MouseCursor.defer
+                      : SystemMouseCursors.click,
+                  child: Tooltip(
+                    message: song == null ? '' : '打开播放页',
+                    child: GestureDetector(
+                      onTap: song == null ? null : onNowPlayingPressed,
+                      child: AlbumArt(
+                        size: 58,
+                        emphasized: song != null,
+                        imageUrl: song?.coverUrl,
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 SizedBox(
@@ -105,6 +120,13 @@ class PlayerBar extends StatelessWidget {
                         ? null
                         : () => onAddToPlaylist!(song),
                     icon: const Icon(Icons.playlist_add_rounded),
+                  ),
+                  IconButton(
+                    tooltip: '打开专辑',
+                    onPressed: _hasAlbum(song) && onOpenAlbum != null
+                        ? () => onOpenAlbum!(song)
+                        : null,
+                    icon: const Icon(Icons.album_rounded),
                   ),
                 ],
                 IconButton(
@@ -207,6 +229,11 @@ class PlayerBar extends StatelessWidget {
       PlaybackMode.repeatOne => Icons.repeat_one_rounded,
       PlaybackMode.shuffle => Icons.shuffle_rounded,
     };
+  }
+
+  bool _hasAlbum(Song song) {
+    final album = song.album.trim();
+    return album.isNotEmpty && album != '未知专辑';
   }
 }
 
