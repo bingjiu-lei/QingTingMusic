@@ -17,11 +17,15 @@ class SettingsPage extends StatefulWidget {
     super.key,
     required this.updateController,
     required this.onCheckUpdates,
+    required this.closeToTray,
+    required this.onCloseToTrayChanged,
     this.onEndpointChanged,
   });
 
   final UpdateController updateController;
   final VoidCallback onCheckUpdates;
+  final bool closeToTray;
+  final ValueChanged<bool> onCloseToTrayChanged;
   final VoidCallback? onEndpointChanged;
 
   @override
@@ -452,6 +456,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       icon: Icons.high_quality_rounded,
                       title: '播放音质',
                       value: '标准音质',
+                    ),
+                    const Divider(height: 28),
+                    _SettingSwitchRow(
+                      icon: Icons.web_asset_rounded,
+                      title: '关闭后隐藏到托盘',
+                      subtitle: '关闭窗口时继续后台播放，可在托盘退出应用',
+                      value: widget.closeToTray,
+                      onChanged: widget.onCloseToTrayChanged,
                     ),
                     const Divider(height: 28),
                     _UpdateSection(
@@ -1019,6 +1031,52 @@ class _SettingRow extends StatelessWidget {
           ),
         ),
         Text(value, style: TextStyle(color: AppColors.muted, fontSize: 13)),
+      ],
+    );
+  }
+}
+
+class _SettingSwitchRow extends StatelessWidget {
+  const _SettingSwitchRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.primary, size: 21),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        Switch(value: value, onChanged: onChanged),
       ],
     );
   }

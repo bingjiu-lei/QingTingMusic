@@ -619,21 +619,12 @@ class _PlaybackControls extends StatelessWidget {
                   padding: const EdgeInsets.all(15),
                   elevation: 0,
                 ),
-                child: controller.isPreparing
-                    ? const SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2.4,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        controller.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 28,
-                      ),
+                child: Icon(
+                  controller.isPlaying || controller.isPreparing
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 10),
               IconButton(

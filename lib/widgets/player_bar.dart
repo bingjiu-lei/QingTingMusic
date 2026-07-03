@@ -161,21 +161,12 @@ class PlayerBar extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     elevation: 0,
                   ),
-                  child: controller.isPreparing
-                      ? const SizedBox(
-                          width: 28,
-                          height: 28,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.4,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Icon(
-                          controller.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          size: 28,
-                        ),
+                  child: Icon(
+                    controller.isPlaying || controller.isPreparing
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    size: 28,
+                  ),
                 ),
                 IconButton(
                   tooltip: '下一首',

@@ -17,6 +17,8 @@ class CollectionDetailPage extends StatefulWidget {
     required this.imageUrl,
     required this.songs,
     required this.relatedItems,
+    required this.relatedItemsLoadingMore,
+    required this.relatedItemsCanLoadMore,
     required this.isLoading,
     required this.onBack,
     required this.onPlay,
@@ -25,6 +27,7 @@ class CollectionDetailPage extends StatefulWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     required this.onOpenCatalog,
+    required this.onLoadMoreRelatedItems,
     required this.selectedTab,
     required this.onTabChanged,
     required this.storageKeyPrefix,
@@ -43,6 +46,8 @@ class CollectionDetailPage extends StatefulWidget {
   final String? imageUrl;
   final List<Song> songs;
   final List<SearchCatalogItem> relatedItems;
+  final bool relatedItemsLoadingMore;
+  final bool relatedItemsCanLoadMore;
   final bool isLoading;
   final VoidCallback onBack;
   final SongPlayRequest onPlay;
@@ -52,6 +57,7 @@ class CollectionDetailPage extends StatefulWidget {
   final ValueChanged<Song>? onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
+  final VoidCallback onLoadMoreRelatedItems;
   final int selectedTab;
   final ValueChanged<int> onTabChanged;
   final String storageKeyPrefix;
@@ -230,6 +236,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         storageKey: PageStorageKey('${widget.storageKeyPrefix}:artist-albums'),
         items: widget.relatedItems,
         onTap: widget.onOpenCatalog,
+        canLoadMore: widget.relatedItemsCanLoadMore,
+        loadingMore: widget.relatedItemsLoadingMore,
+        onLoadMore: widget.onLoadMoreRelatedItems,
       );
     }
     return _FacetGrid(
@@ -258,85 +267,190 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   }
 }
 
-class _CatalogGrid extends StatelessWidget {
+class _CatalogGrid extends StatefulWidget {
   const _CatalogGrid({
     required this.items,
     required this.onTap,
     required this.storageKey,
+    required this.canLoadMore,
+    required this.loadingMore,
+    required this.onLoadMore,
   });
 
   final List<SearchCatalogItem> items;
   final ValueChanged<SearchCatalogItem> onTap;
   final PageStorageKey<String> storageKey;
+  final bool canLoadMore;
+  final bool loadingMore;
+  final VoidCallback onLoadMore;
+
+  @override
+  State<_CatalogGrid> createState() => _CatalogGridState();
+}
+
+class _CatalogGridState extends State<_CatalogGrid> {
+  final _controller = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleScroll());
+  }
+
+  @override
+  void didUpdateWidget(covariant _CatalogGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.canLoadMore && widget.items.length != oldWidget.items.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleScroll());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_handleScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!widget.canLoadMore || widget.loadingMore || !_controller.hasClients) {
+      return;
+    }
+    final position = _controller.position;
+    if (position.extentAfter < 900) {
+      widget.onLoadMore();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      key: storageKey,
-      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 230,
-        mainAxisExtent: 72,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-      ),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return Material(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          child: InkWell(
-            onTap: () => onTap(item),
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: EdgeInsets.all(10),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      color: Color(0xFFE6EDF5),
-                      child: item.imageUrl == null
-                          ? Icon(Icons.album_rounded, color: AppColors.muted)
-                          : Image.network(item.imageUrl!, fit: BoxFit.cover),
-                    ),
-                  ),
-                  SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        SizedBox(height: 4),
-                        Text(
-                          item.subtitle,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    return CustomScrollView(
+      key: widget.storageKey,
+      controller: _controller,
+      slivers: [
+        SliverGrid(
+          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 230,
+            mainAxisExtent: 72,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
           ),
-        );
-      },
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final item = widget.items[index];
+            return Material(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              child: InkWell(
+                onTap: () => widget.onTap(item),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: EdgeInsets.all(10),
+                  child: Row(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          width: 50,
+                          height: 50,
+                          color: Color(0xFFE6EDF5),
+                          child: item.imageUrl == null
+                              ? Icon(
+                                  Icons.album_rounded,
+                                  color: AppColors.muted,
+                                )
+                              : Image.network(
+                                  item.imageUrl!,
+                                  fit: BoxFit.cover,
+                                ),
+                        ),
+                      ),
+                      SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              item.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.text,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            SizedBox(height: 4),
+                            Text(
+                              item.subtitle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }, childCount: widget.items.length),
+        ),
+        SliverToBoxAdapter(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: widget.loadingMore
+                ? Padding(
+                    key: const ValueKey('album-loading'),
+                    padding: const EdgeInsets.symmetric(vertical: 18),
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.divider),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                '正在加载更多专辑',
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('album-loading-empty')),
+          ),
+        ),
+      ],
     );
   }
 }

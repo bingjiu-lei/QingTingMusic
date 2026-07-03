@@ -12,6 +12,7 @@ import '../models/song.dart';
 import 'api_endpoint_service.dart';
 import 'kugou_official_client.dart';
 import 'secure_session_storage.dart';
+import 'session_expired_service.dart';
 
 class AuthenticationRequiredException implements Exception {
   const AuthenticationRequiredException();
@@ -560,10 +561,23 @@ class KugouApiClient {
   Future<List<SearchCatalogItem>> getArtistAlbums(
     SearchCatalogItem artist,
   ) async {
+    return getArtistAlbumsPage(artist, page: 1);
+  }
+
+  Future<List<SearchCatalogItem>> getArtistAlbumsPage(
+    SearchCatalogItem artist, {
+    required int page,
+    int pageSize = 50,
+  }) async {
     final response = await _get(
       '/artist/albums',
       authenticated: true,
-      queryParameters: {'id': artist.id, 'page': 1, 'pagesize': 100},
+      queryParameters: {
+        'id': artist.id,
+        'page': page,
+        'pagesize': pageSize,
+        'sort': 'new',
+      },
     );
     return _findRecords(response.data)
         .map((value) => _catalogItem(value, SearchCategory.album))
@@ -1127,7 +1141,12 @@ class KugouApiClient {
       final errorCode = _toInt(
         _map(data)['error_code'] ?? _map(data)['ErrorCode'],
       );
-      if (authenticated && errorCode == 152) {
+      final authMessage =
+          _map(data)['message']?.toString() ??
+          _map(data)['msg']?.toString() ??
+          '';
+      if (authenticated && _isAuthenticationExpired(errorCode, authMessage)) {
+        SessionExpiredService.notify();
         await logout();
         throw const AuthenticationRequiredException();
       }
@@ -1219,9 +1238,26 @@ class KugouApiClient {
   void _throwIfAuthFailed(Object? response) {
     final body = _map(response);
     final errorCode = _toInt(body['error_code'] ?? body['ErrorCode']);
-    if (errorCode == 152 || errorCode == 20017) {
+    final message =
+        body['message']?.toString() ??
+        body['msg']?.toString() ??
+        body['errmsg']?.toString() ??
+        '';
+    if (_isAuthenticationExpired(errorCode, message)) {
+      SessionExpiredService.notify();
       throw const AuthenticationRequiredException();
     }
+  }
+
+  bool _isAuthenticationExpired(int errorCode, String message) {
+    final normalized = message.trim();
+    return errorCode == 152 ||
+        errorCode == 20017 ||
+        errorCode == 20018 ||
+        normalized.contains('登录已过期') ||
+        normalized.contains('登录过期') ||
+        normalized.contains('请重新登录') ||
+        normalized.toLowerCase().contains('login expired');
   }
 
   void _ensureOperationSucceeded(Object? response) {

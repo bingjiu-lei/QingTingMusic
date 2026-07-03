@@ -6,6 +6,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'services/app_storage_service.dart';
+import 'services/single_instance_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,6 +15,13 @@ Future<void> main() async {
   await AppStorageService.initialize();
   if (Platform.isWindows) {
     await windowManager.ensureInitialized();
+    final singleInstance = SingleInstanceService(
+      onShowRequested: _showMainWindow,
+    );
+    final shouldStart = await singleInstance.start();
+    if (!shouldStart) {
+      exit(0);
+    }
     const options = WindowOptions(
       size: Size(1120, 700),
       minimumSize: Size(960, 640),
@@ -31,4 +39,14 @@ Future<void> main() async {
   }
 
   runApp(const QingTingMusicApp());
+}
+
+Future<void> _showMainWindow() async {
+  if (await windowManager.isMinimized()) {
+    await windowManager.restore();
+  }
+  if (!await windowManager.isVisible()) {
+    await windowManager.show();
+  }
+  await windowManager.focus();
 }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../models/app_update.dart';
@@ -182,13 +183,22 @@ class AppUpdateService {
     return null;
   }
 
+  @visibleForTesting
+  static List<String> downloadCandidatesForTesting(
+    String url,
+    String githubProxyUrl,
+  ) {
+    return AppUpdateService()._downloadCandidates(url, githubProxyUrl);
+  }
+
   List<String> _downloadCandidates(String url, String githubProxyUrl) {
-    final candidates = <String>[url];
-    final configured = _withGithubProxy(url, githubProxyUrl);
-    if (configured != url) candidates.add(configured);
+    final candidates = <String>[];
     for (final proxy in _fallbackGithubProxyUrls) {
       candidates.add(_withGithubProxy(url, proxy));
     }
+    final configured = _withGithubProxy(url, githubProxyUrl);
+    if (configured != url) candidates.add(configured);
+    candidates.add(url);
     return candidates.toSet().toList();
   }
 

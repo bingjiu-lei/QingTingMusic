@@ -77,6 +77,13 @@ class DemoMusicRepository implements MusicRepository {
   ) async => const [];
 
   @override
+  Future<List<SearchCatalogItem>> getArtistAlbumsPage(
+    SearchCatalogItem artist, {
+    required int page,
+    int pageSize = 50,
+  }) async => const [];
+
+  @override
   Future<List<MusicPlaylist>> getUserPlaylists() async => const [
     MusicPlaylist(
       id: 'demo-favorites',

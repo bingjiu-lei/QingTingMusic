@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:tray_manager/tray_manager.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../controllers/auth_controller.dart';
 import '../controllers/music_library_controller.dart';
@@ -16,11 +19,13 @@ import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/app_update.dart';
 import '../services/audio_player_service.dart';
+import '../services/app_preferences_service.dart';
 import '../services/cache_management_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/search_history_service.dart';
 import '../services/recent_songs_service.dart';
 import '../services/playback_state_service.dart';
+import '../services/session_expired_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
 import '../widgets/add_to_playlist_dialog.dart';
@@ -53,7 +58,8 @@ class MusicShell extends StatefulWidget {
   State<MusicShell> createState() => _MusicShellState();
 }
 
-class _MusicShellState extends State<MusicShell> {
+class _MusicShellState extends State<MusicShell>
+    with WindowListener, TrayListener {
   final demoRepository = DemoMusicRepository();
   late final MusicRepository repository;
   KugouApiClient? apiClient;
@@ -63,6 +69,7 @@ class _MusicShellState extends State<MusicShell> {
   late final MusicLibraryController libraryController;
   late final UpdateController updateController;
   final cacheManagementService = CacheManagementService();
+  final _preferences = AppPreferencesService();
 
   int selectedIndex = 0;
   int librarySelectedTab = 0;
@@ -83,6 +90,13 @@ class _MusicShellState extends State<MusicShell> {
   String? _activeUserId;
   bool _resettingAccountState = false;
   bool _showingUpdateDialog = false;
+  bool _showingAuthExpiredDialog = false;
+  bool _quittingFromTray = false;
+  bool _closeToTray = true;
+  bool detailRelatedLoadingMore = false;
+  bool detailRelatedHasMore = false;
+  int detailRelatedPage = 1;
+  StreamSubscription<void>? _sessionExpiredSubscription;
 
   @override
   void initState() {
@@ -108,8 +122,17 @@ class _MusicShellState extends State<MusicShell> {
     libraryController = MusicLibraryController(repository)
       ..addListener(_refresh);
     updateController = UpdateController()..addListener(_refresh);
+    _loadWindowPreferences();
     searchController.initialize();
     playerController.initialize();
+    _sessionExpiredSubscription = SessionExpiredService.stream.listen((_) {
+      if (mounted) unawaited(_showAuthExpiredDialog());
+    });
+    if (Platform.isWindows && widget.enableWindowControls) {
+      windowManager.addListener(this);
+      trayManager.addListener(this);
+      unawaited(_setupTray());
+    }
     _initializeData();
   }
 
@@ -132,6 +155,18 @@ class _MusicShellState extends State<MusicShell> {
     }
   }
 
+  Future<void> _loadWindowPreferences() async {
+    final value = await _preferences.read('closeToTray');
+    if (!mounted) return;
+    setState(() => _closeToTray = value is bool ? value : true);
+  }
+
+  Future<void> _setCloseToTray(bool value) async {
+    await _preferences.write('closeToTray', value);
+    if (!mounted) return;
+    setState(() => _closeToTray = value);
+  }
+
   Future<void> _checkForUpdates({bool silent = false}) async {
     final result = await updateController.check(silent: silent);
     if (!mounted) return;
@@ -150,6 +185,135 @@ class _MusicShellState extends State<MusicShell> {
       );
     } finally {
       _showingUpdateDialog = false;
+    }
+  }
+
+  Future<void> _setupTray() async {
+    if (!Platform.isWindows) return;
+    try {
+      await windowManager.setPreventClose(true);
+      await trayManager.setIcon(_trayIconPath(), iconSize: 16);
+      await trayManager.setToolTip('晴听音乐');
+      await trayManager.setContextMenu(
+        Menu(
+          items: [
+            MenuItem(key: 'show', label: '显示窗口'),
+            MenuItem.separator(),
+            MenuItem(key: 'toggle-play', label: '播放/暂停'),
+            MenuItem(key: 'previous', label: '上一首'),
+            MenuItem(key: 'next', label: '下一首'),
+            MenuItem.separator(),
+            MenuItem(key: 'quit', label: '退出晴听音乐'),
+          ],
+        ),
+      );
+    } catch (_) {
+      // Tray support is best-effort; the app should keep running without it.
+    }
+  }
+
+  String _trayIconPath() {
+    final executableDir = File(Platform.resolvedExecutable).parent;
+    final bundled = File(
+      '${executableDir.path}\\data\\flutter_assets\\windows\\runner\\resources\\app_icon.ico',
+    );
+    if (bundled.existsSync()) return bundled.path;
+    return File('windows/runner/resources/app_icon.ico').absolute.path;
+  }
+
+  Future<void> _showWindow() async {
+    if (await windowManager.isMinimized()) {
+      await windowManager.restore();
+    }
+    if (!await windowManager.isVisible()) {
+      await windowManager.show();
+    }
+    await windowManager.focus();
+  }
+
+  @override
+  void onWindowClose() {
+    unawaited(_handleWindowClose());
+  }
+
+  Future<void> _handleWindowClose() async {
+    if (!Platform.isWindows || !widget.enableWindowControls) return;
+    if (_quittingFromTray || !_closeToTray) {
+      await trayManager.destroy();
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+      return;
+    }
+    await windowManager.hide();
+  }
+
+  @override
+  void onTrayIconMouseDown() {
+    unawaited(_showWindow());
+  }
+
+  @override
+  void onTrayIconRightMouseDown() {
+    unawaited(trayManager.popUpContextMenu());
+  }
+
+  @override
+  void onTrayMenuItemClick(MenuItem menuItem) {
+    switch (menuItem.key) {
+      case 'show':
+        unawaited(_showWindow());
+        break;
+      case 'toggle-play':
+        unawaited(playerController.togglePlay());
+        break;
+      case 'previous':
+        unawaited(playerController.playPrevious());
+        break;
+      case 'next':
+        unawaited(playerController.playNext());
+        break;
+      case 'quit':
+        unawaited(_quitFromTray());
+        break;
+    }
+  }
+
+  Future<void> _quitFromTray() async {
+    _quittingFromTray = true;
+    await trayManager.destroy();
+    await windowManager.setPreventClose(false);
+    await windowManager.close();
+  }
+
+  Future<void> _showAuthExpiredDialog() async {
+    final auth = authController;
+    if (_showingAuthExpiredDialog || auth == null) return;
+    _showingAuthExpiredDialog = true;
+    try {
+      if (!mounted) return;
+      final shouldLogin = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => AlertDialog(
+          title: const Text('登录已过期'),
+          content: const Text('当前登录信息已失效，为了账号安全，请重新登录。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('稍后再说'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('重新登录'),
+            ),
+          ],
+        ),
+      );
+      if (!mounted || shouldLogin != true) return;
+      await auth.logout();
+      await _showLogin();
+    } finally {
+      _showingAuthExpiredDialog = false;
     }
   }
 
@@ -189,6 +353,9 @@ class _MusicShellState extends State<MusicShell> {
         detailImageUrl = null;
         detailSongs = [];
         detailRelatedItems = [];
+        detailRelatedLoadingMore = false;
+        detailRelatedHasMore = false;
+        detailRelatedPage = 1;
         detailLoading = false;
         detailPlaylist = null;
         detailCatalogItem = null;
@@ -288,6 +455,9 @@ class _MusicShellState extends State<MusicShell> {
       detailImageUrl = item.imageUrl;
       detailSongs = [];
       detailRelatedItems = [];
+      detailRelatedLoadingMore = false;
+      detailRelatedHasMore = false;
+      detailRelatedPage = 1;
       detailLoading = true;
       detailKind = item.category == SearchCategory.artist
           ? CollectionDetailKind.artist
@@ -303,7 +473,7 @@ class _MusicShellState extends State<MusicShell> {
       final results = await Future.wait<Object>([
         repository.getCatalogSongs(item),
         if (item.category == SearchCategory.artist)
-          repository.getArtistAlbums(item)
+          repository.getArtistAlbumsPage(item, page: 1)
         else
           Future<List<SearchCatalogItem>>.value([]),
       ]);
@@ -313,6 +483,10 @@ class _MusicShellState extends State<MusicShell> {
             .map(libraryController.withFavoriteState)
             .toList();
         detailRelatedItems = results[1] as List<SearchCatalogItem>;
+        detailRelatedPage = 1;
+        detailRelatedHasMore =
+            item.category == SearchCategory.artist &&
+            detailRelatedItems.isNotEmpty;
         detailLoading = false;
       });
     } catch (error) {
@@ -322,6 +496,52 @@ class _MusicShellState extends State<MusicShell> {
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  Future<void> _loadMoreArtistAlbums() async {
+    final item = detailCatalogItem;
+    if (item == null ||
+        item.category != SearchCategory.artist ||
+        detailRelatedLoadingMore ||
+        !detailRelatedHasMore) {
+      return;
+    }
+    setState(() => detailRelatedLoadingMore = true);
+    try {
+      final nextPage = detailRelatedPage + 1;
+      final more = await repository.getArtistAlbumsPage(item, page: nextPage);
+      if (!mounted) return;
+      setState(() {
+        final beforeCount = detailRelatedItems.length;
+        final merged = _mergeCatalogItems(detailRelatedItems, more);
+        detailRelatedPage = nextPage;
+        detailRelatedHasMore = more.isNotEmpty && merged.length > beforeCount;
+        detailRelatedItems = merged;
+        detailRelatedLoadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        detailRelatedHasMore = false;
+        detailRelatedLoadingMore = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  List<SearchCatalogItem> _mergeCatalogItems(
+    List<SearchCatalogItem> current,
+    List<SearchCatalogItem> incoming,
+  ) {
+    final merged = <SearchCatalogItem>[];
+    final seen = <String>{};
+    for (final item in [...current, ...incoming]) {
+      final key = item.id.isNotEmpty ? item.id : item.title;
+      if (seen.add(key)) merged.add(item);
+    }
+    return merged;
   }
 
   Future<void> _openPlaylist(MusicPlaylist playlist) async {
@@ -334,6 +554,9 @@ class _MusicShellState extends State<MusicShell> {
       detailImageUrl = playlist.coverUrl;
       detailSongs = [];
       detailRelatedItems = [];
+      detailRelatedLoadingMore = false;
+      detailRelatedHasMore = false;
+      detailRelatedPage = 1;
       detailLoading = true;
       detailKind = playlist.kind == MusicPlaylistKind.album
           ? CollectionDetailKind.album
@@ -526,6 +749,9 @@ class _MusicShellState extends State<MusicShell> {
         imageUrl: detailImageUrl,
         songs: detailSongs,
         relatedItems: detailRelatedItems,
+        relatedPage: detailRelatedPage,
+        relatedHasMore: detailRelatedHasMore,
+        relatedLoadingMore: detailRelatedLoadingMore,
         isLoading: detailLoading,
         kind: detailKind,
         playlist: detailPlaylist,
@@ -543,6 +769,9 @@ class _MusicShellState extends State<MusicShell> {
         detailCatalogItem = null;
         detailIdentity = null;
         detailSelectedTab = 0;
+        detailRelatedLoadingMore = false;
+        detailRelatedHasMore = false;
+        detailRelatedPage = 1;
       });
       return;
     }
@@ -554,6 +783,9 @@ class _MusicShellState extends State<MusicShell> {
       detailImageUrl = previous.imageUrl;
       detailSongs = previous.songs;
       detailRelatedItems = previous.relatedItems;
+      detailRelatedPage = previous.relatedPage;
+      detailRelatedHasMore = previous.relatedHasMore;
+      detailRelatedLoadingMore = previous.relatedLoadingMore;
       detailLoading = previous.isLoading;
       detailKind = previous.kind;
       detailPlaylist = previous.playlist;
@@ -564,6 +796,11 @@ class _MusicShellState extends State<MusicShell> {
 
   @override
   void dispose() {
+    _sessionExpiredSubscription?.cancel();
+    if (Platform.isWindows && widget.enableWindowControls) {
+      windowManager.removeListener(this);
+      trayManager.removeListener(this);
+    }
     playerController
       ..removeListener(_refresh)
       ..dispose();
@@ -733,6 +970,9 @@ class _MusicShellState extends State<MusicShell> {
         imageUrl: detailImageUrl,
         songs: detailSongs,
         relatedItems: detailRelatedItems,
+        relatedItemsLoadingMore: detailRelatedLoadingMore,
+        relatedItemsCanLoadMore: detailRelatedHasMore,
+        onLoadMoreRelatedItems: _loadMoreArtistAlbums,
         isLoading: detailLoading,
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
@@ -793,6 +1033,8 @@ class _MusicShellState extends State<MusicShell> {
       _ => SettingsPage(
         updateController: updateController,
         onCheckUpdates: () => _checkForUpdates(),
+        closeToTray: _closeToTray,
+        onCloseToTrayChanged: _setCloseToTray,
         onEndpointChanged: () {
           libraryController.invalidateLoadedState();
           searchController.invalidateCachedResults();
@@ -838,6 +1080,9 @@ class _DetailSnapshot {
     required this.imageUrl,
     required this.songs,
     required this.relatedItems,
+    required this.relatedPage,
+    required this.relatedHasMore,
+    required this.relatedLoadingMore,
     required this.isLoading,
     required this.kind,
     required this.playlist,
@@ -851,6 +1096,9 @@ class _DetailSnapshot {
   final String? imageUrl;
   final List<Song> songs;
   final List<SearchCatalogItem> relatedItems;
+  final int relatedPage;
+  final bool relatedHasMore;
+  final bool relatedLoadingMore;
   final bool isLoading;
   final CollectionDetailKind kind;
   final MusicPlaylist? playlist;

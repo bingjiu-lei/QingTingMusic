@@ -21,6 +21,12 @@ abstract interface class MusicRepository {
 
   Future<List<SearchCatalogItem>> getArtistAlbums(SearchCatalogItem artist);
 
+  Future<List<SearchCatalogItem>> getArtistAlbumsPage(
+    SearchCatalogItem artist, {
+    required int page,
+    int pageSize = 50,
+  });
+
   Future<List<MusicPlaylist>> getUserPlaylists();
 
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist);

@@ -21,6 +21,23 @@ void main() {
     }
   });
 
+  test('prefers built-in mirrors before custom proxy and official source', () {
+    const url =
+        'https://github.com/bingjiu-lei/QingTingMusic/releases/download/v0.5.2/QingTingMusic-Setup-v0.5.2-x64.exe';
+
+    final candidates = AppUpdateService.downloadCandidatesForTesting(
+      url,
+      'https://example.proxy',
+    );
+
+    expect(candidates, [
+      'https://gh-proxy.com/$url',
+      'https://ghproxy.net/$url',
+      'https://example.proxy/$url',
+      url,
+    ]);
+  });
+
   test(
     'tries the next installer URL when the first download source fails',
     () async {

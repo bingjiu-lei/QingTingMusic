@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 
 import '../models/song.dart';
 import '../theme/app_theme.dart';
@@ -92,50 +93,58 @@ class _SongPanelState extends State<SongPanel> {
                   )
                 : Stack(
                     children: [
-                      ListView.separated(
+                      ListView.builder(
                         key: widget.key is PageStorageKey ? widget.key : null,
                         controller: _scrollController,
                         itemCount: widget.songs.length,
-                        separatorBuilder: (_, _) => Divider(
-                          height: 1,
-                          thickness: 0.5,
-                          color: AppColors.divider,
+                        itemExtent: itemExtent,
+                        scrollCacheExtent: ScrollCacheExtent.pixels(
+                          itemExtent * 14,
                         ),
                         itemBuilder: (context, index) {
                           final song = widget.songs[index];
-                          return SongRow(
-                            song: song,
-                            index: index,
-                            compact: widget.compactRows,
-                            isCurrent: widget.currentSong?.id == song.id,
-                            isPlaying: widget.isPlaying,
-                            onPlay: () => widget.onPlay(song, widget.songs),
-                            onLike: widget.onLike == null
-                                ? null
-                                : () => widget.onLike!(song),
-                            onArtist: widget.onArtist == null
-                                ? null
-                                : () => widget.onArtist!(song),
-                            onArtistLink: widget.onArtist == null
-                                ? null
-                                : (artist) => widget.onArtist!(
-                                    song.copyWith(
-                                      artist: artist.name,
-                                      artistId: artist.id,
-                                      artists: [artist],
-                                    ),
-                                  ),
-                            onAlbum: widget.onAlbum == null
-                                ? null
-                                : () => widget.onAlbum!(song),
-                            onAddToPlaylist: widget.onAddToPlaylist == null
-                                ? null
-                                : () => widget.onAddToPlaylist!(song),
-                            onRemoveFromPlaylist:
-                                widget.onRemoveFromPlaylist == null
-                                ? null
-                                : () => widget.onRemoveFromPlaylist!(song),
-                            showAlbum: widget.showAlbum,
+                          return Column(
+                            children: [
+                              SongRow(
+                                song: song,
+                                index: index,
+                                compact: widget.compactRows,
+                                isCurrent: widget.currentSong?.id == song.id,
+                                isPlaying: widget.isPlaying,
+                                onPlay: () => widget.onPlay(song, widget.songs),
+                                onLike: widget.onLike == null
+                                    ? null
+                                    : () => widget.onLike!(song),
+                                onArtist: widget.onArtist == null
+                                    ? null
+                                    : () => widget.onArtist!(song),
+                                onArtistLink: widget.onArtist == null
+                                    ? null
+                                    : (artist) => widget.onArtist!(
+                                        song.copyWith(
+                                          artist: artist.name,
+                                          artistId: artist.id,
+                                          artists: [artist],
+                                        ),
+                                      ),
+                                onAlbum: widget.onAlbum == null
+                                    ? null
+                                    : () => widget.onAlbum!(song),
+                                onAddToPlaylist: widget.onAddToPlaylist == null
+                                    ? null
+                                    : () => widget.onAddToPlaylist!(song),
+                                onRemoveFromPlaylist:
+                                    widget.onRemoveFromPlaylist == null
+                                    ? null
+                                    : () => widget.onRemoveFromPlaylist!(song),
+                                showAlbum: widget.showAlbum,
+                              ),
+                              Divider(
+                                height: 1,
+                                thickness: 0.5,
+                                color: AppColors.divider,
+                              ),
+                            ],
                           );
                         },
                       ),

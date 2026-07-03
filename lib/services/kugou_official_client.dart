@@ -282,6 +282,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         'singerid': params['id'] ?? '',
         'page': params['page'] ?? 1,
         'pagesize': params['pagesize'] ?? 100,
+        'sort': params['sort'] ?? 'new',
       }),
       '/user/playlist' => _android(
         '/v7/get_all_list',
