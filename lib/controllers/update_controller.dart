@@ -104,7 +104,10 @@ class UpdateController extends ChangeNotifier {
       downloadStatus = UpdateDownloadStatus.downloaded;
     } catch (error) {
       downloadStatus = UpdateDownloadStatus.error;
-      errorMessage = '下载失败，请稍后重试';
+      errorMessage = error.toString().replaceFirst(
+        RegExp(r'^(Bad state|StateError):\s*'),
+        '',
+      );
     }
     notifyListeners();
   }

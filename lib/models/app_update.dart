@@ -9,6 +9,8 @@ class AppUpdateInfo {
     required this.releaseName,
     required this.releaseUrl,
     required this.downloadUrl,
+    this.downloadUrls = const [],
+    this.sha256 = '',
     this.body = '',
   });
 
@@ -17,6 +19,8 @@ class AppUpdateInfo {
   final String releaseName;
   final String releaseUrl;
   final String downloadUrl;
+  final List<String> downloadUrls;
+  final String sha256;
   final String body;
 }
 

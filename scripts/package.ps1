@@ -68,5 +68,13 @@ if (-not (Test-Path $outputFile)) {
 }
 
 $hash = (Get-FileHash $outputFile -Algorithm SHA256).Hash
+$hashFile = "$outputFile.sha256"
+$hashLine = "$hash  $(Split-Path -Leaf $outputFile)"
+[System.IO.File]::WriteAllText(
+    $hashFile,
+    $hashLine,
+    [System.Text.UTF8Encoding]::new($false)
+)
 Write-Host "Installer ready: $outputFile" -ForegroundColor Green
 Write-Host "SHA256: $hash" -ForegroundColor Green
+Write-Host "SHA256 file: $hashFile" -ForegroundColor Green

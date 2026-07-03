@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../models/app_update.dart';
@@ -14,6 +16,10 @@ class AppUpdateService {
   static const releasesUrl = 'https://github.com/$owner/$repo/releases';
   static const latestReleaseApi =
       'https://api.github.com/repos/$owner/$repo/releases/latest';
+  static const _fallbackGithubProxyUrls = [
+    'https://gh-proxy.com',
+    'https://ghproxy.net',
+  ];
 
   final Dio _dio;
 
@@ -73,6 +79,14 @@ class AppUpdateService {
           message: '安装包下载地址为空',
         );
       }
+      final body = data['body']?.toString() ?? '';
+      final sha256 =
+          _extractSha256(body, assetName: asset['name']?.toString()) ??
+          await _loadSha256FromAsset(
+            data['assets'],
+            assetName: asset['name']?.toString(),
+            githubProxyUrl: githubProxyUrl,
+          );
       final releaseUrl =
           data['html_url']?.toString() ?? '$releasesUrl/tag/$tagName';
       return UpdateCheckResult.available(
@@ -83,8 +97,10 @@ class AppUpdateService {
               ? data['name'].toString()
               : tagName,
           releaseUrl: releaseUrl,
-          downloadUrl: _withGithubProxy(rawDownloadUrl, githubProxyUrl),
-          body: data['body']?.toString() ?? '',
+          downloadUrl: rawDownloadUrl,
+          downloadUrls: _downloadCandidates(rawDownloadUrl, githubProxyUrl),
+          sha256: sha256 ?? '',
+          body: body,
         ),
       );
     } catch (error) {
@@ -106,20 +122,36 @@ class AppUpdateService {
       '${directory.path}\\QingTingMusic-Setup-v${update.latestVersion}-x64.exe',
     );
     final partial = File('${file.path}.download');
-    if (await partial.exists()) await partial.delete();
-    await _dio.download(
-      update.downloadUrl,
-      partial.path,
-      onReceiveProgress: onProgress,
-      options: Options(
-        followRedirects: true,
-        receiveTimeout: const Duration(minutes: 10),
-      ),
-    );
-    if (await file.exists()) await file.delete();
-    final completed = await partial.rename(file.path);
-    await AppStorageService.ensureCurrentUserAccess(completed);
-    return completed;
+    Object? lastError;
+    for (final url in _effectiveDownloadUrls(update)) {
+      try {
+        if (await partial.exists()) await partial.delete();
+        onProgress(0, 1);
+        await _dio.download(
+          url,
+          partial.path,
+          onReceiveProgress: onProgress,
+          options: Options(
+            followRedirects: true,
+            receiveTimeout: const Duration(minutes: 10),
+            headers: const {'Accept': 'application/octet-stream'},
+          ),
+        );
+        await _validateInstaller(partial, update.sha256);
+        if (await file.exists()) await file.delete();
+        final completed = await partial.rename(file.path);
+        await AppStorageService.ensureCurrentUserAccess(completed);
+        return completed;
+      } catch (error) {
+        lastError = error;
+        if (await partial.exists()) {
+          try {
+            await partial.delete();
+          } catch (_) {}
+        }
+      }
+    }
+    throw StateError(_downloadFailureMessage(lastError));
   }
 
   Future<void> install(File installer) async {
@@ -150,6 +182,23 @@ class AppUpdateService {
     return null;
   }
 
+  List<String> _downloadCandidates(String url, String githubProxyUrl) {
+    final candidates = <String>[url];
+    final configured = _withGithubProxy(url, githubProxyUrl);
+    if (configured != url) candidates.add(configured);
+    for (final proxy in _fallbackGithubProxyUrls) {
+      candidates.add(_withGithubProxy(url, proxy));
+    }
+    return candidates.toSet().toList();
+  }
+
+  List<String> _effectiveDownloadUrls(AppUpdateInfo update) {
+    final urls = update.downloadUrls.isEmpty
+        ? <String>[update.downloadUrl]
+        : update.downloadUrls;
+    return urls.where((url) => url.trim().isNotEmpty).toSet().toList();
+  }
+
   String _withGithubProxy(String url, String githubProxyUrl) {
     final proxy = githubProxyUrl.trim();
     if (proxy.isEmpty || !url.startsWith('https://github.com/')) return url;
@@ -157,6 +206,82 @@ class AppUpdateService {
         ? proxy.substring(0, proxy.length - 1)
         : proxy;
     return '$normalized/$url';
+  }
+
+  Future<void> _validateInstaller(File file, String expectedSha256) async {
+    if (!await file.exists() || await file.length() <= 1024 * 1024) {
+      throw const FileSystemException('安装包内容为空或不完整');
+    }
+    final expected = expectedSha256.trim().toUpperCase();
+    if (expected.isEmpty) return;
+    final actual = await _sha256(file);
+    if (actual != expected) {
+      throw const FileSystemException('安装包校验失败');
+    }
+  }
+
+  Future<String> _sha256(File file) async {
+    final digest = await sha256.bind(file.openRead()).first;
+    return digest.toString().toUpperCase();
+  }
+
+  Future<String?> _loadSha256FromAsset(
+    Object? assets, {
+    required String? assetName,
+    required String githubProxyUrl,
+  }) async {
+    final name = assetName?.trim();
+    if (assets is! List || name == null || name.isEmpty) return null;
+    final shaAssetName = '$name.sha256';
+    for (final value in assets) {
+      if (value is! Map) continue;
+      if (value['name']?.toString() != shaAssetName) continue;
+      final rawUrl = value['browser_download_url']?.toString() ?? '';
+      if (rawUrl.isEmpty) return null;
+      for (final url in _downloadCandidates(rawUrl, githubProxyUrl)) {
+        try {
+          final response = await _dio.get<String>(
+            url,
+            options: Options(responseType: ResponseType.plain),
+          );
+          final hash = _extractSha256(response.data ?? '', assetName: name);
+          if (hash != null) return hash;
+        } catch (_) {}
+      }
+      return null;
+    }
+    return null;
+  }
+
+  String? _extractSha256(String body, {String? assetName}) {
+    final normalizedBody = body.trim();
+    if (normalizedBody.isEmpty) return null;
+    final normalizedAsset = assetName?.trim();
+    if (normalizedAsset != null && normalizedAsset.isNotEmpty) {
+      final escaped = RegExp.escape(normalizedAsset);
+      final assetPattern = RegExp(
+        r'([A-Fa-f0-9]{64})\s+.*?' + escaped,
+        caseSensitive: false,
+      );
+      final match = assetPattern.firstMatch(normalizedBody);
+      if (match != null) return match.group(1)!.toUpperCase();
+    }
+    final labeledPattern = RegExp(
+      r'SHA256\s*[:：]\s*`?([A-Fa-f0-9]{64})`?',
+      caseSensitive: false,
+    );
+    final labeled = labeledPattern.firstMatch(normalizedBody);
+    if (labeled != null) return labeled.group(1)!.toUpperCase();
+    final plain = RegExp(r'\b[A-Fa-f0-9]{64}\b').firstMatch(normalizedBody);
+    return plain?.group(0)?.toUpperCase();
+  }
+
+  String _downloadFailureMessage(Object? error) {
+    final value = error?.toString() ?? '';
+    if (value.contains('校验失败')) {
+      return '安装包校验失败，请使用浏览器下载或稍后重试';
+    }
+    return '下载失败，请使用浏览器下载或稍后重试';
   }
 
   String _normalizeVersion(String value) {
@@ -183,7 +308,7 @@ class AppUpdateService {
   }
 
   static Dio _createDio() {
-    return Dio(
+    final dio = Dio(
       BaseOptions(
         connectTimeout: const Duration(seconds: 15),
         receiveTimeout: const Duration(seconds: 30),
@@ -191,5 +316,20 @@ class AppUpdateService {
         headers: const {'User-Agent': 'QingTingMusic-Updater'},
       ),
     );
+    dio.httpClientAdapter = IOHttpClientAdapter(
+      createHttpClient: () {
+        final client = HttpClient();
+        client.findProxy = (uri) {
+          final raw =
+              Platform.environment['HTTPS_PROXY'] ??
+              Platform.environment['HTTP_PROXY'] ??
+              Platform.environment['ALL_PROXY'];
+          final proxy = raw == null ? null : Uri.tryParse(raw);
+          return proxy == null ? 'DIRECT' : 'PROXY ${proxy.host}:${proxy.port}';
+        };
+        return client;
+      },
+    );
+    return dio;
   }
 }
