@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../controllers/update_controller.dart';
 import '../models/app_update.dart';
 import '../services/api_endpoint_service.dart';
+import '../services/app_storage_service.dart';
 import '../services/cache_management_service.dart';
+import '../services/developer_mode_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/page_header.dart';
 
@@ -26,14 +31,22 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _service = ApiEndpointService();
   final _cacheService = CacheManagementService();
+  final _developerService = DeveloperModeService();
   final _controller = TextEditingController();
+  final _githubProxyController = TextEditingController();
   bool _saved = false;
+  bool _proxySaved = false;
   bool _saving = false;
+  bool _savingProxy = false;
   bool _cacheBusy = false;
+  bool _developerEnabled = false;
   String? _errorText;
+  String? _proxyErrorText;
   String _activeEndpoint = '';
   int _cacheLimitBytes = CacheManagementService.defaultLimitBytes;
   int _cacheSizeBytes = 0;
+  int _versionTapCount = 0;
+  Timer? _versionTapTimer;
 
   @override
   void initState() {
@@ -44,19 +57,27 @@ class _SettingsPageState extends State<SettingsPage> {
       _activeEndpoint = value;
       setState(() {});
     });
+    _developerService.loadEnabled().then((enabled) {
+      if (!mounted) return;
+      setState(() => _developerEnabled = enabled);
+    });
+    _githubProxyController.text = widget.updateController.githubProxyUrl;
     _loadCacheState();
     widget.updateController.addListener(_refreshUpdateState);
   }
 
   @override
   void dispose() {
+    _versionTapTimer?.cancel();
     widget.updateController.removeListener(_refreshUpdateState);
     _controller.dispose();
+    _githubProxyController.dispose();
     super.dispose();
   }
 
   void _refreshUpdateState() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _save() async {
@@ -79,6 +100,28 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) setState(() => _errorText = error.toString());
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _saveGithubProxy() async {
+    setState(() {
+      _savingProxy = true;
+      _proxySaved = false;
+      _proxyErrorText = null;
+    });
+    try {
+      await widget.updateController.setGithubProxyUrl(
+        _githubProxyController.text,
+      );
+      if (!mounted) return;
+      setState(() {
+        _githubProxyController.text = widget.updateController.githubProxyUrl;
+        _proxySaved = true;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _proxyErrorText = error.toString());
+    } finally {
+      if (mounted) setState(() => _savingProxy = false);
     }
   }
 
@@ -110,6 +153,272 @@ class _SettingsPageState extends State<SettingsPage> {
     if (mounted) setState(() => _cacheBusy = false);
   }
 
+  void _handleVersionTap() {
+    _versionTapTimer?.cancel();
+    _versionTapCount += 1;
+    if (_versionTapCount >= 6) {
+      _versionTapCount = 0;
+      _developerEnabled ? _disableDeveloperMode() : _showDeveloperDialog();
+      return;
+    }
+    _versionTapTimer = Timer(const Duration(seconds: 2), () {
+      _versionTapCount = 0;
+    });
+  }
+
+  Future<void> _showDeveloperDialog() async {
+    final passphraseController = TextEditingController();
+    var errorText = '';
+    final enabled = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.surface,
+              title: Text(
+                '开发者模式',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '输入口令后会显示后端接口、更新代理和诊断日志等调试工具。',
+                      style: TextStyle(color: AppColors.muted, fontSize: 13),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: passphraseController,
+                      obscureText: true,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: '开发者口令',
+                        errorText: errorText.isEmpty ? null : errorText,
+                        prefixIcon: const Icon(Icons.key_rounded, size: 20),
+                        filled: true,
+                        fillColor: AppColors.page,
+                        border: const OutlineInputBorder(
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onSubmitted: (_) {
+                        _submitDeveloperPassphrase(
+                          dialogContext,
+                          setDialogState,
+                          passphraseController.text,
+                          (value) => errorText = value,
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('取消'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    _submitDeveloperPassphrase(
+                      dialogContext,
+                      setDialogState,
+                      passphraseController.text,
+                      (value) => errorText = value,
+                    );
+                  },
+                  child: const Text('开启'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+    passphraseController.dispose();
+    if (enabled != true || !mounted) return;
+    await _developerService.saveEnabled(true);
+    if (!mounted) return;
+    setState(() => _developerEnabled = true);
+    _showSnack('开发者模式已开启');
+  }
+
+  void _submitDeveloperPassphrase(
+    BuildContext dialogContext,
+    StateSetter setDialogState,
+    String passphrase,
+    ValueChanged<String> setError,
+  ) {
+    if (_developerService.verifyPassphrase(passphrase)) {
+      Navigator.of(dialogContext).pop(true);
+      return;
+    }
+    setDialogState(() => setError('口令不正确'));
+  }
+
+  Future<void> _disableDeveloperMode() async {
+    await _developerService.saveEnabled(false);
+    if (!mounted) return;
+    setState(() => _developerEnabled = false);
+    _showSnack('开发者模式已关闭');
+  }
+
+  Future<void> _copyDiagnosticInfo() async {
+    final logFile = AppStorageService.file('playback.log');
+    final info = [
+      'QingTingMusic diagnostics',
+      'version: ${widget.updateController.currentVersion}',
+      'dataDirectory: ${AppStorageService.dataDirectory.path}',
+      'apiMode: ${_activeEndpoint.isEmpty ? 'official' : 'custom'}',
+      'cacheLimit: $_cacheLimitBytes',
+      'cacheSize: $_cacheSizeBytes',
+      'autoUpdateCheck: ${widget.updateController.autoCheck}',
+      'githubProxy: ${widget.updateController.githubProxyUrl.isEmpty ? 'empty' : 'configured'}',
+      'playbackLog: ${await logFile.exists() ? 'exists' : 'missing'}',
+    ].join('\n');
+    await Clipboard.setData(ClipboardData(text: info));
+    if (mounted) _showSnack('诊断信息已复制');
+  }
+
+  Future<void> _showPlaybackLog() async {
+    final file = AppStorageService.file('playback.log');
+    var content = '暂无播放日志。';
+    if (await file.exists()) {
+      final value = await file.readAsString();
+      content = value.length > 8000
+          ? value.substring(value.length - 8000)
+          : value;
+      if (content.trim().isEmpty) content = '暂无播放日志。';
+    }
+    if (!mounted) return;
+    _showLongTextDialog(title: '播放日志', content: content);
+  }
+
+  void _showLegalDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 32,
+            vertical: 24,
+          ),
+          contentPadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          title: Text(
+            '免责声明与版权声明',
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 620),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: const [
+                  _LegalItem(
+                    title: '项目定位',
+                    content:
+                        '本项目是基于公开接口与用户授权数据开发的第三方音乐客户端，仅用于技术学习、研究和个人使用，不涉及任何商业行为。',
+                  ),
+                  _LegalItem(
+                    title: '数据来源',
+                    content: '音乐数据来自相关平台公开或授权接口。本项目不拥有音乐版权，不主动存储、传播或分发任何音频内容。',
+                  ),
+                  _LegalItem(
+                    title: '缓存说明',
+                    content: '本地缓存仅用于改善加载与播放体验，可在设置中清理。用户应遵守当地法律法规及相关平台使用条款。',
+                  ),
+                  _LegalItem(
+                    title: '版权尊重',
+                    content: '音乐创作不易，请支持正版。若长期使用相关服务，建议通过官方渠道购买会员或数字专辑。',
+                  ),
+                  _LegalItem(
+                    title: '责任说明',
+                    content: '因使用本项目产生的账号风险、接口不可用、数据丢失、设备异常或其他间接损失，开发者不承担责任。',
+                  ),
+                  _LegalItem(
+                    title: '争议处理',
+                    content: '如权利方认为本项目影响其合法权益，可通过项目仓库联系处理，我们会积极配合调整。',
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('我知道了'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showLongTextDialog({required String title, required String content}) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(title, style: TextStyle(color: AppColors.text)),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 420),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                content,
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  height: 1.55,
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: content));
+                Navigator.of(context).pop();
+                _showSnack('内容已复制');
+              },
+              child: const Text('复制'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('关闭'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -131,68 +440,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      '后端 API',
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 7),
-                    Text(
-                      '留空时直接请求官方接口；填写后使用这个域名下的服务器接口。',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _controller,
-                            decoration: InputDecoration(
-                              hintText:
-                                  '留空使用官方接口，或填写 https://music-api.example.com',
-                              prefixIcon: const Icon(
-                                Icons.dns_outlined,
-                                size: 20,
-                              ),
-                              filled: true,
-                              fillColor: AppColors.page,
-                              border: const OutlineInputBorder(
-                                borderSide: BorderSide.none,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        FilledButton(
-                          onPressed: _saving ? null : _save,
-                          child: Text(
-                            _saving
-                                ? '检测中'
-                                : _saved
-                                ? '已保存'
-                                : '保存',
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 9),
-                    Text(
-                      _errorText ??
-                          (_activeEndpoint.isEmpty
-                              ? '当前模式：官方接口'
-                              : '当前模式：自定义后端 $_activeEndpoint'),
-                      style: TextStyle(
-                        color: _errorText == null
-                            ? AppColors.muted
-                            : AppColors.danger,
-                        fontSize: 12,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Divider(height: 34),
                     _CacheSection(
                       sizeText: _formatBytes(_cacheSizeBytes),
                       selectedLimit: _cacheLimitBytes,
@@ -210,7 +457,28 @@ class _SettingsPageState extends State<SettingsPage> {
                     _UpdateSection(
                       controller: widget.updateController,
                       onCheckUpdates: widget.onCheckUpdates,
+                      onVersionTap: _handleVersionTap,
+                      onLegalTap: _showLegalDialog,
                     ),
+                    if (_developerEnabled) ...[
+                      const Divider(height: 30),
+                      _DeveloperSection(
+                        apiController: _controller,
+                        githubProxyController: _githubProxyController,
+                        activeEndpoint: _activeEndpoint,
+                        endpointErrorText: _errorText,
+                        proxyErrorText: _proxyErrorText,
+                        endpointSaved: _saved,
+                        proxySaved: _proxySaved,
+                        savingEndpoint: _saving,
+                        savingProxy: _savingProxy,
+                        onSaveEndpoint: _save,
+                        onSaveGithubProxy: _saveGithubProxy,
+                        onCopyDiagnostics: _copyDiagnosticInfo,
+                        onShowPlaybackLog: _showPlaybackLog,
+                        onDisable: _disableDeveloperMode,
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -232,14 +500,231 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
+class _DeveloperSection extends StatelessWidget {
+  const _DeveloperSection({
+    required this.apiController,
+    required this.githubProxyController,
+    required this.activeEndpoint,
+    required this.endpointErrorText,
+    required this.proxyErrorText,
+    required this.endpointSaved,
+    required this.proxySaved,
+    required this.savingEndpoint,
+    required this.savingProxy,
+    required this.onSaveEndpoint,
+    required this.onSaveGithubProxy,
+    required this.onCopyDiagnostics,
+    required this.onShowPlaybackLog,
+    required this.onDisable,
+  });
+
+  final TextEditingController apiController;
+  final TextEditingController githubProxyController;
+  final String activeEndpoint;
+  final String? endpointErrorText;
+  final String? proxyErrorText;
+  final bool endpointSaved;
+  final bool proxySaved;
+  final bool savingEndpoint;
+  final bool savingProxy;
+  final VoidCallback onSaveEndpoint;
+  final VoidCallback onSaveGithubProxy;
+  final VoidCallback onCopyDiagnostics;
+  final VoidCallback onShowPlaybackLog;
+  final VoidCallback onDisable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.code_rounded, color: AppColors.primary, size: 21),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      '开发者管理',
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: onDisable,
+                    child: const Text('关闭开发者模式'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                '调试接口、升级代理和运行日志。普通使用无需调整这些选项。',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              _DeveloperTextField(
+                title: '后端 API',
+                description: '留空时直接请求官方接口；填写后使用这个域名下的服务器接口。',
+                controller: apiController,
+                hintText: '留空使用官方接口，或填写 https://music-api.example.com',
+                icon: Icons.dns_outlined,
+                saving: savingEndpoint,
+                saved: endpointSaved,
+                onSave: onSaveEndpoint,
+              ),
+              const SizedBox(height: 9),
+              Text(
+                endpointErrorText ??
+                    (activeEndpoint.isEmpty
+                        ? '当前模式：官方接口'
+                        : '当前模式：自定义后端 $activeEndpoint'),
+                style: TextStyle(
+                  color: endpointErrorText == null
+                      ? AppColors.muted
+                      : AppColors.danger,
+                  fontSize: 12,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 18),
+              _DeveloperTextField(
+                title: '更新代理',
+                description: 'GitHub 连接较慢时可填写加速地址；留空时直接请求 GitHub。',
+                controller: githubProxyController,
+                hintText: '例如 https://gh-proxy.example.com/',
+                icon: Icons.travel_explore_rounded,
+                saving: savingProxy,
+                saved: proxySaved,
+                onSave: onSaveGithubProxy,
+              ),
+              const SizedBox(height: 9),
+              Text(
+                proxyErrorText ??
+                    (githubProxyController.text.trim().isEmpty
+                        ? '当前模式：直接检查更新'
+                        : '当前模式：使用更新代理'),
+                style: TextStyle(
+                  color: proxyErrorText == null
+                      ? AppColors.muted
+                      : AppColors.danger,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onCopyDiagnostics,
+                    icon: const Icon(Icons.content_copy_rounded, size: 17),
+                    label: const Text('复制诊断信息'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onShowPlaybackLog,
+                    icon: const Icon(Icons.article_outlined, size: 17),
+                    label: const Text('查看播放日志'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DeveloperTextField extends StatelessWidget {
+  const _DeveloperTextField({
+    required this.title,
+    required this.description,
+    required this.controller,
+    required this.hintText,
+    required this.icon,
+    required this.saving,
+    required this.saved,
+    required this.onSave,
+  });
+
+  final String title;
+  final String description;
+  final TextEditingController controller;
+  final String hintText;
+  final IconData icon;
+  final bool saving;
+  final bool saved;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: AppColors.text,
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          description,
+          style: TextStyle(color: AppColors.muted, fontSize: 12),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: hintText,
+                  prefixIcon: Icon(icon, size: 20),
+                  filled: true,
+                  fillColor: AppColors.page,
+                  border: const OutlineInputBorder(borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton(
+              onPressed: saving ? null : onSave,
+              child: Text(
+                saving
+                    ? '保存中'
+                    : saved
+                    ? '已保存'
+                    : '保存',
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _UpdateSection extends StatelessWidget {
   const _UpdateSection({
     required this.controller,
     required this.onCheckUpdates,
+    required this.onVersionTap,
+    required this.onLegalTap,
   });
 
   final UpdateController controller;
   final VoidCallback onCheckUpdates;
+  final VoidCallback onVersionTap;
+  final VoidCallback onLegalTap;
 
   @override
   Widget build(BuildContext context) {
@@ -264,9 +749,16 @@ class _UpdateSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 5),
-              Text(
-                '当前版本 $version',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: onVersionTap,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Text(
+                    '当前版本 $version',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                ),
               ),
               const SizedBox(height: 13),
               Wrap(
@@ -299,12 +791,57 @@ class _UpdateSection extends StatelessWidget {
                         : const Icon(Icons.system_update_alt_rounded, size: 18),
                     label: Text(checking ? '检查中' : '检查更新'),
                   ),
+                  OutlinedButton.icon(
+                    onPressed: onLegalTap,
+                    icon: const Icon(Icons.gavel_rounded, size: 17),
+                    label: const Text('声明'),
+                  ),
                 ],
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _LegalItem extends StatelessWidget {
+  const _LegalItem({required this.title, required this.content});
+
+  final String title;
+  final String content;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 74,
+            child: Text(
+              title,
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              content,
+              style: TextStyle(
+                color: AppColors.muted,
+                fontSize: 13,
+                height: 1.65,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

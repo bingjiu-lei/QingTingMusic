@@ -53,6 +53,7 @@ void main() {
     await tester.tap(find.text('设置'));
     await _settleForUi(tester);
     expect(find.text('播放音质'), findsOneWidget);
+    expect(find.text('后端 API'), findsNothing);
   });
 
   testWidgets('searches demo songs and stores the query', (tester) async {
