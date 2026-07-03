@@ -7,12 +7,14 @@ import '../controllers/music_library_controller.dart';
 import '../controllers/music_search_controller.dart';
 import '../controllers/player_controller.dart';
 import '../controllers/theme_controller.dart';
+import '../controllers/update_controller.dart';
 import '../data/demo_music_repository.dart';
 import '../data/kugou_music_repository.dart';
 import '../data/music_repository.dart';
 import '../models/song.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
+import '../models/app_update.dart';
 import '../services/audio_player_service.dart';
 import '../services/cache_management_service.dart';
 import '../services/kugou_api_client.dart';
@@ -27,6 +29,7 @@ import '../widgets/now_playing_page.dart';
 import '../widgets/play_queue_panel.dart';
 import '../widgets/player_bar.dart';
 import '../widgets/sidebar.dart';
+import '../widgets/update_dialog.dart';
 import 'library_page.dart';
 import 'collection_detail_page.dart';
 import 'search_page.dart';
@@ -58,6 +61,7 @@ class _MusicShellState extends State<MusicShell> {
   late final PlayerController playerController;
   late final MusicSearchController searchController;
   late final MusicLibraryController libraryController;
+  late final UpdateController updateController;
   final cacheManagementService = CacheManagementService();
 
   int selectedIndex = 0;
@@ -78,6 +82,7 @@ class _MusicShellState extends State<MusicShell> {
   bool showNowPlayingPage = false;
   String? _activeUserId;
   bool _resettingAccountState = false;
+  bool _showingUpdateDialog = false;
 
   @override
   void initState() {
@@ -102,12 +107,14 @@ class _MusicShellState extends State<MusicShell> {
     )..addListener(_refresh);
     libraryController = MusicLibraryController(repository)
       ..addListener(_refresh);
+    updateController = UpdateController()..addListener(_refresh);
     searchController.initialize();
     playerController.initialize();
     _initializeData();
   }
 
   Future<void> _initializeData() async {
+    await updateController.initialize(useFallbackVersion: widget.useDemoData);
     await libraryController.initialize();
     final auth = authController;
     if (auth != null) {
@@ -120,6 +127,30 @@ class _MusicShellState extends State<MusicShell> {
     }
     await libraryController.ensureLoaded(LibrarySection.songs);
     unawaited(libraryController.refreshCachedInBackground());
+    if (!widget.useDemoData && updateController.autoCheck) {
+      unawaited(_checkForUpdates(silent: true));
+    }
+  }
+
+  Future<void> _checkForUpdates({bool silent = false}) async {
+    final result = await updateController.check(silent: silent);
+    if (!mounted) return;
+    if (silent && result.status != UpdateCheckStatus.available) return;
+    await _showUpdateDialog();
+  }
+
+  Future<void> _showUpdateDialog() async {
+    if (_showingUpdateDialog || !mounted) return;
+    _showingUpdateDialog = true;
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (_) => UpdateDialog(controller: updateController),
+      );
+    } finally {
+      _showingUpdateDialog = false;
+    }
   }
 
   void _refresh() {
@@ -542,6 +573,9 @@ class _MusicShellState extends State<MusicShell> {
     libraryController
       ..removeListener(_refresh)
       ..dispose();
+    updateController
+      ..removeListener(_refresh)
+      ..dispose();
     authController
       ?..removeListener(_handleAuthChanged)
       ..dispose();
@@ -757,6 +791,8 @@ class _MusicShellState extends State<MusicShell> {
         onOpenAlbum: _openAlbumFromSong,
       ),
       _ => SettingsPage(
+        updateController: updateController,
+        onCheckUpdates: () => _checkForUpdates(),
         onEndpointChanged: () {
           libraryController.invalidateLoadedState();
           searchController.invalidateCachedResults();

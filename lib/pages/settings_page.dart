@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../controllers/update_controller.dart';
+import '../models/app_update.dart';
 import '../services/api_endpoint_service.dart';
 import '../services/cache_management_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/page_header.dart';
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, this.onEndpointChanged});
+  const SettingsPage({
+    super.key,
+    required this.updateController,
+    required this.onCheckUpdates,
+    this.onEndpointChanged,
+  });
 
+  final UpdateController updateController;
+  final VoidCallback onCheckUpdates;
   final VoidCallback? onEndpointChanged;
 
   @override
@@ -36,12 +45,18 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {});
     });
     _loadCacheState();
+    widget.updateController.addListener(_refreshUpdateState);
   }
 
   @override
   void dispose() {
+    widget.updateController.removeListener(_refreshUpdateState);
     _controller.dispose();
     super.dispose();
+  }
+
+  void _refreshUpdateState() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _save() async {
@@ -104,95 +119,101 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           PageHeader(title: '设置', subtitle: '调整晴听音乐的使用偏好'),
           const SizedBox(height: 22),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '后端 API',
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
+          Expanded(
+            child: SingleChildScrollView(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(height: 7),
-                Text(
-                  '留空时直接请求官方接口；填写后使用这个域名下的服务器接口。',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
-                ),
-                const SizedBox(height: 14),
-                Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _controller,
-                        decoration: InputDecoration(
-                          hintText:
-                              '留空使用官方接口，或填写 https://music-api.example.com',
-                          prefixIcon: const Icon(Icons.dns_outlined, size: 20),
-                          filled: true,
-                          fillColor: AppColors.page,
-                          border: const OutlineInputBorder(
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
+                    Text(
+                      '后端 API',
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    FilledButton(
-                      onPressed: _saving ? null : _save,
-                      child: Text(
-                        _saving
-                            ? '检测中'
-                            : _saved
-                            ? '已保存'
-                            : '保存',
+                    const SizedBox(height: 7),
+                    Text(
+                      '留空时直接请求官方接口；填写后使用这个域名下的服务器接口。',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _controller,
+                            decoration: InputDecoration(
+                              hintText:
+                                  '留空使用官方接口，或填写 https://music-api.example.com',
+                              prefixIcon: const Icon(
+                                Icons.dns_outlined,
+                                size: 20,
+                              ),
+                              filled: true,
+                              fillColor: AppColors.page,
+                              border: const OutlineInputBorder(
+                                borderSide: BorderSide.none,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        FilledButton(
+                          onPressed: _saving ? null : _save,
+                          child: Text(
+                            _saving
+                                ? '检测中'
+                                : _saved
+                                ? '已保存'
+                                : '保存',
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 9),
+                    Text(
+                      _errorText ??
+                          (_activeEndpoint.isEmpty
+                              ? '当前模式：官方接口'
+                              : '当前模式：自定义后端 $_activeEndpoint'),
+                      style: TextStyle(
+                        color: _errorText == null
+                            ? AppColors.muted
+                            : AppColors.danger,
+                        fontSize: 12,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Divider(height: 34),
+                    _CacheSection(
+                      sizeText: _formatBytes(_cacheSizeBytes),
+                      selectedLimit: _cacheLimitBytes,
+                      busy: _cacheBusy,
+                      onLimitChanged: _changeCacheLimit,
+                      onClear: _clearCache,
+                    ),
+                    const Divider(height: 28),
+                    _SettingRow(
+                      icon: Icons.high_quality_rounded,
+                      title: '播放音质',
+                      value: '标准音质',
+                    ),
+                    const Divider(height: 28),
+                    _UpdateSection(
+                      controller: widget.updateController,
+                      onCheckUpdates: widget.onCheckUpdates,
                     ),
                   ],
                 ),
-                const SizedBox(height: 9),
-                Text(
-                  _errorText ??
-                      (_activeEndpoint.isEmpty
-                          ? '当前模式：官方接口'
-                          : '当前模式：自定义后端 $_activeEndpoint'),
-                  style: TextStyle(
-                    color: _errorText == null
-                        ? AppColors.muted
-                        : AppColors.danger,
-                    fontSize: 12,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const Divider(height: 34),
-                _CacheSection(
-                  sizeText: _formatBytes(_cacheSizeBytes),
-                  selectedLimit: _cacheLimitBytes,
-                  busy: _cacheBusy,
-                  onLimitChanged: _changeCacheLimit,
-                  onClear: _clearCache,
-                ),
-                const Divider(height: 28),
-                _SettingRow(
-                  icon: Icons.high_quality_rounded,
-                  title: '播放音质',
-                  value: '标准音质',
-                ),
-                const Divider(height: 28),
-                _SettingRow(
-                  icon: Icons.info_outline_rounded,
-                  title: '关于晴听音乐',
-                  value: '1.0.0',
-                ),
-              ],
+              ),
             ),
           ),
         ],
@@ -208,6 +229,83 @@ class _SettingsPageState extends State<SettingsPage> {
       return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
     }
     return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
+  }
+}
+
+class _UpdateSection extends StatelessWidget {
+  const _UpdateSection({
+    required this.controller,
+    required this.onCheckUpdates,
+  });
+
+  final UpdateController controller;
+  final VoidCallback onCheckUpdates;
+
+  @override
+  Widget build(BuildContext context) {
+    final checking = controller.checkStatus == UpdateCheckStatus.checking;
+    final version = controller.currentVersion.isEmpty
+        ? '读取中'
+        : 'v${controller.currentVersion}';
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 21),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '关于晴听音乐',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                '当前版本 $version',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 13),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  FilterChip(
+                    selected: controller.autoCheck,
+                    label: const Text('启动时自动检查更新'),
+                    onSelected: (value) {
+                      controller.setAutoCheck(value);
+                    },
+                    selectedColor: AppColors.selected,
+                    checkmarkColor: AppColors.primary,
+                    backgroundColor: AppColors.page,
+                    side: BorderSide(color: AppColors.divider),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: checking ? null : onCheckUpdates,
+                    icon: checking
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.system_update_alt_rounded, size: 18),
+                    label: Text(checking ? '检查中' : '检查更新'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
