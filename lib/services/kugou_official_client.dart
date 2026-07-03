@@ -220,9 +220,27 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       '/privilege/lite' => _privilegeLite(params, cookie),
       '/playlist/tracks/add' => _playlistTracksAdd(params, cookie),
       '/playlist/tracks/del' => _playlistTracksDel(params, cookie),
+      '/playlist/add' => _playlistAdd(params, cookie),
+      '/playlist/del' => _playlistDel(params, cookie),
+      '/artist/follow' => _artistFollow(params, cookie, follow: true),
+      '/artist/unfollow' => _artistFollow(params, cookie, follow: false),
       '/user/cloud' => _cloudSongs(params, cookie),
       '/user/cloud/url' => _cloudSongUrl(params, cookie),
       '/user/follow' => _userFollow(cookie),
+      '/playlist/public/track/all' =>
+        _android('/pubsongs/v2/get_other_list_file_nofilt', {
+          'area_code': 1,
+          'begin_idx':
+              (_toInt(params['page'], fallback: 1) - 1) *
+              _toInt(params['pagesize'], fallback: 100),
+          'plat': 1,
+          'type': 1,
+          'mode': 1,
+          'personal_switch': 1,
+          'extend_fields': 'abtags,hot_cmt,popularization',
+          'pagesize': params['pagesize'] ?? 100,
+          'global_collection_id': params['id'] ?? params['listid'] ?? '',
+        }, cookie),
       '/playlist/track/all' => _android(
         '/v4/get_list_all_file',
         {},
@@ -242,11 +260,19 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         },
         headers: {'x-router': 'cloudlist.service.kugou.com'},
       ),
-      '/album/songs' => _public('/api/v3/album/song', {
-        'albumid': params['id'] ?? '',
-        'page': params['page'] ?? 1,
-        'pagesize': params['pagesize'] ?? 100,
-      }),
+      '/album/songs' => _android(
+        '/v1/album_audio/lite',
+        {},
+        cookie,
+        method: 'POST',
+        data: {
+          'album_id': params['id'] ?? '',
+          'is_buy': params['is_buy'] ?? '',
+          'page': params['page'] ?? 1,
+          'pagesize': params['pagesize'] ?? 100,
+        },
+        headers: {'x-router': 'openapi.kugou.com', 'kg-tid': '255'},
+      ),
       '/artist/audios' => _public('/api/v3/singer/song', {
         'singerid': params['id'] ?? '',
         'page': params['page'] ?? 1,
@@ -565,6 +591,102 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         ],
       },
       headers: {'x-router': 'cloudlist.service.kugou.com'},
+    );
+  }
+
+  _OfficialRequest _playlistAdd(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return _android(
+      '/cloudlist.service/v5/add_list',
+      params['type']?.toString() == '0'
+          ? {
+              'last_time': clienttime,
+              'last_area': 'gztx',
+              'userid': cookie['userid'] ?? '0',
+              'token': cookie['token'] ?? '',
+            }
+          : {},
+      cookie,
+      method: 'POST',
+      data: {
+        'userid': cookie['userid'] ?? '0',
+        'token': cookie['token'] ?? '',
+        'total_ver': 0,
+        'name': params['name'] ?? '',
+        'type': params['type'] ?? 0,
+        'source': params['source'] ?? 1,
+        'is_pri': params['is_pri'] ?? 0,
+        'list_create_userid': params['list_create_userid'] ?? '',
+        'list_create_listid': params['list_create_listid'] ?? '',
+        'list_create_gid': params['list_create_gid'] ?? '',
+        'from_shupinmv': 0,
+      },
+    );
+  }
+
+  _OfficialRequest _playlistDel(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final aes = _playlistAesEncrypt({
+      'listid': _toInt(params['listid']),
+      'total_ver': 0,
+      'type': 1,
+    });
+    final p = _rsaEncrypt2({
+      'aes': aes.key,
+      'uid': cookie['userid'] ?? 0,
+      'token': cookie['token'] ?? '',
+    }).toUpperCase();
+    return _android(
+      '/v2/delete_list',
+      {
+        'clienttime': clienttime,
+        'key': _signParamsKey(clienttime.toString()),
+        'last_area': 'gztx',
+        'clientver': liteClientver,
+        'appid': liteAppid,
+        'last_time': clienttime,
+        'p': p,
+      },
+      cookie,
+      method: 'POST',
+      data: aes.data,
+      responseType: ResponseType.bytes,
+      decryptKey: aes.key,
+      headers: {'x-router': 'cloudlist.service.kugou.com'},
+    );
+  }
+
+  _OfficialRequest _artistFollow(
+    Map<String, Object?> params,
+    Map<String, String> cookie, {
+    required bool follow,
+  }) {
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final encrypt = _loginAesEncrypt({
+      'singerid': _toInt(params['id']),
+      'token': cookie['token'] ?? '',
+    });
+    return _android(
+      follow
+          ? '/followservice/v3/follow_singer'
+          : '/followservice/v3/unfollow_singer',
+      {'clienttime': clienttime},
+      cookie,
+      method: 'POST',
+      data: {
+        'plat': 0,
+        'userid': _toInt(cookie['userid']),
+        'singerid': _toInt(params['id']),
+        'source': 7,
+        'p': _rsaEncrypt2({'clienttime': clienttime, 'key': encrypt.key}),
+        'params': encrypt.data,
+      },
     );
   }
 

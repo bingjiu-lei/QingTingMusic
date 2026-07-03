@@ -167,7 +167,11 @@ class MusicSearchController extends ChangeNotifier {
   }
 
   Future<void> _prefetchCatalog(String query) async {
-    for (final value in [SearchCategory.artist, SearchCategory.album]) {
+    for (final value in [
+      SearchCategory.playlist,
+      SearchCategory.artist,
+      SearchCategory.album,
+    ]) {
       final key = '${value.name}:$query';
       if (_catalogCache.containsKey(key)) continue;
       try {

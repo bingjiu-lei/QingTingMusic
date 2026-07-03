@@ -30,6 +30,21 @@ void main() {
     expect(controller.favorites, isEmpty);
     expect(controller.hasData(LibrarySection.songs), isFalse);
   });
+
+  test('refreshes playlist tab even when cached playlists exist', () async {
+    final cached = _playlist('cached', name: '收藏歌单').copyWith(songCount: 0);
+    final fresh = _playlist('cached', name: '收藏歌单').copyWith(songCount: 12);
+    final repository = _FakeMusicRepository(
+      playlists: [fresh],
+      favoriteSongs: const [],
+    );
+    final controller = MusicLibraryController(repository)..playlists = [cached];
+
+    await controller.ensureLoaded(LibrarySection.playlists);
+
+    expect(repository.playlistRequests, 1);
+    expect(controller.playlists.single.songCount, 12);
+  });
 }
 
 Song _song(String id) => Song(
@@ -54,6 +69,23 @@ MusicPlaylist _playlist(
   kind: kind,
 );
 
+extension _MusicPlaylistTestCopy on MusicPlaylist {
+  MusicPlaylist copyWith({int? songCount}) {
+    return MusicPlaylist(
+      id: id,
+      listId: listId,
+      name: name,
+      songCount: songCount ?? this.songCount,
+      coverUrl: coverUrl,
+      sourceId: sourceId,
+      sourceListId: sourceListId,
+      isDefault: isDefault,
+      isMine: isMine,
+      kind: kind,
+    );
+  }
+}
+
 class _FakeMusicRepository implements MusicRepository {
   _FakeMusicRepository({
     required this.playlists,
@@ -63,9 +95,13 @@ class _FakeMusicRepository implements MusicRepository {
   final List<MusicPlaylist> playlists;
   final List<String> removedSongs = [];
   final List<Song> _favoriteSongs;
+  int playlistRequests = 0;
 
   @override
-  Future<List<MusicPlaylist>> getUserPlaylists() async => playlists;
+  Future<List<MusicPlaylist>> getUserPlaylists() async {
+    playlistRequests++;
+    return playlists;
+  }
 
   @override
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
@@ -99,6 +135,12 @@ class _FakeMusicRepository implements MusicRepository {
 
   @override
   Future<List<SearchCatalogItem>> getFollowedArtists() async => const [];
+
+  @override
+  Future<void> collectCatalog(SearchCatalogItem item) async {}
+
+  @override
+  Future<void> uncollectCatalog(SearchCatalogItem item) async {}
 
   @override
   Future<List<Song>> getHotSongs() async => const [];

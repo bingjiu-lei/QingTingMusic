@@ -503,6 +503,7 @@ class KugouApiClient {
     final type = switch (category) {
       SearchCategory.album => 'album',
       SearchCategory.artist => 'author',
+      SearchCategory.playlist => 'special',
       SearchCategory.song => 'song',
     };
     final response = await _get(
@@ -533,15 +534,25 @@ class KugouApiClient {
   }
 
   Future<List<Song>> getCatalogSongs(SearchCatalogItem item) async {
+    if (item.category == SearchCategory.album) {
+      return _getAlbumSongs(item.id);
+    }
     final path = switch (item.category) {
-      SearchCategory.album => '/album/songs',
       SearchCategory.artist => '/artist/audios',
+      SearchCategory.playlist => '/playlist/public/track/all',
+      SearchCategory.album => throw const KugouApiException('不支持的详情类型'),
       SearchCategory.song => throw const KugouApiException('不支持的详情类型'),
     };
     final response = await _get(
       path,
       authenticated: true,
-      queryParameters: {'id': item.id, 'page': 1, 'pagesize': 100},
+      bypassCache: true,
+      queryParameters: {
+        'id': item.id,
+        'listid': item.listId ?? item.id,
+        'page': 1,
+        'pagesize': 100,
+      },
     );
     return _parseSongCollection(response.data);
   }
@@ -586,7 +597,41 @@ class KugouApiClient {
       }
       if (records.length < pageSize || added == 0) break;
     }
-    return playlists.values.toList();
+    return _withResolvedCollectionCounts(playlists.values.toList());
+  }
+
+  Future<List<MusicPlaylist>> _withResolvedCollectionCounts(
+    List<MusicPlaylist> playlists,
+  ) async {
+    final result = <MusicPlaylist>[];
+    for (final playlist in playlists) {
+      if (playlist.kind == MusicPlaylistKind.collectedPlaylist &&
+          playlist.songCount == 0 &&
+          (playlist.sourceId ?? '').isNotEmpty) {
+        final count = await _getPublicPlaylistCount(playlist.sourceId!);
+        result.add(
+          count > 0 ? _playlistWithSongCount(playlist, count) : playlist,
+        );
+      } else {
+        result.add(playlist);
+      }
+    }
+    return result;
+  }
+
+  MusicPlaylist _playlistWithSongCount(MusicPlaylist playlist, int songCount) {
+    return MusicPlaylist(
+      id: playlist.id,
+      listId: playlist.listId,
+      name: playlist.name,
+      songCount: songCount,
+      coverUrl: playlist.coverUrl,
+      sourceId: playlist.sourceId,
+      sourceListId: playlist.sourceListId,
+      isDefault: playlist.isDefault,
+      isMine: playlist.isMine,
+      kind: playlist.kind,
+    );
   }
 
   MusicPlaylist? _playlistFromJson(Object? value) {
@@ -598,32 +643,44 @@ class KugouApiClient {
         ownerId.isNotEmpty && ownerId == session.userId ||
         _toInt(json['is_mine']) == 1;
     final isDefault = _toInt(json['is_def'] ?? json['is_default']) > 0;
+    final localId = _read(json, ['global_collection_id', 'gid', 'specialid']);
+    final sourceId = _read(json, ['list_create_gid']);
+    final localListId = _read(json, ['listid']);
+    final sourceListId = _read(json, ['list_create_listid', 'specialid']);
+    final kind = isDefault
+        ? MusicPlaylistKind.favoriteSongs
+        : source == 2
+        ? MusicPlaylistKind.album
+        : isMine
+        ? MusicPlaylistKind.createdPlaylist
+        : MusicPlaylistKind.collectedPlaylist;
     final playlist = MusicPlaylist(
-      id: _read(json, [
-        'global_collection_id',
-        'list_create_gid',
-        'gid',
-        'specialid',
-      ]),
-      listId: _read(json, ['listid', 'list_create_listid', 'specialid']),
+      id: localId.isNotEmpty ? localId : sourceId,
+      listId: localListId.isNotEmpty ? localListId : sourceListId,
       name: _read(json, ['name'], fallback: '未命名歌单'),
       songCount: _toInt(json['m_count'] ?? json['song_count']),
       coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
+      sourceId: sourceId.isEmpty ? null : sourceId,
+      sourceListId: sourceListId.isEmpty ? null : sourceListId,
       isDefault: isDefault,
       isMine: isMine,
-      kind: isDefault
-          ? MusicPlaylistKind.favoriteSongs
-          : source == 2
-          ? MusicPlaylistKind.album
-          : isMine
-          ? MusicPlaylistKind.createdPlaylist
-          : MusicPlaylistKind.collectedPlaylist,
+      kind: kind,
     );
     if (playlist.id.isEmpty && playlist.listId.isEmpty) return null;
     return playlist;
   }
 
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
+    if (playlist.kind == MusicPlaylistKind.album &&
+        int.tryParse(playlist.id) != null &&
+        (playlist.listId.isEmpty || playlist.listId == playlist.id)) {
+      final albumId = _albumIdFromPlaylist(playlist);
+      return _getAlbumSongs(albumId);
+    }
+    if (playlist.kind == MusicPlaylistKind.collectedPlaylist &&
+        (playlist.sourceId ?? '').isNotEmpty) {
+      return _getPublicPlaylistSongs(playlist.sourceId!);
+    }
     const pageSize = 200;
     final songs = <String, Song>{};
     for (var page = 1; page <= 30; page++) {
@@ -662,6 +719,89 @@ class KugouApiClient {
     final result = songs.values.toList();
     final newestFirst = playlist.kind == MusicPlaylistKind.createdPlaylist;
     return newestFirst ? result.reversed.toList() : result;
+  }
+
+  Future<List<Song>> _getPublicPlaylistSongs(String collectionId) async {
+    const pageSize = 100;
+    final songs = <String, Song>{};
+    for (var page = 1; page <= 30; page++) {
+      final response = await _get(
+        '/playlist/public/track/all',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {
+          'id': collectionId,
+          'page': page,
+          'pagesize': pageSize,
+        },
+      );
+      final records = _findRecords(response.data);
+      if (records.isEmpty) break;
+      var added = 0;
+      for (final value in records) {
+        final song = _songFromCollection(value, liked: false, cloud: false);
+        if (song == null) continue;
+        final hash = song.hash ?? '';
+        final key = hash.isNotEmpty ? hash : song.id;
+        if (!songs.containsKey(key)) added++;
+        songs[key] = song;
+      }
+      if (records.length < pageSize || added == 0) break;
+    }
+    return songs.values.toList();
+  }
+
+  Future<int> _getPublicPlaylistCount(String collectionId) async {
+    try {
+      final response = await _get(
+        '/playlist/public/track/all',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {'id': collectionId, 'page': 1, 'pagesize': 1},
+      );
+      final body = _map(response.data);
+      final data = _map(body['data']);
+      return _toInt(
+        body['count'] ??
+            body['total'] ??
+            data['count'] ??
+            data['total'] ??
+            data['total_count'],
+      );
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<List<Song>> _getAlbumSongs(String albumId) async {
+    if (albumId.isEmpty) return const [];
+    const pageSize = 30;
+    final songs = <String, Song>{};
+    var total = 0;
+    for (var page = 1; page <= 20; page++) {
+      final response = await _get(
+        '/album/songs',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {'id': albumId, 'page': page, 'pagesize': pageSize},
+      );
+      final data = _map(_map(response.data)['data']);
+      final records = _list(data['songs']);
+      if (records.isEmpty) break;
+      total = _toInt(data['total']);
+      var added = 0;
+      for (final value in records) {
+        final song = _songFromCollection(value, liked: false, cloud: false);
+        if (song == null) continue;
+        final hash = song.hash ?? '';
+        final key = hash.isNotEmpty ? hash : song.id;
+        if (!songs.containsKey(key)) added++;
+        songs[key] = song;
+      }
+      if (total > 0 && songs.length >= total) break;
+      if (records.length < pageSize || added == 0) break;
+    }
+    return songs.values.toList();
   }
 
   Future<List<Song>> getCloudSongs() async {
@@ -742,6 +882,63 @@ class KugouApiClient {
         })
         .whereType<SearchCatalogItem>()
         .toList();
+  }
+
+  Future<void> collectCatalog(SearchCatalogItem item) async {
+    switch (item.category) {
+      case SearchCategory.playlist:
+        final ownerId = item.ownerId ?? _ownerIdFromCollectionId(item.id);
+        if (ownerId.isEmpty || (item.listId ?? '').isEmpty) {
+          throw const KugouApiException('歌单缺少收藏信息');
+        }
+        final response = await _post(
+          '/playlist/add',
+          authenticated: true,
+          queryParameters: {
+            'name': item.title,
+            'source': 1,
+            'type': 1,
+            'list_create_userid': ownerId,
+            'list_create_listid': item.listId ?? '',
+            'list_create_gid': item.id,
+          },
+        );
+        _ensureOperationSucceeded(response.data);
+      case SearchCategory.artist:
+        final response = await _post(
+          '/artist/follow',
+          authenticated: true,
+          queryParameters: {'id': item.id},
+        );
+        _ensureOperationSucceeded(response.data);
+      case SearchCategory.album:
+        throw const KugouApiException('暂不支持收藏专辑，已避免写入异常收藏数据');
+      case SearchCategory.song:
+        throw const KugouApiException('不支持收藏该类型');
+    }
+  }
+
+  Future<void> uncollectCatalog(SearchCatalogItem item) async {
+    switch (item.category) {
+      case SearchCategory.playlist:
+        final response = await _post(
+          '/playlist/del',
+          authenticated: true,
+          queryParameters: {'listid': item.listId ?? item.id},
+        );
+        _ensureOperationSucceeded(response.data);
+      case SearchCategory.album:
+        throw const KugouApiException('暂不支持取消收藏专辑');
+      case SearchCategory.artist:
+        final response = await _post(
+          '/artist/unfollow',
+          authenticated: true,
+          queryParameters: {'id': item.id},
+        );
+        _ensureOperationSucceeded(response.data);
+      case SearchCategory.song:
+        throw const KugouApiException('不支持取消收藏该类型');
+    }
   }
 
   Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song) async {
@@ -1027,6 +1224,37 @@ class KugouApiClient {
     }
   }
 
+  void _ensureOperationSucceeded(Object? response) {
+    final body = _map(response);
+    if (body.isEmpty) return;
+    _throwIfAuthFailed(body);
+    final data = _map(body['data']);
+    final errorCode = _toInt(
+      body['error_code'] ??
+          body['ErrorCode'] ??
+          body['errcode'] ??
+          data['error_code'] ??
+          data['errcode'],
+    );
+    final status = _toInt(
+      body['status'] ??
+          body['Status'] ??
+          body['code'] ??
+          data['status'] ??
+          data['code'],
+    );
+    final success =
+        errorCode == 0 && (status == 0 || status == 1 || status == 200);
+    if (success) return;
+    final message =
+        body['message']?.toString() ??
+        body['msg']?.toString() ??
+        data['message']?.toString() ??
+        data['msg']?.toString() ??
+        '操作失败，请稍后重试';
+    throw KugouApiException(message);
+  }
+
   Song? _songFromSearch(Object? value) {
     final json = _map(value);
     final hash = _read(json, ['FileHash', 'filehash', 'hash', 'Hash']);
@@ -1246,14 +1474,69 @@ class KugouApiClient {
           'singername',
         ], fallback: '未知歌手'),
         image: _read(json, ['img', 'imgurl']),
+        listId: _read(json, [
+          'listid',
+          'list_create_listid',
+          'albumid',
+          'album_id',
+        ]),
+        ownerId: _read(
+          json,
+          ['list_create_userid', 'userid', 'user_id'],
+          fallback: _ownerIdFromCollectionId(
+            _read(json, [
+              'global_collection_id',
+              'list_create_gid',
+              'gid',
+              'specialid',
+            ]),
+          ),
+        ),
       ),
       SearchCategory.artist => (
         id: _read(json, ['AuthorId', 'authorid', 'singerid']),
         title: _read(json, ['AuthorName', 'authorname', 'singername']),
         subtitle: '${_toInt(json['AudioCount'] ?? json['songcount'])} 首歌曲',
         image: _read(json, ['Avatar', 'avatar', 'img']),
+        listId: '',
+        ownerId: '',
       ),
-      SearchCategory.song => (id: '', title: '', subtitle: '', image: ''),
+      SearchCategory.playlist => (
+        id: _read(json, [
+          'global_collection_id',
+          'list_create_gid',
+          'gid',
+          'specialid',
+        ]),
+        title: _read(json, ['specialname', 'name', 'title']),
+        subtitle: _read(json, [
+          'nickname',
+          'username',
+          'intro',
+        ], fallback: '${_toInt(json['songcount'] ?? json['song_count'])} 首歌曲'),
+        image: _read(json, ['img', 'imgurl', 'sizable_cover', 'pic']),
+        listId: _read(json, ['listid', 'list_create_listid', 'specialid']),
+        ownerId: _read(
+          json,
+          ['list_create_userid', 'userid', 'user_id'],
+          fallback: _ownerIdFromCollectionId(
+            _read(json, [
+              'global_collection_id',
+              'list_create_gid',
+              'gid',
+              'specialid',
+            ]),
+          ),
+        ),
+      ),
+      SearchCategory.song => (
+        id: '',
+        title: '',
+        subtitle: '',
+        image: '',
+        listId: '',
+        ownerId: '',
+      ),
     };
     if (fields.id.isEmpty || fields.title.isEmpty) return null;
     return SearchCatalogItem(
@@ -1264,6 +1547,8 @@ class KugouApiClient {
       imageUrl: fields.image.isEmpty
           ? null
           : fields.image.replaceAll('{size}', '240'),
+      listId: fields.listId.isEmpty ? null : fields.listId,
+      ownerId: fields.ownerId.isEmpty ? null : fields.ownerId,
     );
   }
 
@@ -1713,4 +1998,27 @@ String _normalizeArtistText(String value) {
       .replaceAll(RegExp(r'\s+'), '')
       .replaceAll(RegExp(r'(、|,|，|/|&|feat\.?|ft\.?).*'), '')
       .trim();
+}
+
+String _ownerIdFromCollectionId(String value) {
+  final parts = value.split('_');
+  if (parts.length >= 4 && parts.first == 'collection') return parts[2];
+  return '';
+}
+
+String _albumIdFromPlaylist(MusicPlaylist playlist) {
+  final source = playlist.sourceId ?? '';
+  final directSource = int.tryParse(source);
+  if (directSource != null && directSource > 0) return source;
+  final sourceParts = source.split('_');
+  if (sourceParts.length >= 4 && sourceParts.first == 'collection') {
+    return sourceParts[3];
+  }
+  final direct = int.tryParse(playlist.id);
+  if (direct != null && direct > 0) return playlist.id;
+  final list = int.tryParse(playlist.listId);
+  if (list != null && list > 0) return playlist.listId;
+  final parts = playlist.id.split('_');
+  if (parts.length >= 4 && parts.first == 'collection') return parts[3];
+  return '';
 }

@@ -466,8 +466,6 @@ class _LyricsPanelState extends State<_LyricsPanel> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _LyricsHeader(),
-          const SizedBox(height: 18),
           SizedBox(height: _lyricViewportHeight, child: _lyricsContent()),
         ],
       ),
@@ -534,26 +532,6 @@ class _LyricsPanelState extends State<_LyricsPanel> {
           ),
         );
       },
-    );
-  }
-}
-
-class _LyricsHeader extends StatelessWidget {
-  const _LyricsHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Text(
-          '歌词',
-          style: TextStyle(
-            color: AppColors.faint,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
     );
   }
 }

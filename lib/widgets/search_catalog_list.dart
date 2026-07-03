@@ -52,14 +52,18 @@ class SearchCatalogList extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          item.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: AppColors.text,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        Tooltip(
+                          message: item.title,
+                          waitDuration: const Duration(milliseconds: 450),
+                          child: Text(
+                            item.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: AppColors.text,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                         SizedBox(height: 5),
@@ -101,6 +105,7 @@ class _CatalogImage extends StatelessWidget {
     final icon = switch (item.category) {
       SearchCategory.album => Icons.album_rounded,
       SearchCategory.artist => Icons.person_rounded,
+      SearchCategory.playlist => Icons.queue_music_rounded,
       SearchCategory.song => Icons.music_note_rounded,
     };
 

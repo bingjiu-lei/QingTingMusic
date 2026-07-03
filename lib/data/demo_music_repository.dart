@@ -101,6 +101,12 @@ class DemoMusicRepository implements MusicRepository {
   Future<List<SearchCatalogItem>> getFollowedArtists() async => const [];
 
   @override
+  Future<void> collectCatalog(SearchCatalogItem item) async {}
+
+  @override
+  Future<void> uncollectCatalog(SearchCatalogItem item) async {}
+
+  @override
   Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song) async {}
 
   @override

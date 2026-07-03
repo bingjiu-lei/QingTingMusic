@@ -29,6 +29,10 @@ abstract interface class MusicRepository {
 
   Future<List<SearchCatalogItem>> getFollowedArtists();
 
+  Future<void> collectCatalog(SearchCatalogItem item);
+
+  Future<void> uncollectCatalog(SearchCatalogItem item);
+
   Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song);
 
   Future<void> removeSongFromPlaylist(MusicPlaylist playlist, Song song);

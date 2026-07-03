@@ -70,6 +70,7 @@ class _MusicShellState extends State<MusicShell> {
   bool detailLoading = false;
   CollectionDetailKind detailKind = CollectionDetailKind.playlist;
   MusicPlaylist? detailPlaylist;
+  SearchCatalogItem? detailCatalogItem;
   String? detailIdentity;
   int detailSelectedTab = 0;
   final List<_DetailSnapshot> detailHistory = [];
@@ -159,6 +160,7 @@ class _MusicShellState extends State<MusicShell> {
         detailRelatedItems = [];
         detailLoading = false;
         detailPlaylist = null;
+        detailCatalogItem = null;
         detailIdentity = null;
         detailSelectedTab = 0;
         detailHistory.clear();
@@ -258,8 +260,11 @@ class _MusicShellState extends State<MusicShell> {
       detailLoading = true;
       detailKind = item.category == SearchCategory.artist
           ? CollectionDetailKind.artist
+          : item.category == SearchCategory.playlist
+          ? CollectionDetailKind.playlist
           : CollectionDetailKind.album;
       detailPlaylist = null;
+      detailCatalogItem = item;
       detailIdentity = identity;
       detailSelectedTab = 0;
     });
@@ -303,6 +308,11 @@ class _MusicShellState extends State<MusicShell> {
           ? CollectionDetailKind.album
           : CollectionDetailKind.playlist;
       detailPlaylist = playlist;
+      detailCatalogItem =
+          playlist.kind == MusicPlaylistKind.collectedPlaylist ||
+              playlist.kind == MusicPlaylistKind.album
+          ? _catalogFromPlaylist(playlist)
+          : null;
       detailIdentity = identity;
       detailSelectedTab = 0;
     });
@@ -311,6 +321,9 @@ class _MusicShellState extends State<MusicShell> {
       if (!mounted) return;
       setState(() {
         detailSongs = songs.map(libraryController.withFavoriteState).toList();
+        if (songs.isNotEmpty) {
+          detailSubtitle = '${songs.length} 首歌曲';
+        }
         detailLoading = false;
       });
     } catch (error) {
@@ -326,7 +339,7 @@ class _MusicShellState extends State<MusicShell> {
     final artistName = _navigableArtistName(song.artist);
     if (artistName == null) return;
     var id = song.artistId?.toString() ?? '';
-    String? image = song.coverUrl;
+    String? image;
     if (id.isEmpty) {
       final matches = await repository.searchCatalog(
         artistName,
@@ -336,6 +349,12 @@ class _MusicShellState extends State<MusicShell> {
         id = matches.first.id;
         image = matches.first.imageUrl;
       }
+    } else {
+      final matches = await repository.searchCatalog(
+        artistName,
+        SearchCategory.artist,
+      );
+      if (matches.isNotEmpty) image = matches.first.imageUrl;
     }
     if (id.isEmpty) return;
     await _openCatalog(
@@ -427,7 +446,37 @@ class _MusicShellState extends State<MusicShell> {
         subtitle: song.artist,
         category: SearchCategory.album,
         imageUrl: image,
+        listId: id,
       ),
+    );
+  }
+
+  Future<void> _toggleCatalogCollection(SearchCatalogItem item) async {
+    try {
+      final wasCollected = libraryController.isCatalogCollected(item);
+      await libraryController.toggleCatalogCollection(item);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(wasCollected ? '已取消收藏' : '已收藏')));
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  SearchCatalogItem _catalogFromPlaylist(MusicPlaylist playlist) {
+    return SearchCatalogItem(
+      id: playlist.id,
+      title: playlist.name,
+      subtitle: '${playlist.songCount} 首歌曲',
+      category: playlist.kind == MusicPlaylistKind.album
+          ? SearchCategory.album
+          : SearchCategory.playlist,
+      imageUrl: playlist.coverUrl,
+      listId: playlist.listId,
     );
   }
 
@@ -449,6 +498,7 @@ class _MusicShellState extends State<MusicShell> {
         isLoading: detailLoading,
         kind: detailKind,
         playlist: detailPlaylist,
+        catalogItem: detailCatalogItem,
         selectedTab: detailSelectedTab,
       ),
     );
@@ -459,6 +509,7 @@ class _MusicShellState extends State<MusicShell> {
       setState(() {
         detailTitle = null;
         detailPlaylist = null;
+        detailCatalogItem = null;
         detailIdentity = null;
         detailSelectedTab = 0;
       });
@@ -475,6 +526,7 @@ class _MusicShellState extends State<MusicShell> {
       detailLoading = previous.isLoading;
       detailKind = previous.kind;
       detailPlaylist = previous.playlist;
+      detailCatalogItem = previous.catalogItem;
       detailSelectedTab = previous.selectedTab;
     });
   }
@@ -518,6 +570,7 @@ class _MusicShellState extends State<MusicShell> {
                               selectedIndex = index;
                               detailTitle = null;
                               detailPlaylist = null;
+                              detailCatalogItem = null;
                               detailIdentity = null;
                               detailSelectedTab = 0;
                               detailHistory.clear();
@@ -632,6 +685,12 @@ class _MusicShellState extends State<MusicShell> {
 
   Widget _selectedPage() {
     if (detailTitle != null) {
+      final isCollected = detailCatalogItem == null
+          ? false
+          : libraryController.isCatalogCollected(detailCatalogItem!);
+      final collectionItem = detailCatalogItem?.category == SearchCategory.album
+          ? null
+          : detailCatalogItem;
       return CollectionDetailPage(
         key: ValueKey(detailIdentity ?? '$detailKind:$detailTitle'),
         kind: detailKind,
@@ -661,6 +720,11 @@ class _MusicShellState extends State<MusicShell> {
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
         onOpenCatalog: _openCatalog,
+        collectionItem: collectionItem,
+        isCollected: isCollected,
+        onToggleCollection: collectionItem == null
+            ? null
+            : () => _toggleCatalogCollection(collectionItem),
       );
     }
     return switch (selectedIndex) {
@@ -741,6 +805,7 @@ class _DetailSnapshot {
     required this.isLoading,
     required this.kind,
     required this.playlist,
+    required this.catalogItem,
     required this.selectedTab,
   });
 
@@ -753,5 +818,6 @@ class _DetailSnapshot {
   final bool isLoading;
   final CollectionDetailKind kind;
   final MusicPlaylist? playlist;
+  final SearchCatalogItem? catalogItem;
   final int selectedTab;
 }

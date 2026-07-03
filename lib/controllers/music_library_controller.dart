@@ -123,6 +123,9 @@ class MusicLibraryController extends ChangeNotifier {
       switch (section) {
         case LibrarySection.songs:
           final nextPlaylists = await _loadPlaylists(refresh: refresh);
+          if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
+            playlists = nextPlaylists;
+          }
           final favorite = _favoriteFrom(nextPlaylists);
           final nextFavorites = favorite == null
               ? const <Song>[]
@@ -131,12 +134,21 @@ class MusicLibraryController extends ChangeNotifier {
             favorites = nextFavorites;
           }
         case LibrarySection.playlists:
-          final nextPlaylists = await _loadPlaylists(refresh: refresh);
+          final nextPlaylists = await _loadPlaylists(
+            refresh: refresh,
+            allowCache: loaded.contains(section),
+          );
           if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
             playlists = nextPlaylists;
           }
         case LibrarySection.albums:
-          final nextPlaylists = await _loadPlaylists(refresh: refresh);
+          final nextPlaylists = await _loadPlaylists(
+            refresh: refresh,
+            allowCache: loaded.contains(section),
+          );
+          if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
+            playlists = nextPlaylists;
+          }
           final nextAlbums = nextPlaylists
               .where((item) => item.kind == MusicPlaylistKind.album)
               .toList();
@@ -177,8 +189,11 @@ class MusicLibraryController extends ChangeNotifier {
     }
   }
 
-  Future<List<MusicPlaylist>> _loadPlaylists({required bool refresh}) {
-    if (!refresh && playlists.isNotEmpty) {
+  Future<List<MusicPlaylist>> _loadPlaylists({
+    required bool refresh,
+    bool allowCache = true,
+  }) {
+    if (!refresh && allowCache && playlists.isNotEmpty) {
       return Future.value(playlists);
     }
     return _playlistRequest ??= repository.getUserPlaylists().whenComplete(() {
@@ -216,6 +231,83 @@ class MusicLibraryController extends ChangeNotifier {
 
   Song withFavoriteState(Song song) {
     return song.copyWith(liked: isFavorite(song));
+  }
+
+  bool isCatalogCollected(SearchCatalogItem item) {
+    return _collectedCatalogItem(item) != null;
+  }
+
+  Future<void> toggleCatalogCollection(SearchCatalogItem item) async {
+    final collectedItem = _collectedCatalogItem(item);
+    if (collectedItem != null) {
+      await repository.uncollectCatalog(collectedItem);
+    } else {
+      await repository.collectCatalog(item);
+    }
+    await _refreshCatalogCollection(item.category);
+    final nowCollected = isCatalogCollected(item);
+    if (collectedItem == null && !nowCollected) {
+      throw const KugouApiException('收藏未生效，请稍后重试');
+    }
+    if (collectedItem != null && nowCollected) {
+      throw const KugouApiException('取消收藏未生效，请稍后重试');
+    }
+  }
+
+  Future<void> _refreshCatalogCollection(SearchCategory category) async {
+    switch (category) {
+      case SearchCategory.playlist:
+        await ensureLoaded(LibrarySection.playlists, refresh: true);
+      case SearchCategory.album:
+        throw const KugouApiException('暂不支持收藏专辑');
+      case SearchCategory.artist:
+        await ensureLoaded(LibrarySection.artists, refresh: true);
+      case SearchCategory.song:
+        break;
+    }
+  }
+
+  SearchCatalogItem? _collectedCatalogItem(SearchCatalogItem item) {
+    switch (item.category) {
+      case SearchCategory.playlist:
+        for (final playlist in playlists) {
+          if (playlist.kind == MusicPlaylistKind.collectedPlaylist &&
+              (_sameCatalog(
+                    playlist.id,
+                    item.id,
+                    playlist.listId,
+                    item.listId,
+                  ) ||
+                  _sameCatalog(
+                    playlist.sourceId ?? '',
+                    item.id,
+                    playlist.sourceListId ?? '',
+                    item.listId,
+                  ) ||
+                  _sameCatalogTitle(playlist.name, item.title))) {
+            return SearchCatalogItem(
+              id: playlist.id,
+              title: playlist.name,
+              subtitle: '${playlist.songCount} 首歌曲',
+              category: SearchCategory.playlist,
+              imageUrl: playlist.coverUrl,
+              listId: playlist.listId,
+              ownerId: playlist.sourceId,
+            );
+          }
+        }
+      case SearchCategory.album:
+        return null;
+      case SearchCategory.artist:
+        for (final artist in followedArtists) {
+          if (artist.id == item.id || artist.title == item.title) {
+            return artist;
+          }
+        }
+      case SearchCategory.song:
+        return null;
+    }
+    return null;
   }
 
   Future<void> toggleFavorite(Song song) async {
@@ -260,5 +352,26 @@ class MusicLibraryController extends ChangeNotifier {
       return leftHash == rightHash;
     }
     return left.id == right.id;
+  }
+
+  bool _sameCatalog(
+    String leftId,
+    String rightId,
+    String leftListId,
+    String? rightListId,
+  ) {
+    if (leftId.isNotEmpty && rightId.isNotEmpty && leftId == rightId) {
+      return true;
+    }
+    return leftListId.isNotEmpty &&
+        rightListId != null &&
+        rightListId.isNotEmpty &&
+        leftListId == rightListId;
+  }
+
+  bool _sameCatalogTitle(String left, String right) {
+    final normalizedLeft = left.trim().toLowerCase();
+    final normalizedRight = right.trim().toLowerCase();
+    return normalizedLeft.isNotEmpty && normalizedLeft == normalizedRight;
   }
 }

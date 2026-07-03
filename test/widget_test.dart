@@ -68,9 +68,9 @@ void main() {
     await _settleForUi(tester);
     expect(find.text('搜索结果'), findsOneWidget);
     expect(find.text('单曲'), findsOneWidget);
+    expect(find.text('歌单'), findsOneWidget);
     expect(find.text('歌手'), findsOneWidget);
     expect(find.text('专辑'), findsOneWidget);
-    expect(find.text('歌单'), findsNothing);
     expect(find.text('Imagine'), findsNWidgets(2));
 
     final preferences = AppPreferencesService();

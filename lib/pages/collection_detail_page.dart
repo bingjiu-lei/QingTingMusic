@@ -28,8 +28,11 @@ class CollectionDetailPage extends StatefulWidget {
     required this.selectedTab,
     required this.onTabChanged,
     required this.storageKeyPrefix,
+    required this.isCollected,
     this.openedFromArtist = false,
     this.onRemoveFromPlaylist,
+    this.onToggleCollection,
+    this.collectionItem,
     this.currentSong,
     this.isPlaying = false,
   });
@@ -52,9 +55,12 @@ class CollectionDetailPage extends StatefulWidget {
   final int selectedTab;
   final ValueChanged<int> onTabChanged;
   final String storageKeyPrefix;
+  final bool isCollected;
   final bool openedFromArtist;
   final Song? currentSong;
   final bool isPlaying;
+  final SearchCatalogItem? collectionItem;
+  final VoidCallback? onToggleCollection;
 
   @override
   State<CollectionDetailPage> createState() => _CollectionDetailPageState();
@@ -62,7 +68,7 @@ class CollectionDetailPage extends StatefulWidget {
 
 class _CollectionDetailPageState extends State<CollectionDetailPage> {
   List<String> get tabs => switch (widget.kind) {
-    CollectionDetailKind.playlist => ['歌曲', '歌手', '专辑'],
+    CollectionDetailKind.playlist => ['歌曲'],
     CollectionDetailKind.artist => ['歌曲', '专辑'],
     CollectionDetailKind.album => ['歌曲'],
   };
@@ -116,13 +122,55 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       style: TextStyle(color: AppColors.muted, fontSize: 13),
                     ),
                     SizedBox(height: 14),
-                    FilledButton.icon(
-                      onPressed: widget.songs.isEmpty
-                          ? null
-                          : () =>
-                                widget.onPlay(widget.songs.first, widget.songs),
-                      icon: Icon(Icons.play_arrow_rounded, size: 19),
-                      label: Text('播放全部'),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: widget.songs.isEmpty
+                              ? null
+                              : () => widget.onPlay(
+                                  widget.songs.first,
+                                  widget.songs,
+                                ),
+                          style: FilledButton.styleFrom(
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 15,
+                              vertical: 11,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 19),
+                          label: const Text('播放'),
+                        ),
+                        if (widget.collectionItem != null)
+                          OutlinedButton.icon(
+                            onPressed: widget.onToggleCollection,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 11,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              side: BorderSide(color: AppColors.divider),
+                              foregroundColor: widget.isCollected
+                                  ? AppColors.primary
+                                  : AppColors.muted,
+                            ),
+                            icon: Icon(
+                              widget.isCollected
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              size: 18,
+                            ),
+                            label: Text(widget.isCollected ? '已收藏' : '收藏'),
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -395,13 +443,10 @@ class _FacetGrid extends StatelessWidget {
                       width: 50,
                       height: 50,
                       color: Color(0xFFE6EDF5),
-                      child: song.coverUrl == null
-                          ? Icon(
-                              artists
-                                  ? Icons.person_rounded
-                                  : Icons.album_rounded,
-                              color: AppColors.muted,
-                            )
+                      child: artists
+                          ? Icon(Icons.person_rounded, color: AppColors.muted)
+                          : song.coverUrl == null
+                          ? Icon(Icons.album_rounded, color: AppColors.muted)
                           : Image.network(song.coverUrl!, fit: BoxFit.cover),
                     ),
                   ),

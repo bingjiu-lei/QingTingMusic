@@ -65,6 +65,16 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<void> collectCatalog(SearchCatalogItem item) {
+    return apiClient.collectCatalog(item);
+  }
+
+  @override
+  Future<void> uncollectCatalog(SearchCatalogItem item) {
+    return apiClient.uncollectCatalog(item);
+  }
+
+  @override
   Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song) {
     return apiClient.addSongToPlaylist(playlist, song);
   }

@@ -12,6 +12,8 @@ class MusicPlaylist {
     required this.name,
     required this.songCount,
     this.coverUrl,
+    this.sourceId,
+    this.sourceListId,
     this.isDefault = false,
     this.isMine = false,
     this.kind = MusicPlaylistKind.createdPlaylist,
@@ -22,6 +24,8 @@ class MusicPlaylist {
   final String name;
   final int songCount;
   final String? coverUrl;
+  final String? sourceId;
+  final String? sourceListId;
   final bool isDefault;
   final bool isMine;
   final MusicPlaylistKind kind;
@@ -32,6 +36,8 @@ class MusicPlaylist {
     'name': name,
     'songCount': songCount,
     'coverUrl': coverUrl,
+    'sourceId': sourceId,
+    'sourceListId': sourceListId,
     'isDefault': isDefault,
     'isMine': isMine,
     'kind': kind.name,
@@ -44,6 +50,8 @@ class MusicPlaylist {
       name: json['name']?.toString() ?? '',
       songCount: int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
       coverUrl: json['coverUrl']?.toString(),
+      sourceId: json['sourceId']?.toString(),
+      sourceListId: json['sourceListId']?.toString(),
       isDefault: json['isDefault'] == true,
       isMine: json['isMine'] == true,
       kind: MusicPlaylistKind.values.firstWhere(

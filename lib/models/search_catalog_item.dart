@@ -1,5 +1,6 @@
 enum SearchCategory {
   song('单曲'),
+  playlist('歌单'),
   artist('歌手'),
   album('专辑');
 
@@ -15,6 +16,8 @@ class SearchCatalogItem {
     required this.subtitle,
     required this.category,
     this.imageUrl,
+    this.listId,
+    this.ownerId,
   });
 
   final String id;
@@ -22,6 +25,8 @@ class SearchCatalogItem {
   final String subtitle;
   final SearchCategory category;
   final String? imageUrl;
+  final String? listId;
+  final String? ownerId;
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -29,6 +34,8 @@ class SearchCatalogItem {
     'subtitle': subtitle,
     'category': category.name,
     'imageUrl': imageUrl,
+    'listId': listId,
+    'ownerId': ownerId,
   };
 
   factory SearchCatalogItem.fromJson(Map<String, Object?> json) {
@@ -41,6 +48,8 @@ class SearchCatalogItem {
         orElse: () => SearchCategory.artist,
       ),
       imageUrl: json['imageUrl']?.toString(),
+      listId: json['listId']?.toString(),
+      ownerId: json['ownerId']?.toString(),
     );
   }
 }

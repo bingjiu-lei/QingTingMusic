@@ -78,7 +78,7 @@ class _SearchPageState extends State<SearchPage> {
                   onSubmitted: widget.controller.search,
                   style: TextStyle(color: AppColors.text, fontSize: 16),
                   decoration: InputDecoration(
-                    hintText: '搜索歌曲、歌手或专辑',
+                    hintText: '搜索歌曲、歌单、歌手或专辑',
                     hintStyle: TextStyle(color: AppColors.faint),
                     prefixIcon: Icon(
                       Icons.search_rounded,
@@ -248,7 +248,8 @@ class _SearchResultsState extends State<_SearchResults> {
                   selected: controller.category == category,
                   onTap: () => controller.selectCategory(category),
                 ),
-                if (category != SearchCategory.values.last) SizedBox(width: 28),
+                if (category != SearchCategory.values.last)
+                  const SizedBox(width: 10),
               ],
             ],
           ),

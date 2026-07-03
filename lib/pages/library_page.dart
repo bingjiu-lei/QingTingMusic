@@ -320,64 +320,68 @@ class _PlaylistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: () => onOpen(playlist),
+    return Tooltip(
+      message: playlist.name,
+      waitDuration: const Duration(milliseconds: 450),
+      child: Material(
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),
-        hoverColor: AppColors.selected.withValues(alpha: 0.5),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: Container(
-                  width: 54,
-                  height: 54,
-                  color: AppColors.surfaceMuted,
-                  child: playlist.coverUrl == null
-                      ? Icon(
-                          playlist.kind == MusicPlaylistKind.album
-                              ? Icons.album_rounded
-                              : Icons.queue_music_rounded,
-                          color: AppColors.muted,
-                        )
-                      : Image.network(
-                          playlist.coverUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Icon(
-                            Icons.queue_music_rounded,
+        child: InkWell(
+          onTap: () => onOpen(playlist),
+          borderRadius: BorderRadius.circular(8),
+          hoverColor: AppColors.selected.withValues(alpha: 0.5),
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    width: 54,
+                    height: 54,
+                    color: AppColors.surfaceMuted,
+                    child: playlist.coverUrl == null
+                        ? Icon(
+                            playlist.kind == MusicPlaylistKind.album
+                                ? Icons.album_rounded
+                                : Icons.queue_music_rounded,
                             color: AppColors.muted,
+                          )
+                        : Image.network(
+                            playlist.coverUrl!,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, _, _) => Icon(
+                              Icons.queue_music_rounded,
+                              color: AppColors.muted,
+                            ),
                           ),
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        playlist.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontWeight: FontWeight.w600,
                         ),
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      playlist.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${playlist.songCount} 首歌曲',
-                      style: TextStyle(color: AppColors.muted, fontSize: 12),
-                    ),
-                  ],
+                      const SizedBox(height: 5),
+                      Text(
+                        '${playlist.songCount} 首歌曲',
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
