@@ -60,12 +60,12 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(32, 8, 32, 24),
+      padding: const EdgeInsets.fromLTRB(26, 10, 30, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(title: '我的音乐', subtitle: '收藏与个人音乐内容'),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -84,7 +84,7 @@ class _LibraryPageState extends State<LibraryPage> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           Expanded(child: _content()),
         ],
       ),
@@ -264,9 +264,9 @@ class _PlaylistSliver extends StatelessWidget {
     return SliverGrid(
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 260,
-        mainAxisExtent: 76,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisExtent: 80,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
       ),
       delegate: SliverChildBuilderDelegate(
         (context, index) =>
@@ -301,9 +301,9 @@ class _PlaylistGrid extends StatelessWidget {
       key: storageKey,
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 260,
-        mainAxisExtent: 76,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisExtent: 80,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
       ),
       itemCount: playlists.length,
       itemBuilder: (context, index) =>
@@ -325,20 +325,21 @@ class _PlaylistTile extends StatelessWidget {
       waitDuration: const Duration(milliseconds: 450),
       child: Material(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: InkWell(
           onTap: () => onOpen(playlist),
-          borderRadius: BorderRadius.circular(8),
-          hoverColor: AppColors.selected.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          hoverColor: AppColors.surfaceHover,
+          mouseCursor: SystemMouseCursors.click,
           child: Padding(
             padding: const EdgeInsets.all(10),
             child: Row(
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                   child: Container(
-                    width: 54,
-                    height: 54,
+                    width: 52,
+                    height: 52,
                     color: AppColors.surfaceMuted,
                     child: playlist.coverUrl == null
                         ? Icon(
@@ -369,7 +370,7 @@ class _PlaylistTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: AppColors.text,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 5),
@@ -403,29 +404,35 @@ class _LibraryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
+      color: selected ? AppColors.selected : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        hoverColor: AppColors.selected.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        hoverColor: AppColors.surfaceHover,
+        mouseCursor: SystemMouseCursors.click,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
           child: Column(
             children: [
               Text(
                 label,
                 style: TextStyle(
                   color: selected ? AppColors.text : AppColors.muted,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 ),
               ),
               const SizedBox(height: 7),
               AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
+                duration: AppMotion.fast,
+                curve: AppMotion.curve,
                 width: selected ? 24 : 0,
                 height: 2,
-                color: AppColors.primary,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ],
           ),

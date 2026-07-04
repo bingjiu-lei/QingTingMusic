@@ -63,51 +63,68 @@ class _SearchPageState extends State<SearchPage> {
       animation: widget.controller,
       builder: (context, _) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(28, 42, 28, 24),
+          padding: EdgeInsets.fromLTRB(24, 34, 30, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 920),
-                child: TextField(
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  autofocus: true,
-                  textInputAction: TextInputAction.search,
-                  onChanged: widget.controller.updateKeyword,
-                  onSubmitted: widget.controller.search,
-                  style: TextStyle(color: AppColors.text, fontSize: 16),
-                  decoration: InputDecoration(
-                    hintText: '搜索歌曲、歌单、歌手或专辑',
-                    hintStyle: TextStyle(color: AppColors.faint),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: AppColors.muted,
+                constraints: BoxConstraints(maxWidth: 900),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                    border: Border.all(
+                      color: _focusNode.hasFocus
+                          ? AppColors.primary
+                          : AppColors.border,
+                      width: _focusNode.hasFocus ? 1.4 : 1,
                     ),
-                    suffixIcon: _textController.text.isEmpty
-                        ? null
-                        : IconButton(
-                            tooltip: '清空',
-                            onPressed: () {
-                              _textController.clear();
-                              widget.controller.updateKeyword('');
-                              setState(() {});
-                            },
-                            icon: Icon(Icons.close_rounded),
-                          ),
-                    filled: true,
-                    fillColor: AppColors.surface,
-                    contentPadding: EdgeInsets.symmetric(vertical: 20),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide.none,
+                    boxShadow: AppColors.isDark ? null : AppShadows.soft,
+                  ),
+                  child: TextField(
+                    controller: _textController,
+                    focusNode: _focusNode,
+                    autofocus: true,
+                    textInputAction: TextInputAction.search,
+                    onTap: () => setState(() {}),
+                    onChanged: (value) {
+                      widget.controller.updateKeyword(value);
+                      setState(() {});
+                    },
+                    onSubmitted: widget.controller.search,
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
                     ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(10),
-                      borderSide: BorderSide(
-                        color: AppColors.primary,
-                        width: 1.5,
+                    decoration: InputDecoration(
+                      hintText: '搜索歌曲、歌单、歌手或专辑',
+                      hintStyle: TextStyle(
+                        color: AppColors.faint,
+                        fontWeight: FontWeight.w500,
                       ),
+                      prefixIcon: Icon(
+                        Icons.search_rounded,
+                        color: _focusNode.hasFocus
+                            ? AppColors.primary
+                            : AppColors.muted,
+                      ),
+                      suffixIcon: _textController.text.isEmpty
+                          ? null
+                          : IconButton(
+                              tooltip: '清空',
+                              onPressed: () {
+                                _textController.clear();
+                                widget.controller.updateKeyword('');
+                                setState(() {});
+                              },
+                              icon: Icon(Icons.close_rounded),
+                            ),
+                      filled: false,
+                      contentPadding: EdgeInsets.symmetric(vertical: 19),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                     ),
                   ),
                 ),
@@ -116,7 +133,12 @@ class _SearchPageState extends State<SearchPage> {
               Expanded(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: 1120),
-                  child: _content(),
+                  child: AnimatedSwitcher(
+                    duration: AppMotion.normal,
+                    switchInCurve: AppMotion.curve,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: _content(),
+                  ),
                 ),
               ),
             ],
@@ -130,6 +152,7 @@ class _SearchPageState extends State<SearchPage> {
     final controller = widget.controller;
     if (controller.hasSearched) {
       return _SearchResults(
+        key: const ValueKey('search-results'),
         controller: controller,
         currentSong: widget.currentSong,
         isPlaying: widget.isPlaying,
@@ -145,6 +168,7 @@ class _SearchPageState extends State<SearchPage> {
 
     if (controller.keyword.trim().isNotEmpty) {
       return _Suggestions(
+        key: const ValueKey('search-suggestions'),
         values: controller.suggestions,
         onSelected: (value) {
           _textController.text = value;
@@ -157,6 +181,7 @@ class _SearchPageState extends State<SearchPage> {
     }
 
     return _SearchHistory(
+      key: const ValueKey('search-history'),
       values: controller.history,
       onSelected: (value) {
         _textController.text = value;
@@ -171,8 +196,142 @@ class _SearchPageState extends State<SearchPage> {
   }
 }
 
+class _SearchPromptShell extends StatelessWidget {
+  const _SearchPromptShell({
+    required this.title,
+    required this.icon,
+    required this.child,
+    this.trailing,
+  });
+
+  final String title;
+  final IconData icon;
+  final Widget child;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            border: Border.all(color: AppColors.border),
+            boxShadow: AppColors.isDark ? null : AppShadows.soft,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 2, 4, 10),
+                child: Row(
+                  children: [
+                    Icon(icon, size: 18, color: AppColors.primary),
+                    const SizedBox(width: 8),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const Spacer(),
+                    ?trailing,
+                  ],
+                ),
+              ),
+              child,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PromptTile extends StatelessWidget {
+  const _PromptTile({
+    required this.value,
+    required this.icon,
+    required this.onTap,
+    this.onRemove,
+    this.trailingIcon = Icons.north_west_rounded,
+  });
+
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+  final VoidCallback? onRemove;
+  final IconData trailingIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        hoverColor: AppColors.surfaceHover,
+        highlightColor: AppColors.surfacePressed,
+        mouseCursor: SystemMouseCursors.click,
+        child: SizedBox(
+          height: 48,
+          child: Row(
+            children: [
+              const SizedBox(width: 10),
+              Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: AppColors.selected.withValues(
+                    alpha: AppColors.isDark ? 0.44 : 0.9,
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                ),
+                child: Icon(icon, size: 17, color: AppColors.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (onRemove == null)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Icon(trailingIcon, color: AppColors.faint, size: 17),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: IconButton(
+                    tooltip: '删除记录',
+                    onPressed: onRemove,
+                    icon: Icon(Icons.close_rounded, size: 17),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _SearchResults extends StatefulWidget {
   const _SearchResults({
+    super.key,
     required this.controller,
     required this.currentSong,
     required this.isPlaying,
@@ -223,23 +382,39 @@ class _SearchResultsState extends State<_SearchResults> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Container(
-      padding: EdgeInsets.fromLTRB(24, 20, 24, 0),
+      padding: EdgeInsets.fromLTRB(22, 18, 22, 0),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppColors.isDark ? null : AppShadows.soft,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '搜索结果',
-            style: TextStyle(
-              color: AppColors.text,
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              Text(
+                '搜索结果',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(width: 10),
+              if (controller.isLoading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: AppColors.primary,
+                  ),
+                ),
+            ],
           ),
-          SizedBox(height: 14),
+          SizedBox(height: 12),
           Row(
             children: [
               for (final category in SearchCategory.values) ...[
@@ -249,11 +424,11 @@ class _SearchResultsState extends State<_SearchResults> {
                   onTap: () => controller.selectCategory(category),
                 ),
                 if (category != SearchCategory.values.last)
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 6),
               ],
             ],
           ),
-          Divider(height: 1, color: AppColors.divider),
+          const SizedBox(height: 6),
           Expanded(
             child: Stack(
               children: [
@@ -303,10 +478,15 @@ class _SearchResultsState extends State<_SearchResults> {
       }
       return ListView.separated(
         controller: _scrollController,
-        padding: EdgeInsets.only(top: 8),
+        padding: EdgeInsets.only(top: 8, bottom: 24),
         itemCount: controller.results.length,
-        separatorBuilder: (_, _) =>
-            Divider(height: 1, color: AppColors.divider),
+        separatorBuilder: (_, _) => Divider(
+          height: 1,
+          thickness: 0.5,
+          color: AppColors.divider.withValues(
+            alpha: AppColors.isDark ? 0.72 : 0.8,
+          ),
+        ),
         itemBuilder: (context, index) {
           final song = controller.results[index];
           return SongRow(
@@ -359,30 +539,35 @@ class _CategoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
+      color: selected ? AppColors.selected : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        hoverColor: AppColors.selected.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        hoverColor: AppColors.surfaceHover,
+        mouseCursor: SystemMouseCursors.click,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 7, 8, 11),
+          padding: const EdgeInsets.fromLTRB(15, 10, 15, 10),
           child: Column(
             children: [
               Text(
                 category.label,
                 style: TextStyle(
                   color: selected ? AppColors.text : AppColors.muted,
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 8),
+              SizedBox(height: 7),
               AnimatedContainer(
-                duration: Duration(milliseconds: 150),
+                duration: AppMotion.fast,
+                curve: AppMotion.curve,
                 width: selected ? 22 : 0,
                 height: 2,
-                color: AppColors.primary,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ],
           ),
@@ -419,7 +604,11 @@ class _SearchLoading extends StatelessWidget {
 }
 
 class _Suggestions extends StatelessWidget {
-  const _Suggestions({required this.values, required this.onSelected});
+  const _Suggestions({
+    super.key,
+    required this.values,
+    required this.onSelected,
+  });
 
   final List<String> values;
   final ValueChanged<String> onSelected;
@@ -427,37 +616,33 @@ class _Suggestions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return Center(
-        child: Text('暂无联想结果', style: TextStyle(color: AppColors.faint)),
+      return _SearchPromptShell(
+        title: '联想搜索',
+        icon: Icons.auto_awesome_rounded,
+        child: SizedBox(
+          height: 96,
+          child: Center(
+            child: Text('暂无联想结果', style: TextStyle(color: AppColors.faint)),
+          ),
+        ),
       );
     }
 
-    return ListView.separated(
-      itemCount: values.length,
-      separatorBuilder: (_, _) => Divider(height: 1),
-      itemBuilder: (context, index) {
-        final value = values[index];
-        return Material(
-          color: Colors.transparent,
-          child: ListTile(
+    return _SearchPromptShell(
+      title: '联想搜索',
+      icon: Icons.auto_awesome_rounded,
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: values.length,
+        itemBuilder: (context, index) {
+          final value = values[index];
+          return _PromptTile(
+            value: value,
+            icon: Icons.search_rounded,
             onTap: () => onSelected(value),
-            contentPadding: EdgeInsets.symmetric(horizontal: 12),
-            leading: Icon(Icons.search_rounded, color: AppColors.faint),
-            title: Text(
-              value,
-              style: TextStyle(
-                color: AppColors.text,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            trailing: Icon(
-              Icons.north_west_rounded,
-              color: AppColors.faint,
-              size: 17,
-            ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -502,6 +687,7 @@ class _SearchError extends StatelessWidget {
 
 class _SearchHistory extends StatelessWidget {
   const _SearchHistory({
+    super.key,
     required this.values,
     required this.onSelected,
     required this.onRemove,
@@ -516,52 +702,36 @@ class _SearchHistory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return Center(
-        child: Text('搜索记录会保存在这里', style: TextStyle(color: AppColors.faint)),
+      return _SearchPromptShell(
+        title: '最近搜索',
+        icon: Icons.history_rounded,
+        child: SizedBox(
+          height: 110,
+          child: Center(
+            child: Text('搜索记录会保存在这里', style: TextStyle(color: AppColors.faint)),
+          ),
+        ),
       );
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              '最近搜索',
-              style: TextStyle(
-                color: AppColors.text,
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Spacer(),
-            TextButton(onPressed: onClear, child: Text('清空')),
-          ],
-        ),
-        SizedBox(height: 8),
-        Expanded(
-          child: ListView.builder(
-            itemCount: values.length,
-            itemBuilder: (context, index) {
-              final value = values[index];
-              return Material(
-                color: Colors.transparent,
-                child: ListTile(
-                  onTap: () => onSelected(value),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8),
-                  leading: Icon(Icons.history_rounded, color: AppColors.faint),
-                  title: Text(value, style: TextStyle(color: AppColors.text)),
-                  trailing: IconButton(
-                    tooltip: '删除记录',
-                    onPressed: () => onRemove(value),
-                    icon: Icon(Icons.close_rounded, size: 18),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    return _SearchPromptShell(
+      title: '最近搜索',
+      icon: Icons.history_rounded,
+      trailing: TextButton(onPressed: onClear, child: Text('清空')),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: values.length,
+        itemBuilder: (context, index) {
+          final value = values[index];
+          return _PromptTile(
+            value: value,
+            icon: Icons.history_rounded,
+            onTap: () => onSelected(value),
+            onRemove: () => onRemove(value),
+            trailingIcon: Icons.close_rounded,
+          );
+        },
+      ),
     );
   }
 }

@@ -49,6 +49,7 @@ class _SongRowState extends State<SongRow> {
     final height = widget.compact ? 58.0 : 66.0;
 
     return MouseRegion(
+      cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
@@ -59,13 +60,13 @@ class _SongRowState extends State<SongRow> {
           padding: EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: active
-                ? AppColors.selected
-                : _hovered
-                ? AppColors.primary.withValues(
-                    alpha: AppColors.isDark ? 0.08 : 0.04,
+                ? AppColors.selected.withValues(
+                    alpha: AppColors.isDark ? 0.78 : 1,
                   )
+                : _hovered
+                ? AppColors.surfaceHover
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
           ),
           child: Row(
             children: [

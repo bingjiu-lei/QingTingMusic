@@ -30,17 +30,25 @@ class SearchCatalogList extends StatelessWidget {
 
     return ListView.separated(
       key: storageKey,
-      padding: EdgeInsets.zero,
+      padding: EdgeInsets.only(top: 6, bottom: 12),
       itemCount: items.length,
-      separatorBuilder: (_, _) =>
-          Divider(height: 1, thickness: 0.5, color: AppColors.divider),
+      separatorBuilder: (_, _) => Divider(
+        height: 1,
+        thickness: 0.5,
+        color: AppColors.divider.withValues(
+          alpha: AppColors.isDark ? 0.72 : 0.8,
+        ),
+      ),
       itemBuilder: (context, index) {
         final item = items[index];
         return Material(
           color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           child: InkWell(
             onTap: () => onSelected(item),
-            hoverColor: AppColors.selected.withValues(alpha: 0.48),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            hoverColor: AppColors.surfaceHover,
+            mouseCursor: SystemMouseCursors.click,
             child: SizedBox(
               height: 72,
               child: Row(
@@ -111,12 +119,12 @@ class _CatalogImage extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(
-        item.category == SearchCategory.artist ? 24 : 7,
+        item.category == SearchCategory.artist ? 24 : AppRadius.sm,
       ),
       child: Container(
         width: 48,
         height: 48,
-        color: Color(0xFFE6EDF5),
+        color: AppColors.surfaceMuted,
         child: item.imageUrl == null
             ? Icon(icon, color: AppColors.muted, size: 22)
             : Image.network(

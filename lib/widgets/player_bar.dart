@@ -33,7 +33,8 @@ class PlayerBar extends StatelessWidget {
       height: 92,
       decoration: BoxDecoration(
         color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.divider)),
+        border: Border(top: BorderSide(color: AppColors.border)),
+        boxShadow: AppColors.isDark ? null : AppShadows.soft,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -366,15 +367,9 @@ class _VolumePopover extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.divider),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.12),
-              blurRadius: 22,
-              offset: const Offset(0, 10),
-            ),
-          ],
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(color: AppColors.border),
+          boxShadow: AppShadows.popover,
         ),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
@@ -438,39 +433,36 @@ class _BufferedProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final played = _ratio(controller.position);
     final buffered = _ratio(controller.bufferedPosition);
-    return SizedBox(
-      height: 30,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              minHeight: 4,
-              value: buffered,
-              color: AppColors.primary.withValues(alpha: 0.22),
-              backgroundColor: AppColors.divider,
+    final enabled = controller.currentSong != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          void seek(Offset localPosition) {
+            if (!enabled || constraints.maxWidth <= 0) return;
+            controller.seekByRatio(
+              (localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0),
+            );
+          }
+
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) => seek(details.localPosition),
+            onHorizontalDragUpdate: (details) => seek(details.localPosition),
+            child: SizedBox(
+              height: 30,
+              child: Stack(
+                alignment: Alignment.centerLeft,
+                children: [
+                  _ProgressTrack(
+                    played: enabled ? played : 0,
+                    buffered: enabled ? buffered : 0,
+                  ),
+                ],
+              ),
             ),
-          ),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              activeTrackColor: AppColors.primary,
-              inactiveTrackColor: Colors.transparent,
-              thumbColor: AppColors.primary,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-              overlayColor: AppColors.primary.withValues(alpha: 0.12),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 13),
-              trackShape: const _EdgeToEdgeSliderTrackShape(),
-            ),
-            child: Slider(
-              value: played,
-              onChanged: controller.currentSong == null
-                  ? null
-                  : controller.seekByRatio,
-            ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }
@@ -480,6 +472,83 @@ class _BufferedProgress extends StatelessWidget {
     return (value.inMilliseconds / controller.duration.inMilliseconds).clamp(
       0,
       1,
+    );
+  }
+}
+
+class _ProgressTrack extends StatelessWidget {
+  const _ProgressTrack({required this.played, required this.buffered});
+
+  final double played;
+  final double buffered;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final playedWidth = width * played.clamp(0.0, 1.0);
+        final bufferedWidth = width * buffered.clamp(0.0, 1.0);
+        final thumbLeft = width <= 10
+            ? 0.0
+            : (playedWidth - 5).clamp(0.0, width - 10);
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              height: 5,
+              decoration: BoxDecoration(
+                color: AppColors.divider.withValues(
+                  alpha: AppColors.isDark ? 0.86 : 0.95,
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              width: bufferedWidth,
+              height: 5,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(
+                  alpha: AppColors.isDark ? 0.22 : 0.18,
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              width: playedWidth,
+              height: 5,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            AnimatedPositioned(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              left: thumbLeft,
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.28),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

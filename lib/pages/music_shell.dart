@@ -879,7 +879,6 @@ class _MusicShellState extends State<MusicShell>
                           isDark: widget.themeController.isDark,
                           onToggleTheme: widget.themeController.toggle,
                         ),
-                        VerticalDivider(width: 1),
                         Expanded(
                           child: ColoredBox(
                             color: AppColors.page,
@@ -926,7 +925,7 @@ class _MusicShellState extends State<MusicShell>
                 ),
               Positioned(
                 left: 0,
-                top: 36,
+                top: AppWindowCaption.height,
                 right: 0,
                 bottom: 0,
                 child: IgnorePointer(

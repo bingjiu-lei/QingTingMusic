@@ -426,7 +426,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 12, 28, 24),
+      padding: const EdgeInsets.fromLTRB(24, 14, 30, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -436,10 +436,12 @@ class _SettingsPageState extends State<SettingsPage> {
             child: SingleChildScrollView(
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: AppColors.isDark ? null : AppShadows.soft,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -451,13 +453,19 @@ class _SettingsPageState extends State<SettingsPage> {
                       onLimitChanged: _changeCacheLimit,
                       onClear: _clearCache,
                     ),
-                    const Divider(height: 28),
+                    Divider(
+                      height: 30,
+                      color: AppColors.divider.withValues(alpha: 0.72),
+                    ),
                     _SettingRow(
                       icon: Icons.high_quality_rounded,
                       title: '播放音质',
                       value: '标准音质',
                     ),
-                    const Divider(height: 28),
+                    Divider(
+                      height: 30,
+                      color: AppColors.divider.withValues(alpha: 0.72),
+                    ),
                     _SettingSwitchRow(
                       icon: Icons.web_asset_rounded,
                       title: '关闭后隐藏到托盘',
@@ -465,7 +473,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       value: widget.closeToTray,
                       onChanged: widget.onCloseToTrayChanged,
                     ),
-                    const Divider(height: 28),
+                    Divider(
+                      height: 30,
+                      color: AppColors.divider.withValues(alpha: 0.72),
+                    ),
                     _UpdateSection(
                       controller: widget.updateController,
                       onCheckUpdates: widget.onCheckUpdates,

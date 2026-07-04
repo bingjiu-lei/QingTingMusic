@@ -95,7 +95,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(30, 18, 30, 24),
+      padding: EdgeInsets.fromLTRB(24, 16, 30, 24),
       child: Column(
         children: [
           Row(
@@ -118,8 +118,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: AppColors.text,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 25,
+                        fontWeight: FontWeight.w800,
+                        height: 1.16,
                       ),
                     ),
                     SizedBox(height: 8),
@@ -140,13 +141,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                   widget.songs,
                                 ),
                           style: FilledButton.styleFrom(
-                            elevation: 0,
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 15,
+                              horizontal: 16,
                               vertical: 11,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
                             ),
                           ),
                           icon: const Icon(Icons.play_arrow_rounded, size: 19),
@@ -160,10 +157,6 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                 horizontal: 14,
                                 vertical: 11,
                               ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              side: BorderSide(color: AppColors.divider),
                               foregroundColor: widget.isCollected
                                   ? AppColors.primary
                                   : AppColors.muted,
@@ -192,7 +185,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   selected: selectedTab == index,
                   onTap: () => widget.onTabChanged(index),
                 ),
-                if (index != tabs.length - 1) SizedBox(width: 26),
+                if (index != tabs.length - 1) SizedBox(width: 8),
               ],
             ],
           ),
@@ -333,28 +326,30 @@ class _CatalogGridState extends State<_CatalogGrid> {
         SliverGrid(
           gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
             maxCrossAxisExtent: 230,
-            mainAxisExtent: 72,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+            mainAxisExtent: 76,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
           ),
           delegate: SliverChildBuilderDelegate((context, index) {
             final item = widget.items[index];
             return Material(
               color: AppColors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
               child: InkWell(
                 onTap: () => widget.onTap(item),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                hoverColor: AppColors.surfaceHover,
+                mouseCursor: SystemMouseCursors.click,
                 child: Padding(
                   padding: EdgeInsets.all(10),
                   child: Row(
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(AppRadius.sm),
                         child: Container(
                           width: 50,
                           height: 50,
-                          color: Color(0xFFE6EDF5),
+                          color: AppColors.surfaceMuted,
                           child: item.imageUrl == null
                               ? Icon(
                                   Icons.album_rounded,
@@ -468,26 +463,39 @@ class _DetailTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: EdgeInsets.symmetric(vertical: 8),
-        child: Column(
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? AppColors.text : AppColors.muted,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+    return Material(
+      color: selected ? AppColors.selected : Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.sm),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        hoverColor: AppColors.surfaceHover,
+        mouseCursor: SystemMouseCursors.click,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          child: Column(
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? AppColors.text : AppColors.muted,
+                  fontSize: 14,
+                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                ),
               ),
-            ),
-            SizedBox(height: 7),
-            Container(
-              width: selected ? 22 : 0,
-              height: 2,
-              color: AppColors.primary,
-            ),
-          ],
+              SizedBox(height: 7),
+              AnimatedContainer(
+                duration: AppMotion.fast,
+                curve: AppMotion.curve,
+                width: selected ? 22 : 0,
+                height: 2,
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -534,19 +542,23 @@ class _FacetGrid extends StatelessWidget {
       key: storageKey,
       gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 230,
-        mainAxisExtent: 72,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
+        mainAxisExtent: 76,
+        mainAxisSpacing: 10,
+        crossAxisSpacing: 10,
       ),
       itemCount: values.length,
       itemBuilder: (context, index) {
         final song = values[index];
         return Material(
           color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           child: InkWell(
             onTap: onTap == null ? null : () => onTap!(song),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            hoverColor: AppColors.surfaceHover,
+            mouseCursor: onTap == null
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
             child: Padding(
               padding: EdgeInsets.all(10),
               child: Row(
@@ -556,7 +568,7 @@ class _FacetGrid extends StatelessWidget {
                     child: Container(
                       width: 50,
                       height: 50,
-                      color: Color(0xFFE6EDF5),
+                      color: AppColors.surfaceMuted,
                       child: artists
                           ? Icon(Icons.person_rounded, color: AppColors.muted)
                           : song.coverUrl == null

@@ -290,16 +290,8 @@ class _SongIdentity extends StatelessWidget {
         children: [
           DecoratedBox(
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: AppColors.isDark ? 0.28 : 0.12,
-                  ),
-                  blurRadius: 32,
-                  offset: const Offset(0, 16),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(AppRadius.xl),
+              boxShadow: AppShadows.popover,
             ),
             child: AlbumArt(
               size: 276,
@@ -515,8 +507,8 @@ class _LyricsPanelState extends State<_LyricsPanel> {
                   ? AppColors.text
                   : AppColors.muted.withValues(alpha: 0.82),
               fontSize: active ? 22 : 17,
-              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-              height: 1.45,
+              fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+              height: 1.48,
               letterSpacing: 0,
             ),
             child: Padding(

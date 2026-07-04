@@ -39,7 +39,7 @@ class AppSidebar extends StatelessWidget {
       color: AppColors.sidebar,
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 18,
-        vertical: 20,
+        vertical: 14,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +49,7 @@ class AppSidebar extends StatelessWidget {
             isDark: isDark,
             onToggleTheme: onToggleTheme,
           ),
-          SizedBox(height: 32),
+          SizedBox(height: 24),
           for (var index = 0; index < items.length; index++)
             _NavigationItem(
               icon: items[index].$1,
@@ -94,10 +94,12 @@ class _LoginEntry extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          hoverColor: AppColors.surfaceHover,
+          mouseCursor: SystemMouseCursors.click,
           child: SizedBox(
             height: 42,
             child: Row(
@@ -112,7 +114,9 @@ class _LoginEntry extends StatelessWidget {
                   width: 26,
                   height: 26,
                   decoration: BoxDecoration(
-                    color: isLoggedIn ? AppColors.selected : Colors.transparent,
+                    color: isLoggedIn
+                        ? AppColors.selected
+                        : AppColors.surfaceMuted,
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: Icon(
@@ -166,12 +170,13 @@ class _Brand extends StatelessWidget {
         cursor: SystemMouseCursors.click,
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           child: InkWell(
             onTap: onToggleTheme,
-            borderRadius: BorderRadius.circular(10),
-            hoverColor: AppColors.selected.withValues(alpha: 0.55),
-            highlightColor: AppColors.selected.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            hoverColor: AppColors.surfaceHover,
+            highlightColor: AppColors.surfacePressed,
+            mouseCursor: SystemMouseCursors.click,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
@@ -183,7 +188,7 @@ class _Brand extends StatelessWidget {
                     : MainAxisAlignment.start,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 220),
                       switchInCurve: Curves.easeOutCubic,
@@ -257,39 +262,48 @@ class _NavigationItem extends StatelessWidget {
       padding: EdgeInsets.only(bottom: 8),
       child: Tooltip(
         message: compact ? label : '',
-        child: Material(
-          color: selected ? AppColors.selected : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(8),
-            hoverColor: AppColors.selected.withValues(alpha: 0.55),
-            child: SizedBox(
-              height: 46,
-              child: Row(
-                mainAxisAlignment: compact
-                    ? MainAxisAlignment.center
-                    : MainAxisAlignment.start,
-                children: [
-                  if (!compact) SizedBox(width: 12),
-                  Icon(
-                    icon,
-                    size: 21,
-                    color: selected ? AppColors.primary : AppColors.muted,
-                  ),
-                  if (!compact) ...[
-                    SizedBox(width: 12),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        color: selected ? AppColors.primary : AppColors.text,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                      ),
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.selected : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: InkWell(
+              onTap: onTap,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              hoverColor: AppColors.surfaceHover,
+              mouseCursor: SystemMouseCursors.click,
+              child: SizedBox(
+                height: 46,
+                child: Row(
+                  mainAxisAlignment: compact
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
+                  children: [
+                    if (!compact) SizedBox(width: 12),
+                    Icon(
+                      icon,
+                      size: 21,
+                      color: selected ? AppColors.primary : AppColors.muted,
                     ),
+                    if (!compact) ...[
+                      SizedBox(width: 12),
+                      Text(
+                        label,
+                        style: TextStyle(
+                          color: selected ? AppColors.primary : AppColors.text,
+                          fontWeight: selected
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),
