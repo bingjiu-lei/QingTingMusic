@@ -92,6 +92,7 @@ class _MusicShellState extends State<MusicShell>
   bool _showingUpdateDialog = false;
   bool _showingAuthExpiredDialog = false;
   bool _quittingFromTray = false;
+  bool _closingWindow = false;
   bool _closeToTray = true;
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
@@ -131,7 +132,7 @@ class _MusicShellState extends State<MusicShell>
     if (Platform.isWindows && widget.enableWindowControls) {
       windowManager.addListener(this);
       trayManager.addListener(this);
-      unawaited(_setupTray());
+      unawaited(_setupWindowBehavior());
     }
     _initializeData();
   }
@@ -158,11 +159,14 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _loadWindowPreferences() async {
     final value = await _preferences.read('closeToTray');
     if (!mounted) return;
-    setState(() => _closeToTray = value is bool ? value : true);
+    final closeToTray = value is bool ? value : true;
+    setState(() => _closeToTray = closeToTray);
+    await _applyCloseBehavior(closeToTray);
   }
 
   Future<void> _setCloseToTray(bool value) async {
     await _preferences.write('closeToTray', value);
+    await _applyCloseBehavior(value);
     if (!mounted) return;
     setState(() => _closeToTray = value);
   }
@@ -188,10 +192,10 @@ class _MusicShellState extends State<MusicShell>
     }
   }
 
-  Future<void> _setupTray() async {
+  Future<void> _setupWindowBehavior() async {
     if (!Platform.isWindows) return;
     try {
-      await windowManager.setPreventClose(true);
+      await _applyCloseBehavior(_closeToTray);
       await trayManager.setIcon(_trayIconPath(), iconSize: 16);
       await trayManager.setToolTip('晴听音乐');
       await trayManager.setContextMenu(
@@ -210,6 +214,11 @@ class _MusicShellState extends State<MusicShell>
     } catch (_) {
       // Tray support is best-effort; the app should keep running without it.
     }
+  }
+
+  Future<void> _applyCloseBehavior(bool closeToTray) async {
+    if (!Platform.isWindows || !widget.enableWindowControls) return;
+    await windowManager.setPreventClose(closeToTray);
   }
 
   String _trayIconPath() {
@@ -238,13 +247,21 @@ class _MusicShellState extends State<MusicShell>
 
   Future<void> _handleWindowClose() async {
     if (!Platform.isWindows || !widget.enableWindowControls) return;
-    if (_quittingFromTray || !_closeToTray) {
-      await trayManager.destroy();
-      await windowManager.setPreventClose(false);
-      await windowManager.destroy();
+    if (!_closeToTray) return;
+    if (_closingWindow) return;
+    _closingWindow = true;
+    if (_quittingFromTray) {
+      try {
+        await trayManager.destroy();
+        await windowManager.setPreventClose(false);
+        await windowManager.destroy();
+      } finally {
+        _closingWindow = false;
+      }
       return;
     }
     await windowManager.hide();
+    _closingWindow = false;
   }
 
   @override
@@ -279,10 +296,16 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _quitFromTray() async {
+    if (_closingWindow) return;
+    _closingWindow = true;
     _quittingFromTray = true;
-    await trayManager.destroy();
-    await windowManager.setPreventClose(false);
-    await windowManager.close();
+    try {
+      await trayManager.destroy();
+      await windowManager.setPreventClose(false);
+      await windowManager.destroy();
+    } finally {
+      _closingWindow = false;
+    }
   }
 
   Future<void> _showAuthExpiredDialog() async {

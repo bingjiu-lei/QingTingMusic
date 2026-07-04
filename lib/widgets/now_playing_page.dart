@@ -489,7 +489,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     if (_errorText != null) return _LyricEmptyText(text: _errorText!);
     if (_lines.isEmpty) return const _LyricEmptyText(text: '暂无歌词');
 
-    return ListView.builder(
+    final listView = ListView.builder(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.symmetric(
@@ -510,10 +510,14 @@ class _LyricsPanelState extends State<_LyricsPanel> {
             duration: const Duration(milliseconds: 180),
             curve: Curves.easeOutCubic,
             style: TextStyle(
-              color: active ? AppColors.text : AppColors.muted,
-              fontSize: active ? 24 : 18,
-              fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-              height: 1.35,
+              fontFamily: 'NotoSansSC',
+              color: active
+                  ? AppColors.text
+                  : AppColors.muted.withValues(alpha: 0.82),
+              fontSize: active ? 22 : 17,
+              fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              height: 1.45,
+              letterSpacing: 0,
             ),
             child: Padding(
               padding: EdgeInsets.zero,
@@ -532,6 +536,11 @@ class _LyricsPanelState extends State<_LyricsPanel> {
           ),
         );
       },
+    );
+
+    return ScrollConfiguration(
+      behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
+      child: listView,
     );
   }
 }
