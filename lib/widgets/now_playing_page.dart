@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import '../controllers/player_controller.dart';
@@ -30,9 +32,10 @@ class NowPlayingPage extends StatelessWidget {
     final song = controller.currentSong;
     final compact = MediaQuery.sizeOf(context).width < 980;
     return Material(
-      color: AppColors.page,
+      color: Colors.transparent,
       child: Stack(
         children: [
+          _BlurredCoverBackground(song: song),
           SafeArea(
             child: Padding(
               padding: EdgeInsets.fromLTRB(
@@ -77,7 +80,7 @@ class NowPlayingPage extends StatelessWidget {
           Positioned(
             left: compact ? 12 : 22,
             bottom: 17,
-            child: _CollapseButton(onClose: onClose),
+            child: _SubtleCollapseButton(onClose: onClose),
           ),
         ],
       ),
@@ -85,6 +88,163 @@ class NowPlayingPage extends StatelessWidget {
   }
 }
 
+class _BlurredCoverBackground extends StatelessWidget {
+  const _BlurredCoverBackground({required this.song});
+
+  final Song? song;
+
+  @override
+  Widget build(BuildContext context) {
+    final coverUrl = (song?.coverUrl ?? '').trim();
+    final hasCover = coverUrl.isNotEmpty;
+    final dark = AppColors.isDark;
+    return Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(color: AppColors.page),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 560),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: ImageFiltered(
+                key: ValueKey(hasCover ? coverUrl : 'album-placeholder-bg'),
+                imageFilter: ImageFilter.blur(sigmaX: 52, sigmaY: 52),
+                child: Transform.scale(
+                  scale: 1.42,
+                  child: SizedBox.expand(
+                    child: hasCover
+                        ? Image.network(
+                            coverUrl,
+                            fit: BoxFit.cover,
+                            gaplessPlayback: true,
+                            filterQuality: FilterQuality.low,
+                            errorBuilder: (_, _, _) => Image.asset(
+                              'assets/images/album_placeholder.png',
+                              fit: BoxFit.cover,
+                              filterQuality: FilterQuality.low,
+                            ),
+                          )
+                        : Image.asset(
+                            'assets/images/album_placeholder.png',
+                            fit: BoxFit.cover,
+                            filterQuality: FilterQuality.low,
+                          ),
+                  ),
+                ),
+              ),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: dark
+                    ? Colors.black.withValues(alpha: hasCover ? 0.24 : 0.18)
+                    : Colors.white.withValues(alpha: hasCover ? 0.34 : 0.18),
+              ),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: dark
+                      ? [
+                          Colors.black.withValues(alpha: 0.28),
+                          Colors.black.withValues(alpha: 0.08),
+                          Colors.black.withValues(alpha: 0.36),
+                        ]
+                      : [
+                          Colors.white.withValues(alpha: 0.42),
+                          Colors.white.withValues(alpha: 0.10),
+                          Colors.white.withValues(alpha: 0.50),
+                        ],
+                  stops: const [0, 0.48, 1],
+                ),
+              ),
+            ),
+            if (hasCover)
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.42, -0.06),
+                    radius: 0.72,
+                    colors: [
+                      AppColors.primary.withValues(alpha: dark ? 0.10 : 0.07),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SubtleCollapseButton extends StatefulWidget {
+  const _SubtleCollapseButton({required this.onClose});
+
+  final VoidCallback onClose;
+
+  @override
+  State<_SubtleCollapseButton> createState() => _SubtleCollapseButtonState();
+}
+
+class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: Tooltip(
+        message: '收起播放页',
+        child: AnimatedContainer(
+          duration: AppMotion.normal,
+          curve: AppMotion.curve,
+          width: 58,
+          height: 58,
+          decoration: BoxDecoration(
+            color: _hovered
+                ? AppColors.surfaceMuted.withValues(
+                    alpha: AppColors.isDark ? 0.72 : 0.78,
+                  )
+                : AppColors.surfaceMuted.withValues(
+                    alpha: AppColors.isDark ? 0.16 : 0.20,
+                  ),
+            borderRadius: BorderRadius.circular(13),
+            border: Border.all(
+              color: _hovered
+                  ? AppColors.border.withValues(alpha: 0.48)
+                  : Colors.transparent,
+            ),
+          ),
+          child: IconButton(
+            style: IconButton.styleFrom(
+              foregroundColor: (_hovered ? AppColors.muted : AppColors.faint)
+                  .withValues(
+                    alpha: _hovered ? 1 : (AppColors.isDark ? 0.74 : 0.62),
+                  ),
+              hoverColor: Colors.transparent,
+              highlightColor: AppColors.primary.withValues(alpha: 0.08),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(13),
+              ),
+            ),
+            tooltip: '收起播放页',
+            onPressed: widget.onClose,
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 24),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ignore: unused_element
 class _CollapseButton extends StatelessWidget {
   const _CollapseButton({required this.onClose});
 
@@ -101,7 +261,9 @@ class _CollapseButton extends StatelessWidget {
           height: 58,
           child: IconButton.filledTonal(
             style: IconButton.styleFrom(
-              backgroundColor: AppColors.surfaceMuted,
+              backgroundColor: AppColors.surfaceMuted.withValues(
+                alpha: AppColors.isDark ? 0.72 : 0.82,
+              ),
               foregroundColor: AppColors.muted,
               hoverColor: AppColors.primary.withValues(alpha: 0.08),
               shape: RoundedRectangleBorder(

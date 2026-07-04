@@ -848,11 +848,15 @@ class _MusicShellState extends State<MusicShell>
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compactSidebar = constraints.maxWidth < 1050;
+          final sidebarWidth = compactSidebar ? 76.0 : 214.0;
           return Stack(
             children: [
               Column(
                 children: [
-                  AppWindowCaption(enabled: widget.enableWindowControls),
+                  AppWindowCaption(
+                    enabled: widget.enableWindowControls,
+                    sidebarWidth: sidebarWidth,
+                  ),
                   Expanded(
                     child: Row(
                       children: [
@@ -925,14 +929,14 @@ class _MusicShellState extends State<MusicShell>
                 ),
               Positioned(
                 left: 0,
-                top: AppWindowCaption.height,
+                top: 0,
                 right: 0,
                 bottom: 0,
                 child: IgnorePointer(
                   ignoring: !showNowPlayingPage,
                   child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    reverseDuration: const Duration(milliseconds: 180),
+                    duration: const Duration(milliseconds: 320),
+                    reverseDuration: const Duration(milliseconds: 220),
                     switchInCurve: Curves.easeOutCubic,
                     switchOutCurve: Curves.easeInCubic,
                     transitionBuilder: (child, animation) {
@@ -943,12 +947,18 @@ class _MusicShellState extends State<MusicShell>
                       );
                       return FadeTransition(
                         opacity: curved,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.025),
-                            end: Offset.zero,
+                        child: ScaleTransition(
+                          scale: Tween<double>(
+                            begin: 0.985,
+                            end: 1,
                           ).animate(curved),
-                          child: child,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.045),
+                              end: Offset.zero,
+                            ).animate(curved),
+                            child: child,
+                          ),
                         ),
                       );
                     },
@@ -969,6 +979,19 @@ class _MusicShellState extends State<MusicShell>
                   ),
                 ),
               ),
+              if (showNowPlayingPage)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    ignoring: !widget.enableWindowControls,
+                    child: AppWindowCaption(
+                      enabled: widget.enableWindowControls,
+                      backgroundColor: Colors.transparent,
+                    ),
+                  ),
+                ),
             ],
           );
         },
