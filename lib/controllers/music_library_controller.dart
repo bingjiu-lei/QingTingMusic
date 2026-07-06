@@ -223,8 +223,23 @@ class MusicLibraryController extends ChangeNotifier {
     );
   }
 
-  Future<List<Song>> loadPlaylist(MusicPlaylist playlist) {
-    return repository.getPlaylistSongs(playlist);
+  Future<List<Song>> loadPlaylist(
+    MusicPlaylist playlist, {
+    bool refresh = false,
+  }) async {
+    final cacheKey = _playlistCacheKey(playlist);
+    if (!refresh) {
+      final cached = await cacheService.loadPlaylistSongs(cacheKey);
+      if (cached.isNotEmpty) {
+        unawaited(_refreshPlaylistSongsCache(playlist, cacheKey));
+        return cached;
+      }
+    }
+    final songs = await repository.getPlaylistSongs(playlist);
+    if (songs.isNotEmpty || refresh) {
+      unawaited(cacheService.savePlaylistSongs(cacheKey, songs));
+    }
+    return songs;
   }
 
   bool isFavorite(Song song) => favorites.any((item) => _sameSong(item, song));
@@ -334,12 +349,26 @@ class MusicLibraryController extends ChangeNotifier {
 
   Future<void> addToPlaylist(MusicPlaylist playlist, Song song) async {
     await repository.addSongToPlaylist(playlist, song);
+    await cacheService.clearPlaylistSongs(_playlistCacheKey(playlist));
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 
   Future<void> removeFromPlaylist(MusicPlaylist playlist, Song song) async {
     await repository.removeSongFromPlaylist(playlist, song);
+    await cacheService.clearPlaylistSongs(_playlistCacheKey(playlist));
     await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
+  Future<void> _refreshPlaylistSongsCache(
+    MusicPlaylist playlist,
+    String cacheKey,
+  ) async {
+    try {
+      final songs = await repository.getPlaylistSongs(playlist);
+      if (songs.isNotEmpty) {
+        await cacheService.savePlaylistSongs(cacheKey, songs);
+      }
+    } catch (_) {}
   }
 
   bool _sameSong(Song left, Song right) {
@@ -373,5 +402,16 @@ class MusicLibraryController extends ChangeNotifier {
     final normalizedLeft = left.trim().toLowerCase();
     final normalizedRight = right.trim().toLowerCase();
     return normalizedLeft.isNotEmpty && normalizedLeft == normalizedRight;
+  }
+
+  String _playlistCacheKey(MusicPlaylist playlist) {
+    final identity = playlist.listId.isNotEmpty
+        ? playlist.listId
+        : playlist.sourceListId?.isNotEmpty == true
+        ? playlist.sourceListId!
+        : playlist.sourceId?.isNotEmpty == true
+        ? playlist.sourceId!
+        : playlist.id;
+    return '${playlist.kind.name}:$identity';
   }
 }

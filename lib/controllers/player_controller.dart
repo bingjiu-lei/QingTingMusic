@@ -495,6 +495,11 @@ class PlayerController extends ChangeNotifier {
     });
   }
 
+  Future<void> flushPlaybackState() async {
+    _savePlaybackTimer?.cancel();
+    await _savePlaybackState();
+  }
+
   Future<void> _savePlaybackState() async {
     try {
       await playbackStateService?.save(

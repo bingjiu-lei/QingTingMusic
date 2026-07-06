@@ -815,7 +815,7 @@ class KugouApiClient {
       if (total > 0 && songs.length >= total) break;
       if (records.length < pageSize || added == 0) break;
     }
-    return songs.values.toList();
+    return songs.values.toList().reversed.toList();
   }
 
   Future<List<Song>> getCloudSongs() async {

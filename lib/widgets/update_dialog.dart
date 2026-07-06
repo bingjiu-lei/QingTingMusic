@@ -61,14 +61,7 @@ class UpdateDialog extends StatelessWidget {
                       border: Border.all(color: AppColors.divider),
                     ),
                     child: SingleChildScrollView(
-                      child: Text(
-                        update!.body.trim(),
-                        style: TextStyle(
-                          color: AppColors.text,
-                          fontSize: 13,
-                          height: 1.55,
-                        ),
-                      ),
+                      child: _ReleaseNotesText(body: update!.body),
                     ),
                   ),
                 ],
@@ -149,4 +142,66 @@ class UpdateDialog extends StatelessWidget {
       },
     );
   }
+}
+
+class _ReleaseNotesText extends StatelessWidget {
+  const _ReleaseNotesText({required this.body});
+
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final lines = _cleanLines(body);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final line in lines)
+          Padding(
+            padding: EdgeInsets.only(bottom: line.isHeading ? 8 : 6),
+            child: Text(
+              line.text,
+              style: TextStyle(
+                color: line.isHeading ? AppColors.text : AppColors.muted,
+                fontSize: line.isHeading ? 14 : 13,
+                height: 1.52,
+                fontWeight: line.isHeading ? FontWeight.w800 : FontWeight.w500,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  List<_ReleaseNoteLine> _cleanLines(String raw) {
+    final result = <_ReleaseNoteLine>[];
+    var inFence = false;
+    for (final source in raw.trim().split(RegExp(r'\r?\n'))) {
+      var line = source.trim();
+      if (line.startsWith('```')) {
+        inFence = !inFence;
+        continue;
+      }
+      if (inFence || line.isEmpty) continue;
+      final heading = line.startsWith('#');
+      line = line
+          .replaceFirst(RegExp(r'^#{1,6}\s*'), '')
+          .replaceFirst(RegExp(r'^[-*]\s+'), '')
+          .replaceAllMapped(
+            RegExp(r'\[([^\]]+)\]\([^)]+\)'),
+            (match) => match.group(1) ?? '',
+          )
+          .replaceAll(RegExp(r'[`*_]'), '')
+          .trim();
+      if (line.isEmpty) continue;
+      result.add(_ReleaseNoteLine(heading ? line : '• $line', heading));
+    }
+    return result;
+  }
+}
+
+class _ReleaseNoteLine {
+  const _ReleaseNoteLine(this.text, this.isHeading);
+
+  final String text;
+  final bool isHeading;
 }

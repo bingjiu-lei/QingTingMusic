@@ -21,6 +21,7 @@ class CollectionDetailPage extends StatefulWidget {
     required this.relatedItemsCanLoadMore,
     required this.isLoading,
     required this.onBack,
+    this.onOpenHeaderArtist,
     required this.onPlay,
     required this.onLike,
     required this.onAddToPlaylist,
@@ -50,6 +51,7 @@ class CollectionDetailPage extends StatefulWidget {
   final bool relatedItemsCanLoadMore;
   final bool isLoading;
   final VoidCallback onBack;
+  final VoidCallback? onOpenHeaderArtist;
   final SongPlayRequest onPlay;
   final ValueChanged<Song> onLike;
   final ValueChanged<Song> onAddToPlaylist;
@@ -100,10 +102,24 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         children: [
           Row(
             children: [
-              IconButton(
-                tooltip: '返回',
-                onPressed: widget.onBack,
-                icon: Icon(Icons.arrow_back_rounded),
+              SizedBox(
+                width: 46,
+                height: 46,
+                child: IconButton(
+                  tooltip: '返回',
+                  mouseCursor: SystemMouseCursors.click,
+                  onPressed: widget.onBack,
+                  style: IconButton.styleFrom(
+                    backgroundColor: AppColors.surfaceMuted.withValues(
+                      alpha: AppColors.isDark ? 0.54 : 0.72,
+                    ),
+                    hoverColor: AppColors.surfaceHover,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                    ),
+                  ),
+                  icon: Icon(Icons.arrow_back_rounded, size: 24),
+                ),
               ),
               SizedBox(width: 10),
               AlbumArt(size: 92, imageUrl: widget.imageUrl),
@@ -124,9 +140,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       ),
                     ),
                     SizedBox(height: 8),
-                    Text(
-                      widget.subtitle,
-                      style: TextStyle(color: AppColors.muted, fontSize: 13),
+                    _HeaderSubtitle(
+                      text: widget.subtitle,
+                      onTap: widget.onOpenHeaderArtist,
                     ),
                     SizedBox(height: 14),
                     Wrap(
@@ -192,7 +208,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
           SizedBox(height: 8),
           Expanded(
             child: widget.isLoading
-                ? Center(child: CircularProgressIndicator(strokeWidth: 2.2))
+                ? const _DetailLoadingPlaceholder()
                 : _content(),
           ),
         ],
@@ -257,6 +273,98 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
           ),
         )
         .toList();
+  }
+}
+
+class _HeaderSubtitle extends StatelessWidget {
+  const _HeaderSubtitle({required this.text, this.onTap});
+
+  final String text;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Text(
+      text,
+      style: TextStyle(
+        color: onTap == null ? AppColors.muted : AppColors.primary,
+        fontSize: 13,
+        fontWeight: onTap == null ? FontWeight.w500 : FontWeight.w600,
+      ),
+    );
+    if (onTap == null) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(onTap: onTap, child: child),
+    );
+  }
+}
+
+class _DetailLoadingPlaceholder extends StatelessWidget {
+  const _DetailLoadingPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 18, 10, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _LoadingBar(width: 220),
+            const SizedBox(height: 18),
+            for (var index = 0; index < 5; index++) ...[
+              Row(
+                children: [
+                  _LoadingBar(width: 42, height: 42, radius: 8),
+                  const SizedBox(width: 14),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _LoadingBar(width: 180 - index * 8),
+                      const SizedBox(height: 8),
+                      _LoadingBar(width: 108 + index * 10, height: 8),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LoadingBar extends StatelessWidget {
+  const _LoadingBar({required this.width, this.height = 12, this.radius = 999});
+
+  final double width;
+  final double height;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.45, end: 1),
+      duration: const Duration(milliseconds: 820),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Opacity(opacity: value, child: child);
+      },
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: AppColors.surfaceMuted.withValues(
+            alpha: AppColors.isDark ? 0.42 : 0.78,
+          ),
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      ),
+    );
   }
 }
 

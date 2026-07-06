@@ -15,6 +15,7 @@ class PlayerBar extends StatelessWidget {
     this.onQueuePressed,
     this.onNowPlayingPressed,
     this.onOpenAlbum,
+    this.onOpenArtist,
     this.onLike,
     this.onAddToPlaylist,
   });
@@ -23,6 +24,7 @@ class PlayerBar extends StatelessWidget {
   final VoidCallback? onQueuePressed;
   final VoidCallback? onNowPlayingPressed;
   final ValueChanged<Song>? onOpenAlbum;
+  final ValueChanged<Song>? onOpenArtist;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
 
@@ -84,28 +86,31 @@ class PlayerBar extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 4),
-                            Text(
-                              controller.errorText ??
+                            _PlayerSubtitle(
+                              song: song,
+                              text:
+                                  controller.errorText ??
                                   controller.playbackNotice ??
                                   (controller.isPreparing
                                       ? '正在准备播放'
                                       : song.artist),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: controller.errorText != null
-                                    ? AppColors.danger
-                                    : controller.playbackNotice != null
-                                    ? AppColors.primary
-                                    : AppColors.muted,
-                                fontSize: 12,
-                              ),
+                              interactive:
+                                  controller.errorText == null &&
+                                  controller.playbackNotice == null &&
+                                  !controller.isPreparing &&
+                                  onOpenArtist != null,
+                              color: controller.errorText != null
+                                  ? AppColors.danger
+                                  : controller.playbackNotice != null
+                                  ? AppColors.primary
+                                  : AppColors.muted,
+                              onOpenArtist: onOpenArtist,
                             ),
                           ],
                         ),
                 ),
                 if (song != null && !compact) ...[
-                  IconButton(
+                  _BarIconButton(
                     tooltip: song.liked ? '取消收藏' : '收藏',
                     onPressed: onLike == null ? null : () => onLike!(song),
                     icon: Icon(
@@ -115,14 +120,14 @@ class PlayerBar extends StatelessWidget {
                       color: song.liked ? AppColors.primary : AppColors.muted,
                     ),
                   ),
-                  IconButton(
+                  _BarIconButton(
                     tooltip: '添加到歌单',
                     onPressed: onAddToPlaylist == null
                         ? null
                         : () => onAddToPlaylist!(song),
                     icon: const Icon(Icons.playlist_add_rounded),
                   ),
-                  IconButton(
+                  _BarIconButton(
                     tooltip: '打开专辑',
                     onPressed: _hasAlbum(song) && onOpenAlbum != null
                         ? () => onOpenAlbum!(song)
@@ -130,23 +135,15 @@ class PlayerBar extends StatelessWidget {
                     icon: const Icon(Icons.album_rounded),
                   ),
                 ],
-                IconButton(
+                _BarIconButton(
                   tooltip: controller.playbackMode.label,
                   onPressed: controller.cyclePlaybackMode,
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(38, 38),
-                    iconSize: 21,
-                  ),
                   icon: Icon(_modeIcon(controller.playbackMode)),
                 ),
-                IconButton(
+                _BarIconButton(
                   tooltip: '上一首',
                   onPressed: song == null ? null : controller.playPrevious,
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(42, 42),
-                    iconSize: 24,
-                  ),
-                  icon: const Icon(Icons.skip_previous_rounded),
+                  icon: const Icon(Icons.fast_rewind_rounded, size: 23),
                 ),
                 FilledButton(
                   onPressed: song == null || controller.isPreparing
@@ -169,14 +166,10 @@ class PlayerBar extends StatelessWidget {
                     size: 28,
                   ),
                 ),
-                IconButton(
+                _BarIconButton(
                   tooltip: '下一首',
                   onPressed: song == null ? null : () => controller.playNext(),
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(42, 42),
-                    iconSize: 24,
-                  ),
-                  icon: const Icon(Icons.skip_next_rounded),
+                  icon: const Icon(Icons.fast_forward_rounded, size: 23),
                 ),
                 SizedBox(width: compact ? 8 : 18),
                 Text(
@@ -200,7 +193,7 @@ class PlayerBar extends StatelessWidget {
                     volume: controller.volume,
                     onChanged: controller.setVolume,
                   ),
-                  IconButton(
+                  _BarIconButton(
                     tooltip: '播放队列',
                     onPressed: onQueuePressed,
                     icon: const Icon(Icons.queue_music_rounded),
@@ -226,6 +219,73 @@ class PlayerBar extends StatelessWidget {
   bool _hasAlbum(Song song) {
     final album = song.album.trim();
     return album.isNotEmpty && album != '未知专辑';
+  }
+}
+
+class _BarIconButton extends StatelessWidget {
+  const _BarIconButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final Widget icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: icon,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(38, 38),
+        fixedSize: const Size(38, 38),
+        padding: EdgeInsets.zero,
+        iconSize: 21,
+        foregroundColor: AppColors.muted,
+        disabledForegroundColor: AppColors.faint.withValues(alpha: 0.44),
+        hoverColor: AppColors.primary.withValues(alpha: 0.08),
+        highlightColor: AppColors.primary.withValues(alpha: 0.12),
+        shape: const CircleBorder(),
+      ),
+    );
+  }
+}
+
+class _PlayerSubtitle extends StatelessWidget {
+  const _PlayerSubtitle({
+    required this.song,
+    required this.text,
+    required this.interactive,
+    required this.color,
+    required this.onOpenArtist,
+  });
+
+  final Song song;
+  final String text;
+  final bool interactive;
+  final Color color;
+  final ValueChanged<Song>? onOpenArtist;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(color: color, fontSize: 12),
+    );
+    if (!interactive) return child;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onOpenArtist?.call(song),
+        child: child,
+      ),
+    );
   }
 }
 
@@ -499,7 +559,7 @@ class _ProgressTrack extends StatelessWidget {
               height: 5,
               decoration: BoxDecoration(
                 color: AppColors.divider.withValues(
-                  alpha: AppColors.isDark ? 0.86 : 0.95,
+                  alpha: AppColors.isDark ? 0.56 : 0.86,
                 ),
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -511,7 +571,7 @@ class _ProgressTrack extends StatelessWidget {
               height: 5,
               decoration: BoxDecoration(
                 color: AppColors.primary.withValues(
-                  alpha: AppColors.isDark ? 0.22 : 0.18,
+                  alpha: AppColors.isDark ? 0.20 : 0.16,
                 ),
                 borderRadius: BorderRadius.circular(999),
               ),
@@ -530,19 +590,27 @@ class _ProgressTrack extends StatelessWidget {
               duration: AppMotion.fast,
               curve: AppMotion.curve,
               left: thumbLeft,
-              child: Container(
-                width: 10,
-                height: 10,
+              child: DecoratedBox(
                 decoration: BoxDecoration(
-                  color: AppColors.primary,
                   shape: BoxShape.circle,
+                  color: AppColors.surface,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.28),
-                      blurRadius: 10,
-                      spreadRadius: 1,
+                      color: AppColors.primary.withValues(alpha: 0.24),
+                      blurRadius: 12,
                     ),
                   ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Container(
+                    width: 5,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                 ),
               ),
             ),

@@ -15,6 +15,7 @@ import '../data/demo_music_repository.dart';
 import '../data/kugou_music_repository.dart';
 import '../data/music_repository.dart';
 import '../models/song.dart';
+import '../models/lyric.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/app_update.dart';
@@ -97,6 +98,9 @@ class _MusicShellState extends State<MusicShell>
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
   int detailRelatedPage = 1;
+  final Map<String, List<LyricLine>> _lyricsCache = {};
+  final Map<String, Future<List<LyricLine>>> _lyricsRequests = {};
+  String? _lastPreloadedLyricKey;
   StreamSubscription<void>? _sessionExpiredSubscription;
 
   @override
@@ -115,7 +119,7 @@ class _MusicShellState extends State<MusicShell>
       resolveSong: repository.resolvePlayback,
       recentSongsService: RecentSongsService(),
       playbackStateService: PlaybackStateService(),
-    )..addListener(_refresh);
+    )..addListener(_handlePlayerChanged);
     searchController = MusicSearchController(
       repository: repository,
       historyService: SearchHistoryService(),
@@ -139,6 +143,7 @@ class _MusicShellState extends State<MusicShell>
 
   Future<void> _initializeData() async {
     await updateController.initialize(useFallbackVersion: widget.useDemoData);
+    unawaited(cacheManagementService.clearDownloadedInstallers());
     await libraryController.initialize();
     final auth = authController;
     if (auth != null) {
@@ -159,7 +164,7 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _loadWindowPreferences() async {
     final value = await _preferences.read('closeToTray');
     if (!mounted) return;
-    final closeToTray = value is bool ? value : true;
+    final closeToTray = value is bool ? value : false;
     setState(() => _closeToTray = closeToTray);
     await _applyCloseBehavior(closeToTray);
   }
@@ -247,19 +252,9 @@ class _MusicShellState extends State<MusicShell>
 
   Future<void> _handleWindowClose() async {
     if (!Platform.isWindows || !widget.enableWindowControls) return;
-    if (!_closeToTray) return;
+    if (!_closeToTray || _quittingFromTray) return;
     if (_closingWindow) return;
     _closingWindow = true;
-    if (_quittingFromTray) {
-      try {
-        await trayManager.destroy();
-        await windowManager.setPreventClose(false);
-        await windowManager.destroy();
-      } finally {
-        _closingWindow = false;
-      }
-      return;
-    }
     await windowManager.hide();
     _closingWindow = false;
   }
@@ -271,6 +266,11 @@ class _MusicShellState extends State<MusicShell>
 
   @override
   void onTrayIconRightMouseDown() {
+    unawaited(trayManager.popUpContextMenu());
+  }
+
+  @override
+  void onTrayIconRightMouseUp() {
     unawaited(trayManager.popUpContextMenu());
   }
 
@@ -299,10 +299,15 @@ class _MusicShellState extends State<MusicShell>
     if (_closingWindow) return;
     _closingWindow = true;
     _quittingFromTray = true;
+    await _destroyWindowAndTray();
+  }
+
+  Future<void> _destroyWindowAndTray() async {
     try {
-      await trayManager.destroy();
+      unawaited(playerController.flushPlaybackState());
       await windowManager.setPreventClose(false);
-      await windowManager.destroy();
+      unawaited(trayManager.destroy());
+      await windowManager.close();
     } finally {
       _closingWindow = false;
     }
@@ -342,6 +347,16 @@ class _MusicShellState extends State<MusicShell>
 
   void _refresh() {
     if (mounted) setState(() {});
+  }
+
+  void _handlePlayerChanged() {
+    final song = playerController.currentSong;
+    final key = song == null ? null : _lyricCacheKey(song);
+    if (song != null && key != null && key != _lastPreloadedLyricKey) {
+      _lastPreloadedLyricKey = key;
+      unawaited(_loadLyricsCached(song));
+    }
+    _refresh();
   }
 
   void _handleAuthChanged() {
@@ -615,11 +630,17 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _openArtistFromSong(Song song) async {
     final artistName = _navigableArtistName(song.artist);
     if (artistName == null) return;
-    var id = song.artistId?.toString() ?? '';
+    await _openArtistByName(artistName, artistId: song.artistId);
+  }
+
+  Future<void> _openArtistByName(String artistName, {int? artistId}) async {
+    final cleanName = _navigableArtistName(artistName);
+    if (cleanName == null) return;
+    var id = artistId?.toString() ?? '';
     String? image;
     if (id.isEmpty) {
       final matches = await repository.searchCatalog(
-        artistName,
+        cleanName,
         SearchCategory.artist,
       );
       if (matches.isNotEmpty) {
@@ -628,7 +649,7 @@ class _MusicShellState extends State<MusicShell>
       }
     } else {
       final matches = await repository.searchCatalog(
-        artistName,
+        cleanName,
         SearchCategory.artist,
       );
       if (matches.isNotEmpty) image = matches.first.imageUrl;
@@ -637,12 +658,33 @@ class _MusicShellState extends State<MusicShell>
     await _openCatalog(
       SearchCatalogItem(
         id: id,
-        title: artistName,
+        title: cleanName,
         subtitle: '歌手',
         category: SearchCategory.artist,
         imageUrl: image,
       ),
     );
+  }
+
+  Future<List<LyricLine>> _loadLyricsCached(Song song) {
+    final key = _lyricCacheKey(song);
+    final cached = _lyricsCache[key];
+    if (cached != null) return Future.value(cached);
+    final pending = _lyricsRequests[key];
+    if (pending != null) return pending;
+    final request = repository
+        .getLyrics(song)
+        .then((lines) {
+          _lyricsCache[key] = lines;
+          _lyricsRequests.remove(key);
+          return lines;
+        })
+        .catchError((Object error) {
+          _lyricsRequests.remove(key);
+          throw error;
+        });
+    _lyricsRequests[key] = request;
+    return request;
   }
 
   Future<void> _showAddToPlaylist(Song song) async {
@@ -825,7 +867,7 @@ class _MusicShellState extends State<MusicShell>
       trayManager.removeListener(this);
     }
     playerController
-      ..removeListener(_refresh)
+      ..removeListener(_handlePlayerChanged)
       ..dispose();
     searchController
       ..removeListener(_refresh)
@@ -898,6 +940,7 @@ class _MusicShellState extends State<MusicShell>
                         ? null
                         : () => setState(() => showNowPlayingPage = true),
                     onOpenAlbum: _openAlbumFromSong,
+                    onOpenArtist: _openArtistFromSong,
                     onLike: _toggleFavorite,
                     onAddToPlaylist: _showAddToPlaylist,
                     onQueuePressed: () {
@@ -968,7 +1011,7 @@ class _MusicShellState extends State<MusicShell>
                             controller: playerController,
                             onClose: () =>
                                 setState(() => showNowPlayingPage = false),
-                            loadLyrics: repository.getLyrics,
+                            loadLyrics: _loadLyricsCached,
                             onLike: _toggleFavorite,
                             onAddToPlaylist: _showAddToPlaylist,
                             onOpenAlbum: _openAlbumFromNowPlaying,
@@ -1029,6 +1072,11 @@ class _MusicShellState extends State<MusicShell>
             detailHistory.isNotEmpty &&
             detailHistory.last.kind == CollectionDetailKind.artist,
         onBack: _popDetail,
+        onOpenHeaderArtist:
+            detailKind == CollectionDetailKind.album &&
+                (detailSubtitle ?? '').trim().isNotEmpty
+            ? () => _openArtistByName(detailSubtitle!.trim())
+            : null,
         onPlay: _playSong,
         onLike: _toggleFavorite,
         onAddToPlaylist: _showAddToPlaylist,
@@ -1115,6 +1163,12 @@ String? _navigableArtistName(String value) {
     return null;
   }
   return cleaned;
+}
+
+String _lyricCacheKey(Song song) {
+  final hash = song.hash?.trim();
+  if (hash != null && hash.isNotEmpty) return 'hash:$hash';
+  return 'id:${song.id}';
 }
 
 class _DetailSnapshot {

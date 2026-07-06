@@ -98,48 +98,52 @@ class _BlurredCoverBackground extends StatelessWidget {
     final coverUrl = (song?.coverUrl ?? '').trim();
     final hasCover = coverUrl.isNotEmpty;
     final dark = AppColors.isDark;
+    final overlay = dark ? Colors.black : Colors.white;
     return Positioned.fill(
       child: DecoratedBox(
-        decoration: BoxDecoration(color: AppColors.page),
+        decoration: BoxDecoration(
+          color: dark ? const Color(0xFF070A0F) : const Color(0xFFF8FAFD),
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [
             AnimatedSwitcher(
-              duration: const Duration(milliseconds: 560),
+              duration: const Duration(milliseconds: 680),
               switchInCurve: Curves.easeOutCubic,
               switchOutCurve: Curves.easeInCubic,
-              child: ImageFiltered(
+              child: Opacity(
                 key: ValueKey(hasCover ? coverUrl : 'album-placeholder-bg'),
-                imageFilter: ImageFilter.blur(sigmaX: 52, sigmaY: 52),
-                child: Transform.scale(
-                  scale: 1.42,
-                  child: SizedBox.expand(
-                    child: hasCover
-                        ? Image.network(
-                            coverUrl,
-                            fit: BoxFit.cover,
-                            gaplessPlayback: true,
-                            filterQuality: FilterQuality.low,
-                            errorBuilder: (_, _, _) => Image.asset(
+                opacity: hasCover ? 0.92 : 0.42,
+                child: ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 86, sigmaY: 86),
+                  child: Transform.scale(
+                    scale: 2.28,
+                    child: SizedBox.expand(
+                      child: hasCover
+                          ? Image.network(
+                              coverUrl,
+                              fit: BoxFit.cover,
+                              gaplessPlayback: true,
+                              filterQuality: FilterQuality.low,
+                              errorBuilder: (_, _, _) => Image.asset(
+                                'assets/images/album_placeholder.png',
+                                fit: BoxFit.cover,
+                                filterQuality: FilterQuality.low,
+                              ),
+                            )
+                          : Image.asset(
                               'assets/images/album_placeholder.png',
                               fit: BoxFit.cover,
                               filterQuality: FilterQuality.low,
                             ),
-                          )
-                        : Image.asset(
-                            'assets/images/album_placeholder.png',
-                            fit: BoxFit.cover,
-                            filterQuality: FilterQuality.low,
-                          ),
+                    ),
                   ),
                 ),
               ),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: dark
-                    ? Colors.black.withValues(alpha: hasCover ? 0.24 : 0.18)
-                    : Colors.white.withValues(alpha: hasCover ? 0.34 : 0.18),
+                color: overlay.withValues(alpha: dark ? 0.54 : 0.68),
               ),
             ),
             DecoratedBox(
@@ -149,32 +153,44 @@ class _BlurredCoverBackground extends StatelessWidget {
                   end: Alignment.bottomCenter,
                   colors: dark
                       ? [
-                          Colors.black.withValues(alpha: 0.28),
-                          Colors.black.withValues(alpha: 0.08),
-                          Colors.black.withValues(alpha: 0.36),
+                          Colors.black.withValues(alpha: 0.40),
+                          Colors.black.withValues(alpha: 0.10),
+                          Colors.black.withValues(alpha: 0.48),
                         ]
                       : [
-                          Colors.white.withValues(alpha: 0.42),
-                          Colors.white.withValues(alpha: 0.10),
-                          Colors.white.withValues(alpha: 0.50),
+                          Colors.white.withValues(alpha: 0.62),
+                          Colors.white.withValues(alpha: 0.22),
+                          Colors.white.withValues(alpha: 0.70),
                         ],
                   stops: const [0, 0.48, 1],
                 ),
               ),
             ),
-            if (hasCover)
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: const Alignment(-0.42, -0.06),
-                    radius: 0.72,
-                    colors: [
-                      AppColors.primary.withValues(alpha: dark ? 0.10 : 0.07),
-                      Colors.transparent,
-                    ],
-                  ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(-0.45, -0.12),
+                  radius: 0.66,
+                  colors: [
+                    AppColors.primary.withValues(alpha: dark ? 0.18 : 0.10),
+                    Colors.transparent,
+                  ],
                 ),
               ),
+            ),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0.35, 0.50),
+                  radius: 0.62,
+                  colors: [
+                    (dark ? const Color(0xFFB5677B) : const Color(0xFFFFB4C8))
+                        .withValues(alpha: dark ? 0.16 : 0.14),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -361,9 +377,11 @@ class _NowPlayingActionButton extends StatelessWidget {
         iconSize: size < 36 ? 18 : 20,
         foregroundColor: selected ? AppColors.primary : AppColors.muted,
         disabledForegroundColor: AppColors.faint.withValues(alpha: 0.45),
-        backgroundColor: AppColors.surfaceMuted,
-        disabledBackgroundColor: AppColors.surfaceMuted.withValues(alpha: 0.5),
-        hoverColor: AppColors.primary.withValues(alpha: 0.08),
+        backgroundColor: AppColors.surfaceMuted.withValues(
+          alpha: AppColors.isDark ? 0.34 : 0.46,
+        ),
+        disabledBackgroundColor: AppColors.surfaceMuted.withValues(alpha: 0.22),
+        hoverColor: AppColors.primary.withValues(alpha: 0.10),
         shape: const CircleBorder(),
       ),
     );
@@ -744,95 +762,72 @@ class _PlaybackControls extends StatelessWidget {
         ? currentSong.duration
         : controller.duration;
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 720),
+      constraints: const BoxConstraints(maxWidth: 760),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _NowPlayingActions(
-                song: song,
-                onLike: onLike,
-                onAddToPlaylist: onAddToPlaylist,
-                onOpenAlbum: onOpenAlbum,
-                compact: compact,
-              ),
-              SizedBox(width: compact ? 6 : 10),
-              IconButton(
-                tooltip: controller.playbackMode.label,
-                onPressed: controller.cyclePlaybackMode,
-                icon: Icon(_modeIcon(controller.playbackMode)),
-              ),
-              const SizedBox(width: 10),
-              IconButton(
-                tooltip: '上一首',
-                onPressed: controller.playPrevious,
-                icon: const Icon(Icons.skip_previous_rounded),
-              ),
-              const SizedBox(width: 10),
-              FilledButton(
-                onPressed: controller.isPreparing
-                    ? null
-                    : controller.togglePlay,
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  shape: const CircleBorder(),
-                  padding: const EdgeInsets.all(15),
-                  elevation: 0,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(
+                    alpha: AppColors.isDark ? 0.26 : 0.34,
+                  ),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppColors.border.withValues(alpha: 0.36),
+                  ),
                 ),
-                child: Icon(
-                  controller.isPlaying || controller.isPreparing
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  size: 28,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      _NowPlayingActions(
+                        song: song,
+                        onLike: onLike,
+                        onAddToPlaylist: onAddToPlaylist,
+                        onOpenAlbum: onOpenAlbum,
+                        compact: compact,
+                      ),
+                      SizedBox(width: compact ? 8 : 12),
+                      _GlassControlButton(
+                        tooltip: controller.playbackMode.label,
+                        icon: _modeIcon(controller.playbackMode),
+                        onPressed: controller.cyclePlaybackMode,
+                      ),
+                      _GlassControlButton(
+                        tooltip: '上一首',
+                        icon: Icons.fast_rewind_rounded,
+                        onPressed: controller.playPrevious,
+                      ),
+                      _PlayControlButton(
+                        isPlaying: controller.isPlaying,
+                        disabled: controller.isPreparing,
+                        onPressed: controller.togglePlay,
+                      ),
+                      _GlassControlButton(
+                        tooltip: '下一首',
+                        icon: Icons.fast_forward_rounded,
+                        onPressed: () => controller.playNext(),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              const SizedBox(width: 10),
-              IconButton(
-                tooltip: '下一首',
-                onPressed: () => controller.playNext(),
-                icon: const Icon(Icons.skip_next_rounded),
-              ),
-            ],
+            ),
           ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                formatDuration(controller.position),
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 4,
-                    activeTrackColor: AppColors.primary,
-                    inactiveTrackColor: AppColors.divider,
-                    thumbColor: AppColors.primary,
-                    overlayColor: AppColors.primary.withValues(alpha: 0.12),
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 5,
-                    ),
-                    overlayShape: const RoundSliderOverlayShape(
-                      overlayRadius: 13,
-                    ),
-                    trackShape: const _EdgeToEdgeSliderTrackShape(),
-                  ),
-                  child: Slider(
-                    value: _ratio(controller.position, duration),
-                    onChanged: controller.seekByRatio,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                formatDuration(duration),
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-            ],
+          const SizedBox(height: 13),
+          _NowPlayingProgress(
+            position: controller.position,
+            duration: duration,
+            onSeek: controller.seekByRatio,
           ),
         ],
       ),
@@ -847,10 +842,219 @@ class _PlaybackControls extends StatelessWidget {
       PlaybackMode.shuffle => Icons.shuffle_rounded,
     };
   }
+}
 
-  double _ratio(Duration position, Duration duration) {
-    if (duration.inMilliseconds <= 0) return 0;
-    return (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+class _GlassControlButton extends StatelessWidget {
+  const _GlassControlButton({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: Icon(icon),
+      style: IconButton.styleFrom(
+        minimumSize: const Size(38, 38),
+        fixedSize: const Size(38, 38),
+        iconSize: 21,
+        foregroundColor: AppColors.muted,
+        disabledForegroundColor: AppColors.faint.withValues(alpha: 0.45),
+        hoverColor: AppColors.primary.withValues(alpha: 0.10),
+        highlightColor: AppColors.primary.withValues(alpha: 0.14),
+        shape: const CircleBorder(),
+      ),
+    );
+  }
+}
+
+class _PlayControlButton extends StatelessWidget {
+  const _PlayControlButton({
+    required this.isPlaying,
+    required this.disabled,
+    required this.onPressed,
+  });
+
+  final bool isPlaying;
+  final bool disabled;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: SizedBox(
+        width: 48,
+        height: 48,
+        child: FilledButton(
+          onPressed: disabled ? null : onPressed,
+          style: FilledButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.46),
+            shape: const CircleBorder(),
+            padding: EdgeInsets.zero,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+          ),
+          child: Icon(
+            isPlaying || disabled
+                ? Icons.pause_rounded
+                : Icons.play_arrow_rounded,
+            size: 29,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingProgress extends StatelessWidget {
+  const _NowPlayingProgress({
+    required this.position,
+    required this.duration,
+    required this.onSeek,
+  });
+
+  final Duration position;
+  final Duration duration;
+  final ValueChanged<double> onSeek;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = duration.inMilliseconds <= 0
+        ? 0.0
+        : (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
+    return Row(
+      children: [
+        _ProgressTime(text: formatDuration(position)),
+        const SizedBox(width: 12),
+        Expanded(
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                void seek(Offset offset) {
+                  if (constraints.maxWidth <= 0) return;
+                  onSeek((offset.dx / constraints.maxWidth).clamp(0.0, 1.0));
+                }
+
+                return GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTapDown: (details) => seek(details.localPosition),
+                  onHorizontalDragUpdate: (details) =>
+                      seek(details.localPosition),
+                  child: SizedBox(
+                    height: 28,
+                    child: _NowPlayingProgressTrack(value: ratio),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _ProgressTime(text: formatDuration(duration)),
+      ],
+    );
+  }
+}
+
+class _ProgressTime extends StatelessWidget {
+  const _ProgressTime({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 42,
+      child: Text(
+        text,
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          color: AppColors.muted.withValues(alpha: 0.86),
+          fontSize: 12,
+          fontFeatures: const [FontFeature.tabularFigures()],
+        ),
+      ),
+    );
+  }
+}
+
+class _NowPlayingProgressTrack extends StatelessWidget {
+  const _NowPlayingProgressTrack({required this.value});
+
+  final double value;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final playedWidth = width * value.clamp(0.0, 1.0);
+        final thumbLeft = (playedWidth - 6).clamp(0.0, width - 12);
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            Container(
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.divider.withValues(
+                  alpha: AppColors.isDark ? 0.52 : 0.82,
+                ),
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              width: playedWidth,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.primary,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            AnimatedPositioned(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              left: thumbLeft,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.surface,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.28),
+                      blurRadius: 14,
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(3),
+                  child: Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 
@@ -865,23 +1069,6 @@ class _EmptyState extends StatelessWidget {
         style: TextStyle(color: AppColors.muted, fontSize: 14),
       ),
     );
-  }
-}
-
-class _EdgeToEdgeSliderTrackShape extends RoundedRectSliderTrackShape {
-  const _EdgeToEdgeSliderTrackShape();
-
-  @override
-  Rect getPreferredRect({
-    required RenderBox parentBox,
-    Offset offset = Offset.zero,
-    required SliderThemeData sliderTheme,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-  }) {
-    final trackHeight = sliderTheme.trackHeight ?? 0;
-    final top = offset.dy + (parentBox.size.height - trackHeight) / 2;
-    return Rect.fromLTWH(offset.dx, top, parentBox.size.width, trackHeight);
   }
 }
 

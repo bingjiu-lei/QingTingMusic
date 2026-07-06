@@ -42,6 +42,19 @@ class CacheManagementService {
     }
   }
 
+  Future<void> clearDownloadedInstallers() async {
+    final directory = AppStorageService.directory('updates');
+    if (!await directory.exists()) return;
+    await for (final entity in directory.list()) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.last.toLowerCase();
+      if (!name.endsWith('.exe') && !name.endsWith('.download')) continue;
+      try {
+        await entity.delete();
+      } catch (_) {}
+    }
+  }
+
   Future<void> trimToLimit() async {
     final limit = await loadLimitBytes();
     final entries = await _cacheEntries();
@@ -99,7 +112,9 @@ class CacheManagementService {
 
   List<FileSystemEntity> _managedRoots() => [
     AppStorageService.directory('audio'),
+    AppStorageService.directory('updates'),
     AppStorageService.file('library-cache.json'),
+    AppStorageService.file('library-playlist-tracks.json'),
     AppStorageService.file('search-cache.json'),
     AppStorageService.file('recent-songs.json'),
     AppStorageService.file('playback.log'),
