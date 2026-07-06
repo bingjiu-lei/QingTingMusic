@@ -150,6 +150,8 @@ class PlayerBar extends StatelessWidget {
                       ? null
                       : controller.togglePlay,
                   style: FilledButton.styleFrom(
+                    enabledMouseCursor: SystemMouseCursors.click,
+                    disabledMouseCursor: SystemMouseCursors.basic,
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     disabledBackgroundColor: AppColors.primary.withValues(
@@ -238,6 +240,9 @@ class _BarIconButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
+      mouseCursor: onPressed == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
       icon: icon,
       style: IconButton.styleFrom(
         minimumSize: const Size(38, 38),
@@ -302,6 +307,7 @@ class _HoverVolumeControl extends StatefulWidget {
 class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _overlayEntry;
+  Timer? _showTimer;
   Timer? _hideTimer;
   bool _anchorHovered = false;
   bool _panelHovered = false;
@@ -316,12 +322,14 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
 
   @override
   void dispose() {
+    _showTimer?.cancel();
     _hideTimer?.cancel();
     _removeOverlay();
     super.dispose();
   }
 
   void _showOverlay() {
+    _showTimer?.cancel();
     _hideTimer?.cancel();
     if (_overlayEntry != null) {
       _overlayEntry?.markNeedsBuild();
@@ -367,6 +375,7 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   }
 
   void _scheduleHide() {
+    _showTimer?.cancel();
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: 320), () {
       if (!_anchorHovered && !_panelHovered) {
@@ -376,8 +385,17 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   }
 
   void _removeOverlay() {
+    _showTimer?.cancel();
     _overlayEntry?.remove();
     _overlayEntry = null;
+  }
+
+  void _scheduleShow() {
+    _showTimer?.cancel();
+    _hideTimer?.cancel();
+    _showTimer = Timer(const Duration(milliseconds: 180), () {
+      if (_anchorHovered || _panelHovered) _showOverlay();
+    });
   }
 
   @override
@@ -388,7 +406,7 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
         cursor: SystemMouseCursors.click,
         onEnter: (_) {
           _anchorHovered = true;
-          _showOverlay();
+          _scheduleShow();
         },
         onExit: (_) {
           _anchorHovered = false;

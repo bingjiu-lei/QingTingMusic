@@ -685,11 +685,11 @@ class KugouApiClient {
   }
 
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
-    if (playlist.kind == MusicPlaylistKind.album &&
-        int.tryParse(playlist.id) != null &&
-        (playlist.listId.isEmpty || playlist.listId == playlist.id)) {
+    if (playlist.kind == MusicPlaylistKind.album) {
       final albumId = _albumIdFromPlaylist(playlist);
-      return _getAlbumSongs(albumId);
+      if (albumId.isNotEmpty) {
+        return _getAlbumSongs(albumId);
+      }
     }
     if (playlist.kind == MusicPlaylistKind.collectedPlaylist &&
         (playlist.sourceId ?? '').isNotEmpty) {
@@ -815,7 +815,7 @@ class KugouApiClient {
       if (total > 0 && songs.length >= total) break;
       if (records.length < pageSize || added == 0) break;
     }
-    return songs.values.toList().reversed.toList();
+    return songs.values.toList();
   }
 
   Future<List<Song>> getCloudSongs() async {
@@ -2043,6 +2043,9 @@ String _ownerIdFromCollectionId(String value) {
 }
 
 String _albumIdFromPlaylist(MusicPlaylist playlist) {
+  final sourceList = playlist.sourceListId ?? '';
+  final directSourceList = int.tryParse(sourceList);
+  if (directSourceList != null && directSourceList > 0) return sourceList;
   final source = playlist.sourceId ?? '';
   final directSource = int.tryParse(source);
   if (directSource != null && directSource > 0) return source;

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,6 +34,8 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  static const _projectUrl = 'https://github.com/bingjiu-lei/QingTingMusic';
+
   final _service = ApiEndpointService();
   final _cacheService = CacheManagementService();
   final _developerService = DeveloperModeService();
@@ -126,6 +129,22 @@ class _SettingsPageState extends State<SettingsPage> {
       if (mounted) setState(() => _proxyErrorText = error.toString());
     } finally {
       if (mounted) setState(() => _savingProxy = false);
+    }
+  }
+
+  Future<void> _openProjectHome() async {
+    try {
+      await Process.start('rundll32', [
+        'url.dll,FileProtocolHandler',
+        _projectUrl,
+      ], mode: ProcessStartMode.detached);
+    } catch (_) {
+      if (!mounted) return;
+      await Clipboard.setData(const ClipboardData(text: _projectUrl));
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('项目地址已复制')));
     }
   }
 
@@ -481,6 +500,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       controller: widget.updateController,
                       onCheckUpdates: widget.onCheckUpdates,
                       onVersionTap: _handleVersionTap,
+                      onProjectTap: _openProjectHome,
                       onLegalTap: _showLegalDialog,
                     ),
                     if (_developerEnabled) ...[
@@ -741,12 +761,14 @@ class _UpdateSection extends StatelessWidget {
     required this.controller,
     required this.onCheckUpdates,
     required this.onVersionTap,
+    required this.onProjectTap,
     required this.onLegalTap,
   });
 
   final UpdateController controller;
   final VoidCallback onCheckUpdates;
   final VoidCallback onVersionTap;
+  final VoidCallback onProjectTap;
   final VoidCallback onLegalTap;
 
   @override
@@ -813,6 +835,11 @@ class _UpdateSection extends StatelessWidget {
                           )
                         : const Icon(Icons.system_update_alt_rounded, size: 18),
                     label: Text(checking ? '检查中' : '检查更新'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onProjectTap,
+                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                    label: const Text('项目地址'),
                   ),
                   OutlinedButton.icon(
                     onPressed: onLegalTap,

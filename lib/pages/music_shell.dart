@@ -84,6 +84,8 @@ class _MusicShellState extends State<MusicShell>
   MusicPlaylist? detailPlaylist;
   SearchCatalogItem? detailCatalogItem;
   String? detailIdentity;
+  String? detailStorageKeyPrefix;
+  int _detailStorageEpoch = 0;
   int detailSelectedTab = 0;
   final List<_DetailSnapshot> detailHistory = [];
   bool showQueuePanel = false;
@@ -398,6 +400,7 @@ class _MusicShellState extends State<MusicShell>
         detailPlaylist = null;
         detailCatalogItem = null;
         detailIdentity = null;
+        detailStorageKeyPrefix = null;
         detailSelectedTab = 0;
         detailHistory.clear();
         showNowPlayingPage = false;
@@ -486,6 +489,7 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _openCatalog(SearchCatalogItem item) async {
     final identity = 'catalog:${item.category.name}:${item.id}';
     if (detailIdentity == identity) return;
+    final storageKeyPrefix = '$identity:${++_detailStorageEpoch}';
     setState(() {
       _pushCurrentDetail();
       detailTitle = item.title;
@@ -505,6 +509,7 @@ class _MusicShellState extends State<MusicShell>
       detailPlaylist = null;
       detailCatalogItem = item;
       detailIdentity = identity;
+      detailStorageKeyPrefix = storageKeyPrefix;
       detailSelectedTab = 0;
     });
     try {
@@ -585,6 +590,7 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _openPlaylist(MusicPlaylist playlist) async {
     final identity = 'playlist:${playlist.kind.name}:${playlist.id}';
     if (detailIdentity == identity) return;
+    final storageKeyPrefix = '$identity:${++_detailStorageEpoch}';
     setState(() {
       _pushCurrentDetail();
       detailTitle = playlist.name;
@@ -606,6 +612,7 @@ class _MusicShellState extends State<MusicShell>
           ? _catalogFromPlaylist(playlist)
           : null;
       detailIdentity = identity;
+      detailStorageKeyPrefix = storageKeyPrefix;
       detailSelectedTab = 0;
     });
     try {
@@ -804,6 +811,11 @@ class _MusicShellState extends State<MusicShell>
     await _openAlbumFromSong(song);
   }
 
+  Future<void> _openArtistFromNowPlaying(Song song) async {
+    setState(() => showNowPlayingPage = false);
+    await _openArtistFromSong(song);
+  }
+
   void _pushCurrentDetail() {
     if (detailTitle == null) return;
     detailHistory.add(
@@ -821,6 +833,7 @@ class _MusicShellState extends State<MusicShell>
         kind: detailKind,
         playlist: detailPlaylist,
         catalogItem: detailCatalogItem,
+        storageKeyPrefix: detailStorageKeyPrefix,
         selectedTab: detailSelectedTab,
       ),
     );
@@ -833,6 +846,7 @@ class _MusicShellState extends State<MusicShell>
         detailPlaylist = null;
         detailCatalogItem = null;
         detailIdentity = null;
+        detailStorageKeyPrefix = null;
         detailSelectedTab = 0;
         detailRelatedLoadingMore = false;
         detailRelatedHasMore = false;
@@ -855,6 +869,7 @@ class _MusicShellState extends State<MusicShell>
       detailKind = previous.kind;
       detailPlaylist = previous.playlist;
       detailCatalogItem = previous.catalogItem;
+      detailStorageKeyPrefix = previous.storageKeyPrefix;
       detailSelectedTab = previous.selectedTab;
     });
   }
@@ -912,6 +927,7 @@ class _MusicShellState extends State<MusicShell>
                               detailPlaylist = null;
                               detailCatalogItem = null;
                               detailIdentity = null;
+                              detailStorageKeyPrefix = null;
                               detailSelectedTab = 0;
                               detailHistory.clear();
                               showNowPlayingPage = false;
@@ -1015,6 +1031,7 @@ class _MusicShellState extends State<MusicShell>
                             onLike: _toggleFavorite,
                             onAddToPlaylist: _showAddToPlaylist,
                             onOpenAlbum: _openAlbumFromNowPlaying,
+                            onOpenArtist: _openArtistFromNowPlaying,
                           )
                         : const SizedBox.shrink(
                             key: ValueKey('now-playing-empty'),
@@ -1066,7 +1083,10 @@ class _MusicShellState extends State<MusicShell>
         isPlaying: playerController.isPlaying,
         selectedTab: detailSelectedTab,
         onTabChanged: (index) => setState(() => detailSelectedTab = index),
-        storageKeyPrefix: detailIdentity ?? '$detailKind:$detailTitle',
+        storageKeyPrefix:
+            detailStorageKeyPrefix ??
+            detailIdentity ??
+            '$detailKind:$detailTitle',
         openedFromArtist:
             detailKind == CollectionDetailKind.album &&
             detailHistory.isNotEmpty &&
@@ -1186,6 +1206,7 @@ class _DetailSnapshot {
     required this.kind,
     required this.playlist,
     required this.catalogItem,
+    required this.storageKeyPrefix,
     required this.selectedTab,
   });
 
@@ -1202,5 +1223,6 @@ class _DetailSnapshot {
   final CollectionDetailKind kind;
   final MusicPlaylist? playlist;
   final SearchCatalogItem? catalogItem;
+  final String? storageKeyPrefix;
   final int selectedTab;
 }

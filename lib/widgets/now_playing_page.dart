@@ -18,6 +18,7 @@ class NowPlayingPage extends StatelessWidget {
     this.onLike,
     this.onAddToPlaylist,
     this.onOpenAlbum,
+    this.onOpenArtist,
   });
 
   final PlayerController controller;
@@ -26,6 +27,7 @@ class NowPlayingPage extends StatelessWidget {
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
   final ValueChanged<Song>? onOpenAlbum;
+  final ValueChanged<Song>? onOpenArtist;
 
   @override
   Widget build(BuildContext context) {
@@ -55,11 +57,13 @@ class NowPlayingPage extends StatelessWidget {
                             song: song,
                             controller: controller,
                             loadLyrics: loadLyrics,
+                            onOpenArtist: onOpenArtist,
                           )
                         : _WideContent(
                             song: song,
                             controller: controller,
                             loadLyrics: loadLyrics,
+                            onOpenArtist: onOpenArtist,
                           ),
                   ),
                   if (song != null) ...[
@@ -239,6 +243,7 @@ class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
             ),
           ),
           child: IconButton(
+            mouseCursor: SystemMouseCursors.click,
             style: IconButton.styleFrom(
               foregroundColor: (_hovered ? AppColors.muted : AppColors.faint)
                   .withValues(
@@ -369,6 +374,9 @@ class _NowPlayingActionButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
+      mouseCursor: onPressed == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
       icon: Icon(icon),
       style: IconButton.styleFrom(
         minimumSize: Size(size, size),
@@ -393,11 +401,13 @@ class _WideContent extends StatelessWidget {
     required this.song,
     required this.controller,
     required this.loadLyrics,
+    this.onOpenArtist,
   });
 
   final Song song;
   final PlayerController controller;
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
+  final ValueChanged<Song>? onOpenArtist;
 
   @override
   Widget build(BuildContext context) {
@@ -407,7 +417,7 @@ class _WideContent extends StatelessWidget {
           flex: 5,
           child: Align(
             alignment: Alignment.center,
-            child: _SongIdentity(song: song),
+            child: _SongIdentity(song: song, onOpenArtist: onOpenArtist),
           ),
         ),
         const SizedBox(width: 48),
@@ -432,18 +442,20 @@ class _CompactContent extends StatelessWidget {
     required this.song,
     required this.controller,
     required this.loadLyrics,
+    this.onOpenArtist,
   });
 
   final Song song;
   final PlayerController controller;
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
+  final ValueChanged<Song>? onOpenArtist;
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: Column(
         children: [
-          _SongIdentity(song: song),
+          _SongIdentity(song: song, onOpenArtist: onOpenArtist),
           const SizedBox(height: 30),
           _LyricsPanel(
             song: song,
@@ -457,9 +469,10 @@ class _CompactContent extends StatelessWidget {
 }
 
 class _SongIdentity extends StatelessWidget {
-  const _SongIdentity({required this.song});
+  const _SongIdentity({required this.song, this.onOpenArtist});
 
   final Song song;
+  final ValueChanged<Song>? onOpenArtist;
 
   @override
   Widget build(BuildContext context) {
@@ -493,15 +506,26 @@ class _SongIdentity extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 9),
-          Text(
-            _artistLabel(song),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: AppColors.muted,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
+          MouseRegion(
+            cursor: onOpenArtist == null
+                ? SystemMouseCursors.basic
+                : SystemMouseCursors.click,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: onOpenArtist == null ? null : () => onOpenArtist!(song),
+              child: Text(
+                _artistLabel(song),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: onOpenArtist == null
+                      ? AppColors.muted
+                      : AppColors.muted.withValues(alpha: 0.96),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
         ],
@@ -782,8 +806,8 @@ class _PlaybackControls extends StatelessWidget {
                 ),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 5,
+                    horizontal: 11,
+                    vertical: 3,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -860,11 +884,14 @@ class _GlassControlButton extends StatelessWidget {
     return IconButton(
       tooltip: tooltip,
       onPressed: onPressed,
+      mouseCursor: onPressed == null
+          ? SystemMouseCursors.basic
+          : SystemMouseCursors.click,
       icon: Icon(icon),
       style: IconButton.styleFrom(
-        minimumSize: const Size(38, 38),
-        fixedSize: const Size(38, 38),
-        iconSize: 21,
+        minimumSize: const Size(36, 36),
+        fixedSize: const Size(36, 36),
+        iconSize: 20,
         foregroundColor: AppColors.muted,
         disabledForegroundColor: AppColors.faint.withValues(alpha: 0.45),
         hoverColor: AppColors.primary.withValues(alpha: 0.10),
@@ -891,11 +918,13 @@ class _PlayControlButton extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
       child: SizedBox(
-        width: 48,
-        height: 48,
+        width: 46,
+        height: 46,
         child: FilledButton(
           onPressed: disabled ? null : onPressed,
           style: FilledButton.styleFrom(
+            enabledMouseCursor: SystemMouseCursors.click,
+            disabledMouseCursor: SystemMouseCursors.basic,
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white,
             disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.46),
@@ -908,7 +937,7 @@ class _PlayControlButton extends StatelessWidget {
             isPlaying || disabled
                 ? Icons.pause_rounded
                 : Icons.play_arrow_rounded,
-            size: 29,
+            size: 28,
           ),
         ),
       ),

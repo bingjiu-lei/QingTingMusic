@@ -51,6 +51,7 @@ class _SongPanelState extends State<SongPanel> {
 
   String _filterText = '';
   bool _filterExpanded = false;
+  bool _reversed = false;
 
   @override
   void dispose() {
@@ -61,9 +62,10 @@ class _SongPanelState extends State<SongPanel> {
   }
 
   List<Song> get _visibleSongs {
+    final source = _reversed ? widget.songs.reversed.toList() : widget.songs;
     final keyword = _filterText.trim().toLowerCase();
-    if (keyword.isEmpty) return widget.songs;
-    return widget.songs.where((song) {
+    if (keyword.isEmpty) return source;
+    return source.where((song) {
       return song.title.toLowerCase().contains(keyword) ||
           song.artist.toLowerCase().contains(keyword) ||
           song.album.toLowerCase().contains(keyword);
@@ -109,31 +111,41 @@ class _SongPanelState extends State<SongPanel> {
                 ),
               ),
               if (widget.songs.isNotEmpty)
-                _ListFilterField(
-                  controller: _filterController,
-                  focusNode: _filterFocusNode,
-                  expanded: _filterExpanded,
-                  hasFilter: hasFilter,
-                  onExpand: () {
-                    setState(() => _filterExpanded = true);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _filterFocusNode.requestFocus();
-                    });
-                  },
-                  onChanged: (value) => setState(() => _filterText = value),
-                  onSubmitted: (_) {
-                    if (!hasFilter) {
-                      setState(() => _filterExpanded = false);
-                    }
-                  },
-                  onClear: () {
-                    _filterController.clear();
-                    setState(() {
-                      _filterText = '';
-                      _filterExpanded = false;
-                    });
-                    _filterFocusNode.unfocus();
-                  },
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ListFilterField(
+                      controller: _filterController,
+                      focusNode: _filterFocusNode,
+                      expanded: _filterExpanded,
+                      hasFilter: hasFilter,
+                      onExpand: () {
+                        setState(() => _filterExpanded = true);
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) _filterFocusNode.requestFocus();
+                        });
+                      },
+                      onChanged: (value) => setState(() => _filterText = value),
+                      onSubmitted: (_) {
+                        if (!hasFilter) {
+                          setState(() => _filterExpanded = false);
+                        }
+                      },
+                      onClear: () {
+                        _filterController.clear();
+                        setState(() {
+                          _filterText = '';
+                          _filterExpanded = false;
+                        });
+                        _filterFocusNode.unfocus();
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                    _ListSortButton(
+                      reversed: _reversed,
+                      onTap: () => setState(() => _reversed = !_reversed),
+                    ),
+                  ],
                 ),
             ],
           ),
@@ -222,6 +234,51 @@ class _SongPanelState extends State<SongPanel> {
                   ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ListSortButton extends StatelessWidget {
+  const _ListSortButton({required this.reversed, required this.onTap});
+
+  final bool reversed;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: reversed ? '切换为原顺序' : '切换为倒序',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          hoverColor: AppColors.surfaceHover,
+          mouseCursor: SystemMouseCursors.click,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: reversed
+                  ? AppColors.selected.withValues(
+                      alpha: AppColors.isDark ? 0.72 : 0.92,
+                    )
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Icon(
+              reversed
+                  ? Icons.south_rounded
+                  : Icons.format_list_numbered_rounded,
+              size: reversed ? 17 : 18,
+              color: reversed ? AppColors.primary : AppColors.muted,
+            ),
+          ),
+        ),
       ),
     );
   }

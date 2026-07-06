@@ -228,9 +228,21 @@ class MusicLibraryController extends ChangeNotifier {
     bool refresh = false,
   }) async {
     final cacheKey = _playlistCacheKey(playlist);
+    final albumNeedsFreshOrder = playlist.kind == MusicPlaylistKind.album;
     if (!refresh) {
       final cached = await cacheService.loadPlaylistSongs(cacheKey);
       if (cached.isNotEmpty) {
+        if (albumNeedsFreshOrder) {
+          try {
+            final songs = await repository.getPlaylistSongs(playlist);
+            if (songs.isNotEmpty) {
+              unawaited(cacheService.savePlaylistSongs(cacheKey, songs));
+              return songs;
+            }
+          } catch (_) {
+            return cached;
+          }
+        }
         unawaited(_refreshPlaylistSongsCache(playlist, cacheKey));
         return cached;
       }
