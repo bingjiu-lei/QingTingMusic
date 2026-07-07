@@ -626,6 +626,19 @@ class KugouApiClient {
         result.add(
           count > 0 ? _playlistWithSongCount(playlist, count) : playlist,
         );
+      } else if (playlist.kind == MusicPlaylistKind.album &&
+          playlist.songCount == 0) {
+        final albumId = _albumIdFromPlaylist(playlist);
+        if (albumId.isEmpty) {
+          result.add(playlist);
+          continue;
+        }
+        final songs = await _getAlbumSongs(albumId);
+        result.add(
+          songs.isNotEmpty
+              ? _playlistWithSongCount(playlist, songs.length)
+              : playlist,
+        );
       } else {
         result.add(playlist);
       }
@@ -653,31 +666,38 @@ class KugouApiClient {
     final image = _read(json, ['pic', 'img', 'sizable_cover']);
     final source = _toInt(json['source']);
     final ownerId = _read(json, ['list_create_userid', 'userid', 'user_id']);
-    final isMine =
-        ownerId.isNotEmpty && ownerId == session.userId ||
-        _toInt(json['is_mine']) == 1;
     final isDefault = _toInt(json['is_def'] ?? json['is_default']) > 0;
+    final collectionType = _toInt(json['type']);
+    final mineFlag =
+        (ownerId.isNotEmpty && ownerId == session.userId) ||
+        _toInt(json['is_mine']) == 1;
     final localId = _read(json, ['global_collection_id', 'gid', 'specialid']);
     final sourceId = _read(json, ['list_create_gid']);
     final localListId = _read(json, ['listid']);
-    final sourceListId = _read(json, ['list_create_listid', 'specialid']);
+    final sourceListId = source == 2
+        ? _read(json, ['musiclib_id', 'list_create_listid', 'specialid'])
+        : _read(json, ['list_create_listid', 'specialid']);
     final kind = isDefault
         ? MusicPlaylistKind.favoriteSongs
         : source == 2
         ? MusicPlaylistKind.album
-        : isMine
+        : collectionType != 0
+        ? MusicPlaylistKind.collectedPlaylist
+        : mineFlag
         ? MusicPlaylistKind.createdPlaylist
+        : sourceId.isNotEmpty
+        ? MusicPlaylistKind.collectedPlaylist
         : MusicPlaylistKind.collectedPlaylist;
     final playlist = MusicPlaylist(
       id: localId.isNotEmpty ? localId : sourceId,
       listId: localListId.isNotEmpty ? localListId : sourceListId,
       name: _read(json, ['name'], fallback: '未命名歌单'),
-      songCount: _toInt(json['m_count'] ?? json['song_count']),
+      songCount: _toInt(json['m_count'] ?? json['song_count'] ?? json['count']),
       coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
       sourceId: sourceId.isEmpty ? null : sourceId,
       sourceListId: sourceListId.isEmpty ? null : sourceListId,
       isDefault: isDefault,
-      isMine: isMine,
+      isMine: kind == MusicPlaylistKind.createdPlaylist,
       kind: kind,
     );
     if (playlist.id.isEmpty && playlist.listId.isEmpty) return null;
@@ -901,8 +921,7 @@ class KugouApiClient {
   Future<void> collectCatalog(SearchCatalogItem item) async {
     switch (item.category) {
       case SearchCategory.playlist:
-        final ownerId = item.ownerId ?? _ownerIdFromCollectionId(item.id);
-        if (ownerId.isEmpty || (item.listId ?? '').isEmpty) {
+        if (item.id.isEmpty) {
           throw const KugouApiException('歌单缺少收藏信息');
         }
         final response = await _post(
@@ -912,8 +931,8 @@ class KugouApiClient {
             'name': item.title,
             'source': 1,
             'type': 1,
-            'list_create_userid': ownerId,
-            'list_create_listid': item.listId ?? '',
+            'list_create_userid': session.userId,
+            'list_create_listid': '1',
             'list_create_gid': item.id,
           },
         );
@@ -926,7 +945,24 @@ class KugouApiClient {
         );
         _ensureOperationSucceeded(response.data);
       case SearchCategory.album:
-        throw const KugouApiException('暂不支持收藏专辑，已避免写入异常收藏数据');
+        final albumId = item.listId ?? item.id;
+        if (albumId.isEmpty) {
+          throw const KugouApiException('专辑缺少收藏信息');
+        }
+        final response = await _post(
+          '/playlist/add',
+          authenticated: true,
+          queryParameters: {
+            'name': item.title,
+            'source': 2,
+            'type': 1,
+            'is_pri': 0,
+            'list_create_userid': item.ownerId ?? '0',
+            'list_create_listid': albumId,
+            'list_create_gid': '',
+          },
+        );
+        _ensureOperationSucceeded(response.data);
       case SearchCategory.song:
         throw const KugouApiException('不支持收藏该类型');
     }
@@ -942,7 +978,16 @@ class KugouApiClient {
         );
         _ensureOperationSucceeded(response.data);
       case SearchCategory.album:
-        throw const KugouApiException('暂不支持取消收藏专辑');
+        final listId = item.listId ?? '';
+        if (listId.isEmpty) {
+          throw const KugouApiException('专辑缺少取消收藏信息');
+        }
+        final response = await _post(
+          '/playlist/del',
+          authenticated: true,
+          queryParameters: {'listid': listId},
+        );
+        _ensureOperationSucceeded(response.data);
       case SearchCategory.artist:
         final response = await _post(
           '/artist/unfollow',
@@ -1516,18 +1561,14 @@ class KugouApiClient {
           'albumid',
           'album_id',
         ]),
-        ownerId: _read(
-          json,
-          ['list_create_userid', 'userid', 'user_id'],
-          fallback: _ownerIdFromCollectionId(
-            _read(json, [
-              'global_collection_id',
-              'list_create_gid',
-              'gid',
-              'specialid',
-            ]),
-          ),
-        ),
+        ownerId: _read(json, [
+          'list_create_userid',
+          'userid',
+          'user_id',
+          'singerid',
+          'author_id',
+          'authorid',
+        ], fallback: '0'),
       ),
       SearchCategory.artist => (
         id: _read(json, ['AuthorId', 'authorid', 'singerid']),

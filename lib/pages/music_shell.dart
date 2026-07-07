@@ -1064,9 +1064,7 @@ class _MusicShellState extends State<MusicShell>
       final isCollected = detailCatalogItem == null
           ? false
           : libraryController.isCatalogCollected(detailCatalogItem!);
-      final collectionItem = detailCatalogItem?.category == SearchCategory.album
-          ? null
-          : detailCatalogItem;
+      final collectionItem = detailCatalogItem;
       return CollectionDetailPage(
         key: ValueKey(detailIdentity ?? '$detailKind:$detailTitle'),
         kind: detailKind,

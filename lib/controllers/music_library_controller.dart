@@ -268,6 +268,7 @@ class MusicLibraryController extends ChangeNotifier {
     final collectedItem = _collectedCatalogItem(item);
     if (collectedItem != null) {
       await repository.uncollectCatalog(collectedItem);
+      _removeCollectedCatalogLocally(collectedItem);
     } else {
       await repository.collectCatalog(item);
     }
@@ -281,12 +282,83 @@ class MusicLibraryController extends ChangeNotifier {
     }
   }
 
+  void _removeCollectedCatalogLocally(SearchCatalogItem item) {
+    switch (item.category) {
+      case SearchCategory.playlist:
+        playlists = playlists
+            .where(
+              (playlist) =>
+                  playlist.kind != MusicPlaylistKind.collectedPlaylist ||
+                  !(_sameCatalog(
+                        playlist.id,
+                        item.id,
+                        playlist.listId,
+                        item.listId,
+                      ) ||
+                      _sameCatalog(
+                        playlist.sourceId ?? '',
+                        item.id,
+                        playlist.sourceListId ?? '',
+                        item.listId,
+                      ) ||
+                      _sameCatalogTitle(playlist.name, item.title)),
+            )
+            .toList();
+      case SearchCategory.album:
+        playlists = playlists
+            .where(
+              (playlist) =>
+                  playlist.kind != MusicPlaylistKind.album ||
+                  !(_sameCatalog(
+                        playlist.id,
+                        item.id,
+                        playlist.listId,
+                        item.listId,
+                      ) ||
+                      _sameCatalog(
+                        playlist.sourceId ?? '',
+                        item.id,
+                        playlist.sourceListId ?? '',
+                        item.listId,
+                      ) ||
+                      _sameCatalogTitle(playlist.name, item.title)),
+            )
+            .toList();
+        albums = albums
+            .where(
+              (album) =>
+                  !(_sameCatalog(
+                        album.id,
+                        item.id,
+                        album.listId,
+                        item.listId,
+                      ) ||
+                      _sameCatalog(
+                        album.sourceId ?? '',
+                        item.id,
+                        album.sourceListId ?? '',
+                        item.listId,
+                      ) ||
+                      _sameCatalogTitle(album.name, item.title)),
+            )
+            .toList();
+      case SearchCategory.artist:
+        followedArtists = followedArtists
+            .where(
+              (artist) => artist.id != item.id && artist.title != item.title,
+            )
+            .toList();
+      case SearchCategory.song:
+        break;
+    }
+  }
+
   Future<void> _refreshCatalogCollection(SearchCategory category) async {
     switch (category) {
       case SearchCategory.playlist:
         await ensureLoaded(LibrarySection.playlists, refresh: true);
       case SearchCategory.album:
-        throw const KugouApiException('暂不支持收藏专辑');
+        await ensureLoaded(LibrarySection.albums, refresh: true);
       case SearchCategory.artist:
         await ensureLoaded(LibrarySection.artists, refresh: true);
       case SearchCategory.song:
@@ -324,7 +396,26 @@ class MusicLibraryController extends ChangeNotifier {
           }
         }
       case SearchCategory.album:
-        return null;
+        for (final album in albums) {
+          if (_sameCatalog(album.id, item.id, album.listId, item.listId) ||
+              _sameCatalog(
+                album.sourceId ?? '',
+                item.id,
+                album.sourceListId ?? '',
+                item.listId,
+              ) ||
+              _sameCatalogTitle(album.name, item.title)) {
+            return SearchCatalogItem(
+              id: album.sourceListId ?? album.id,
+              title: album.name,
+              subtitle: '${album.songCount} 首歌曲',
+              category: SearchCategory.album,
+              imageUrl: album.coverUrl,
+              listId: album.listId,
+              ownerId: album.sourceId,
+            );
+          }
+        }
       case SearchCategory.artist:
         for (final artist in followedArtists) {
           if (artist.id == item.id || artist.title == item.title) {

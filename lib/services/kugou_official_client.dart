@@ -602,14 +602,12 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     return _android(
       '/cloudlist.service/v5/add_list',
-      params['type']?.toString() == '0'
-          ? {
-              'last_time': clienttime,
-              'last_area': 'gztx',
-              'userid': cookie['userid'] ?? '0',
-              'token': cookie['token'] ?? '',
-            }
-          : {},
+      {
+        'last_time': clienttime,
+        'last_area': 'gztx',
+        'userid': cookie['userid'] ?? '0',
+        'token': cookie['token'] ?? '',
+      },
       cookie,
       method: 'POST',
       data: {
