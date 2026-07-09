@@ -8,6 +8,7 @@ import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/song.dart';
 import 'package:qing_ting_music/services/audio_player_service.dart';
 import 'package:qing_ting_music/services/kugou_api_client.dart';
+import 'package:qing_ting_music/services/playback_state_service.dart';
 
 void main() {
   test('automatically advances when playback completes', () async {
@@ -16,6 +17,7 @@ void main() {
     final songs = [_song('one'), _song('two')];
 
     await controller.playSong(songs.first, fromQueue: songs);
+    await Future<void>.delayed(const Duration(milliseconds: 750));
     audio.finish(songs.first.duration);
     audio.complete();
     await Future<void>.delayed(const Duration(milliseconds: 180));
@@ -70,6 +72,7 @@ void main() {
     final songs = [_song('one'), _song('two')];
 
     await controller.playSong(songs.last, fromQueue: songs);
+    await Future<void>.delayed(const Duration(milliseconds: 750));
     audio.finish(songs.last.duration);
     audio.complete();
     await Future<void>.delayed(const Duration(milliseconds: 180));
@@ -90,6 +93,7 @@ void main() {
       ..cyclePlaybackMode()
       ..cyclePlaybackMode();
     await controller.playSong(songs.first, fromQueue: songs);
+    await Future<void>.delayed(const Duration(milliseconds: 750));
     audio.finish(songs.first.duration);
     audio.complete();
     await Future<void>.delayed(const Duration(milliseconds: 180));
@@ -115,6 +119,25 @@ void main() {
 
     controller.dispose();
   });
+
+  test(
+    'ignores a stale completion event even when stale position is at the end',
+    () async {
+      final audio = _FakeAudioPlayerService();
+      final controller = PlayerController(audioService: audio);
+      final songs = [_song('one'), _song('two'), _song('three')];
+
+      await controller.playSong(songs[1], fromQueue: songs);
+      audio.finish(songs[1].duration);
+      audio.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+
+      expect(controller.currentSong?.id, 'two');
+      expect(audio.opened.map((song) => song.id), ['two']);
+
+      controller.dispose();
+    },
+  );
 
   test(
     'keeps the playing song visible when the next song cannot resolve',
@@ -188,6 +211,54 @@ void main() {
       controller.dispose();
     },
   );
+
+  test('saves playback state while position keeps changing', () async {
+    final audio = _FakeAudioPlayerService();
+    final state = _FakePlaybackStateService();
+    final controller = PlayerController(
+      audioService: audio,
+      playbackStateService: state,
+    );
+
+    await controller.playSong(_song('one'));
+    audio.seekTo(const Duration(seconds: 10));
+    audio.seekTo(const Duration(seconds: 11));
+    audio.seekTo(const Duration(seconds: 12));
+    await Future<void>.delayed(const Duration(milliseconds: 2300));
+
+    expect(state.saved, isNotEmpty);
+    expect(state.saved.last.currentSong?.id, 'one');
+    expect(state.saved.last.position, const Duration(seconds: 12));
+
+    controller.dispose();
+  });
+
+  test('hides technical playback notices by default', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+
+    audio.showTechnicalNotice('已使用本地缓存');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.playbackNotice, isNull);
+
+    controller.dispose();
+  });
+
+  test('shows technical playback notices in developer mode', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(
+      audioService: audio,
+      showTechnicalPlaybackNotices: true,
+    );
+
+    audio.showTechnicalNotice('已使用本地缓存');
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.playbackNotice, '已使用本地缓存');
+
+    controller.dispose();
+  });
 }
 
 Song _song(String id) => Song(
@@ -210,6 +281,7 @@ class _FakeAudioPlayerService extends AudioPlayerService {
   final _playing = StreamController<bool>.broadcast();
   final _completed = StreamController<void>.broadcast();
   final _position = StreamController<Duration>.broadcast();
+  final _technicalNotices = StreamController<String>.broadcast();
   final List<Song> opened = [];
 
   @override
@@ -225,6 +297,9 @@ class _FakeAudioPlayerService extends AudioPlayerService {
   Stream<Duration> get positionStream => _position.stream;
 
   @override
+  Stream<String> get technicalNoticeStream => _technicalNotices.stream;
+
+  @override
   Future<void> open(Song song) async {
     opened.add(song);
     _playing.add(true);
@@ -236,11 +311,29 @@ class _FakeAudioPlayerService extends AudioPlayerService {
 
   void seekTo(Duration position) => _position.add(position);
 
+  void showTechnicalNotice(String message) => _technicalNotices.add(message);
+
   @override
   Future<void> dispose() async {
     await _playing.close();
     await _completed.close();
     await _position.close();
+    await _technicalNotices.close();
     await super.dispose();
   }
+}
+
+class _FakePlaybackStateService extends PlaybackStateService {
+  final saved = <PlaybackSnapshot>[];
+
+  @override
+  Future<PlaybackSnapshot?> load() async => null;
+
+  @override
+  Future<void> save(PlaybackSnapshot snapshot) async {
+    saved.add(snapshot);
+  }
+
+  @override
+  Future<void> clear() async {}
 }

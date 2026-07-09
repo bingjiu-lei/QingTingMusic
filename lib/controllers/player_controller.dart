@@ -27,6 +27,7 @@ class PlayerController extends ChangeNotifier {
     this.resolveSong,
     this.recentSongsService,
     this.playbackStateService,
+    this.showTechnicalPlaybackNotices = false,
   }) {
     _subscriptions = [
       audioService.playingStream.listen((value) {
@@ -58,6 +59,11 @@ class PlayerController extends ChangeNotifier {
         errorText = message.isEmpty ? '播放失败，请稍后重试。' : message;
         notifyListeners();
       }),
+      audioService.technicalNoticeStream.listen((message) {
+        if (!showTechnicalPlaybackNotices) return;
+        _showPlaybackNotice(message);
+        notifyListeners();
+      }),
     ];
   }
 
@@ -80,6 +86,7 @@ class PlayerController extends ChangeNotifier {
   String? playbackNotice;
   final List<Song> recentSongs = [];
   bool _handlingCompletion = false;
+  bool showTechnicalPlaybackNotices;
   Timer? _noticeTimer;
   Timer? _nearEndTimer;
   Timer? _savePlaybackTimer;
@@ -97,11 +104,10 @@ class PlayerController extends ChangeNotifier {
     if (_handlingCompletion || isPreparing || currentSong == null) return;
     await Future<void>.delayed(const Duration(milliseconds: 120));
     if (isPreparing || duration <= Duration.zero) return;
-    final remaining = duration - position;
     final playedLongEnough =
         DateTime.now().difference(_songStartedAt ?? DateTime.now()) >
         const Duration(milliseconds: 700);
-    if (!playedLongEnough && remaining > const Duration(seconds: 2)) return;
+    if (!playedLongEnough) return;
     _handlingCompletion = true;
     try {
       await playNext(autoAdvance: true);
@@ -269,6 +275,17 @@ class PlayerController extends ChangeNotifier {
     playbackMode = values[nextIndex];
     _schedulePlaybackStateSave(immediate: true);
     notifyListeners();
+  }
+
+  void setTechnicalPlaybackNoticesEnabled(bool value) {
+    if (showTechnicalPlaybackNotices == value) return;
+    showTechnicalPlaybackNotices = value;
+    if (!value &&
+        (playbackNotice == '已使用本地缓存' || playbackNotice == '本地缓存不可用，已切换在线播放')) {
+      playbackNotice = null;
+      _noticeTimer?.cancel();
+      notifyListeners();
+    }
   }
 
   void replaceQueue(List<Song> songs, {Song? current}) {
@@ -488,7 +505,8 @@ class PlayerController extends ChangeNotifier {
 
   void _schedulePlaybackStateSave({bool immediate = false}) {
     if (playbackStateService == null) return;
-    _savePlaybackTimer?.cancel();
+    if (!immediate && (_savePlaybackTimer?.isActive ?? false)) return;
+    if (immediate) _savePlaybackTimer?.cancel();
     final delay = immediate ? Duration.zero : const Duration(seconds: 2);
     _savePlaybackTimer = Timer(delay, () {
       unawaited(_savePlaybackState());

@@ -221,7 +221,7 @@ class KugouApiClient {
     final token = (data['token'] ?? '').toString();
     final userId = (data['userid'] ?? data['user_id'] ?? '').toString();
     if (token.isEmpty || userId.isEmpty) {
-      throw const KugouApiException('登录成功，但未获得有效凭证');
+      throw const KugouApiException('该账号未注册或未获得有效登录凭证');
     }
 
     session = _mergeCookies(
@@ -419,7 +419,7 @@ class KugouApiClient {
     ], fallback: _read(body, ['userid', 'user_id']));
     if (token.isEmpty || userId.isEmpty || userId == '0') {
       throw KugouApiException(
-        _read(body, ['error', 'message', 'msg'], fallback: '登录成功，但未获得有效凭证'),
+        _read(body, ['error', 'message', 'msg'], fallback: '该账号未注册或未获得有效登录凭证'),
       );
     }
     session = _mergeCookies(
@@ -1059,6 +1059,9 @@ class KugouApiClient {
           return song.copyWith(audioUrl: cloudUrl, playbackNotice: '已切换云盘版本');
         }
       }
+
+      final searchableMatch = await _findPlayableSearchReplacement(song);
+      if (searchableMatch != null) return searchableMatch;
     }
 
     throw const KugouApiException('该歌曲无版权或需付费');
@@ -1146,6 +1149,24 @@ class KugouApiClient {
       final cloudSongs = await getCloudSongs();
       for (final cloudSong in cloudSongs) {
         if (_isSameSong(song, cloudSong)) return cloudSong;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<Song?> _findPlayableSearchReplacement(Song song) async {
+    try {
+      final candidates = await searchSongs('${song.title} ${song.artist}');
+      for (final candidate in candidates) {
+        if (!_isReplacementCandidate(song, candidate)) continue;
+        final candidateUrl = await _resolveSongUrl(candidate);
+        if (candidateUrl == null) continue;
+        return song.copyWith(
+          audioUrl: candidateUrl,
+          playbackNotice: '已切换可播放版本',
+        );
       }
     } catch (_) {
       return null;
@@ -2061,12 +2082,49 @@ bool _isSameSong(Song source, Song target) {
   return sourceAlbum.isNotEmpty && sourceAlbum == targetAlbum;
 }
 
+bool _isReplacementCandidate(Song source, Song target) {
+  final sourceHash = source.hash?.toLowerCase() ?? '';
+  final targetHash = target.hash?.toLowerCase() ?? '';
+  if (targetHash.isEmpty || sourceHash == targetHash) return false;
+
+  final sourceTitle = _normalizeSongText(source.title);
+  final targetTitle = _normalizeSongText(target.title);
+  if (sourceTitle.isEmpty || sourceTitle != targetTitle) return false;
+
+  final sourceArtists = _normalizedArtistSet(source);
+  final targetArtists = _normalizedArtistSet(target);
+  if (sourceArtists.isEmpty || targetArtists.isEmpty) return false;
+  return sourceArtists.intersection(targetArtists).isNotEmpty ||
+      sourceArtists.any((sourceArtist) {
+        return targetArtists.any(
+          (targetArtist) =>
+              sourceArtist.contains(targetArtist) ||
+              targetArtist.contains(sourceArtist),
+        );
+      });
+}
+
 String _normalizeSongText(String value) {
   return value
       .toLowerCase()
       .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac)$'), '')
       .replaceAll(RegExp(r'[\s《》〈〉「」『』【】\[\]（）()_-]+'), '')
       .trim();
+}
+
+Set<String> _normalizedArtistSet(Song song) {
+  final values = <String>[
+    song.artist,
+    for (final artist in song.artists) artist.name,
+  ];
+  final result = <String>{};
+  for (final value in values) {
+    for (final part in value.split(RegExp(r'(、|,|，|/|&|;|；)'))) {
+      final normalized = _normalizeArtistText(part);
+      if (normalized.isNotEmpty) result.add(normalized);
+    }
+  }
+  return result;
 }
 
 String _normalizeArtistText(String value) {

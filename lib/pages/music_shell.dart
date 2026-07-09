@@ -22,6 +22,7 @@ import '../models/app_update.dart';
 import '../services/audio_player_service.dart';
 import '../services/app_preferences_service.dart';
 import '../services/cache_management_service.dart';
+import '../services/developer_mode_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/search_history_service.dart';
 import '../services/recent_songs_service.dart';
@@ -70,6 +71,7 @@ class _MusicShellState extends State<MusicShell>
   late final MusicLibraryController libraryController;
   late final UpdateController updateController;
   final cacheManagementService = CacheManagementService();
+  final _developerModeService = DeveloperModeService();
   final _preferences = AppPreferencesService();
 
   int selectedIndex = 0;
@@ -130,6 +132,7 @@ class _MusicShellState extends State<MusicShell>
       ..addListener(_refresh);
     updateController = UpdateController()..addListener(_refresh);
     _loadWindowPreferences();
+    _loadDeveloperMode();
     searchController.initialize();
     playerController.initialize();
     _sessionExpiredSubscription = SessionExpiredService.stream.listen((_) {
@@ -176,6 +179,16 @@ class _MusicShellState extends State<MusicShell>
     await _applyCloseBehavior(value);
     if (!mounted) return;
     setState(() => _closeToTray = value);
+  }
+
+  Future<void> _loadDeveloperMode() async {
+    final enabled = await _developerModeService.loadEnabled();
+    if (!mounted) return;
+    _setDeveloperMode(enabled);
+  }
+
+  void _setDeveloperMode(bool value) {
+    playerController.setTechnicalPlaybackNoticesEnabled(value);
   }
 
   Future<void> _checkForUpdates({bool silent = false}) async {
@@ -306,7 +319,7 @@ class _MusicShellState extends State<MusicShell>
 
   Future<void> _destroyWindowAndTray() async {
     try {
-      unawaited(playerController.flushPlaybackState());
+      await playerController.flushPlaybackState();
       await windowManager.setPreventClose(false);
       unawaited(trayManager.destroy());
       await windowManager.close();
@@ -1151,6 +1164,7 @@ class _MusicShellState extends State<MusicShell>
           searchController.invalidateCachedResults();
           unawaited(libraryController.ensureLoaded(LibrarySection.songs));
         },
+        onDeveloperModeChanged: _setDeveloperMode,
       ),
     };
   }

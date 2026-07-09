@@ -21,6 +21,7 @@ class SettingsPage extends StatefulWidget {
     required this.closeToTray,
     required this.onCloseToTrayChanged,
     this.onEndpointChanged,
+    this.onDeveloperModeChanged,
   });
 
   final UpdateController updateController;
@@ -28,6 +29,7 @@ class SettingsPage extends StatefulWidget {
   final bool closeToTray;
   final ValueChanged<bool> onCloseToTrayChanged;
   final VoidCallback? onEndpointChanged;
+  final ValueChanged<bool>? onDeveloperModeChanged;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -270,6 +272,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await _developerService.saveEnabled(true);
     if (!mounted) return;
     setState(() => _developerEnabled = true);
+    widget.onDeveloperModeChanged?.call(true);
     _showSnack('开发者模式已开启');
   }
 
@@ -290,6 +293,7 @@ class _SettingsPageState extends State<SettingsPage> {
     await _developerService.saveEnabled(false);
     if (!mounted) return;
     setState(() => _developerEnabled = false);
+    widget.onDeveloperModeChanged?.call(false);
     _showSnack('开发者模式已关闭');
   }
 
