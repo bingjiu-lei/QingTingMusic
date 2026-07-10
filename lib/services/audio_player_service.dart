@@ -29,6 +29,7 @@ class AudioPlayerService {
   final StreamController<String> _technicalNotices =
       StreamController.broadcast();
   final Map<String, DateTime> _localPlaybackSkips = {};
+  int _openGeneration = 0;
 
   Stream<bool> get playingStream =>
       _player?.playingStream ?? const Stream<bool>.empty();
@@ -61,26 +62,95 @@ class AudioPlayerService {
     if (url.isEmpty) throw StateError('播放地址为空');
     final uri = Uri.parse(url);
 
+    // Each open() bumps the generation so a stale local-playback guard from a
+    // previous song knows to cancel itself instead of clobbering the new one.
+    _openGeneration++;
+    final generation = _openGeneration;
+
     final cacheFile = await _readableCachedFile(song, uri);
     if (cacheFile != null && !_shouldSkipLocalPlayback(song)) {
-      try {
-        await _openUri(player, Uri.file(cacheFile.path));
-        final localStarted = await _waitForLocalPlayback(player);
-        if (localStarted) {
-          await _touch(cacheFile);
-          unawaited(_cacheManagementService.trimToLimit());
-          _technicalNotices.add('已使用本地缓存');
-          return;
-        }
-        _skipLocalPlayback(song);
-      } catch (_) {
-        _skipLocalPlayback(song);
+      if (await _playLocal(player, cacheFile)) {
+        await _touch(cacheFile);
+        unawaited(_cacheManagementService.trimToLimit());
+        _technicalNotices.add('已使用本地缓存');
+        // Confirm playback asynchronously so a rejected cache file can fall
+        // back to the online URL without blocking open() and stuttering the
+        // start of the track.
+        _guardLocalPlayback(player, song, uri, generation);
+        return;
       }
-      _technicalNotices.add('本地缓存不可用，已切换在线播放');
+      _skipLocalPlayback(song);
     }
 
     await _openUri(player, uri, headers: const {_userAgentHeader: _userAgent});
     unawaited(_cacheInBackground(song, uri));
+  }
+
+  /// Starts playback from a cached local file. Only blocks for setAudioSource
+  /// (fast for a local file); the play retry and failure watch happen off the
+  /// critical path so the caller resumes immediately.
+  Future<bool> _playLocal(AudioPlayer player, File file) async {
+    try {
+      await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
+      unawaited(player.play());
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 200)).then((_) {
+          if (!player.playing) unawaited(player.play());
+        }),
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Non-blocking watch: if the local file never actually starts playing
+  /// (rejected by the backend, corrupt, ACL issue), fall back to the online
+  /// URL. Once position advances, playback is considered confirmed and the
+  /// guard disarms.
+  void _guardLocalPlayback(
+    AudioPlayer player,
+    Song song,
+    Uri onlineUri,
+    int generation,
+  ) {
+    var attempts = 0;
+    Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (generation != _openGeneration) {
+        timer.cancel();
+        return;
+      }
+      if (player.position > Duration.zero) {
+        timer.cancel();
+        return;
+      }
+      attempts++;
+      final state = player.processingState;
+      final failed =
+          state == ProcessingState.idle ||
+          state == ProcessingState.completed ||
+          attempts >= 8;
+      if (!failed) return;
+      timer.cancel();
+      unawaited(_fallbackToOnline(player, song, onlineUri, generation));
+    });
+  }
+
+  Future<void> _fallbackToOnline(
+    AudioPlayer player,
+    Song song,
+    Uri onlineUri,
+    int generation,
+  ) async {
+    if (generation != _openGeneration) return;
+    _skipLocalPlayback(song);
+    _technicalNotices.add('本地缓存不可用，已切换在线播放');
+    await _openUri(
+      player,
+      onlineUri,
+      headers: const {_userAgentHeader: _userAgent},
+    );
+    unawaited(_cacheInBackground(song, onlineUri));
   }
 
   Future<void> _openUri(
@@ -99,23 +169,6 @@ class AudioPlayerService {
     if (!player.playing) {
       unawaited(player.play());
     }
-  }
-
-  Future<bool> _waitForLocalPlayback(AudioPlayer player) async {
-    for (final delay in const [
-      Duration(milliseconds: 450),
-      Duration(milliseconds: 750),
-      Duration(milliseconds: 1100),
-      Duration(milliseconds: 1500),
-    ]) {
-      await Future<void>.delayed(delay);
-      final state = player.processingState;
-      if (state == ProcessingState.completed || state == ProcessingState.idle) {
-        return false;
-      }
-      if (player.playing && player.position > Duration.zero) return true;
-    }
-    return false;
   }
 
   Future<void> _cacheInBackground(Song song, Uri uri) async {
