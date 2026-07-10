@@ -123,6 +123,8 @@
 - 未经用户要求，不创建版本号、标签或 Release。
 - 发布时阅读 `docs/RELEASING.md`，使用 `.\scripts\package.ps1` 构建并验证安装、升级和卸载。
 - 每次发布主动提供中文 Release Markdown、安装包大小和 SHA256。
+- 生成 Release Markdown 时，必须按“上次已发布版本到当前版本”的完整变更范围整理，不只写最后一次提交。若 Git tag 缺失或滞后，以 `pubspec.yaml`、`dist` 安装包版本、用户确认的上一版和 Git 日志共同判断边界，并明确覆盖边界后的所有未发布提交。
+- Release Markdown 只写最终发布版本中的用户可感知净变化。开发中途引入但已修复、已撤回、未进入发行包的“拆东墙补西墙”式临时 bug 或过程性问题，不要写进发版内容。
 - GitHub 推送使用：
 
 ```powershell
