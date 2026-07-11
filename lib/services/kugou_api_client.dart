@@ -9,6 +9,7 @@ import '../models/lyric.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
+import '../controllers/playback_quality_controller.dart';
 import 'api_endpoint_service.dart';
 import 'kugou_official_client.dart';
 import 'secure_session_storage.dart';
@@ -85,14 +86,17 @@ class KugouApiClient {
     Dio? dio,
     SecureSessionStorage? storage,
     ApiEndpointService? endpointService,
+    PlaybackQualityController? playbackQualityController,
   }) : _dio = dio ?? _createDio(''),
        _storage = storage ?? SecureSessionStorage(),
        _endpointService = endpointService ?? ApiEndpointService(),
+       _playbackQualityController = playbackQualityController,
        _officialClient = KugouOfficialClient();
 
   final Dio _dio;
   final SecureSessionStorage _storage;
   final ApiEndpointService _endpointService;
+  final PlaybackQualityController? _playbackQualityController;
   final KugouOfficialClient _officialClient;
 
   KugouSession session = const KugouSession();
@@ -667,6 +671,7 @@ class KugouApiClient {
     final source = _toInt(json['source']);
     final ownerId = _read(json, ['list_create_userid', 'userid', 'user_id']);
     final isDefault = _toInt(json['is_def'] ?? json['is_default']) > 0;
+    final name = _read(json, ['name'], fallback: '未命名歌单');
     final collectionType = _toInt(json['type']);
     final mineFlag =
         (ownerId.isNotEmpty && ownerId == session.userId) ||
@@ -677,7 +682,8 @@ class KugouApiClient {
     final sourceListId = source == 2
         ? _read(json, ['musiclib_id', 'list_create_listid', 'specialid'])
         : _read(json, ['list_create_listid', 'specialid']);
-    final kind = isDefault
+    final isFavoriteSongs = isDefault && _isFavoriteSongsPlaylistName(name);
+    final kind = isFavoriteSongs
         ? MusicPlaylistKind.favoriteSongs
         : source == 2
         ? MusicPlaylistKind.album
@@ -685,13 +691,15 @@ class KugouApiClient {
         ? MusicPlaylistKind.collectedPlaylist
         : mineFlag
         ? MusicPlaylistKind.createdPlaylist
+        : isDefault
+        ? MusicPlaylistKind.createdPlaylist
         : sourceId.isNotEmpty
         ? MusicPlaylistKind.collectedPlaylist
         : MusicPlaylistKind.collectedPlaylist;
     final playlist = MusicPlaylist(
       id: localId.isNotEmpty ? localId : sourceId,
       listId: localListId.isNotEmpty ? localListId : sourceListId,
-      name: _read(json, ['name'], fallback: '未命名歌单'),
+      name: name,
       songCount: _toInt(json['m_count'] ?? json['song_count'] ?? json['count']),
       coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
       sourceId: sourceId.isEmpty ? null : sourceId,
@@ -735,7 +743,7 @@ class KugouApiClient {
           .map(
             (value) => _songFromCollection(
               value,
-              liked: playlist.isDefault,
+              liked: playlist.kind == MusicPlaylistKind.favoriteSongs,
               cloud: false,
             ),
           )
@@ -1035,7 +1043,7 @@ class KugouApiClient {
       throw const KugouApiException('歌曲缺少播放信息');
     }
 
-    final directUrl = await _resolveSongUrl(song);
+    final directUrl = await _resolvePreferredSongUrl(song);
     if (directUrl != null) return song.copyWith(audioUrl: directUrl);
 
     if (!song.isCloud) {
@@ -1054,7 +1062,7 @@ class KugouApiClient {
 
       final cloudMatch = await _findMatchingCloudSong(song);
       if (cloudMatch != null) {
-        final cloudUrl = await _resolveSongUrl(cloudMatch);
+        final cloudUrl = await _resolvePreferredSongUrl(cloudMatch);
         if (cloudUrl != null) {
           return song.copyWith(audioUrl: cloudUrl, playbackNotice: '已切换云盘版本');
         }
@@ -1126,6 +1134,16 @@ class KugouApiClient {
     }
   }
 
+  Future<String?> _resolvePreferredSongUrl(Song song) async {
+    final qualities =
+        _playbackQualityController?.requestCandidates ?? const <Object>[128];
+    for (final quality in qualities) {
+      final url = await _resolveSongUrl(song, quality: quality);
+      if (url != null) return url;
+    }
+    return null;
+  }
+
   Future<List<_PlaybackCandidate>> _resolvePrivilegeCandidates(
     Song song,
   ) async {
@@ -1161,7 +1179,7 @@ class KugouApiClient {
       final candidates = await searchSongs('${song.title} ${song.artist}');
       for (final candidate in candidates) {
         if (!_isReplacementCandidate(song, candidate)) continue;
-        final candidateUrl = await _resolveSongUrl(candidate);
+        final candidateUrl = await _resolvePreferredSongUrl(candidate);
         if (candidateUrl == null) continue;
         return song.copyWith(
           audioUrl: candidateUrl,
@@ -2139,6 +2157,11 @@ String _ownerIdFromCollectionId(String value) {
   final parts = value.split('_');
   if (parts.length >= 4 && parts.first == 'collection') return parts[2];
   return '';
+}
+
+bool _isFavoriteSongsPlaylistName(String value) {
+  final name = value.replaceAll(RegExp(r'\s+'), '').trim();
+  return name == '我喜欢' || name == '我喜欢的音乐';
 }
 
 String _albumIdFromPlaylist(MusicPlaylist playlist) {

@@ -69,6 +69,32 @@ void main() {
     expect(controller.collectedPlaylists.map((item) => item.name), ['收藏歌单']);
   });
 
+  test(
+    'shows non-favorite default collection with created playlists',
+    () async {
+      final defaultCollection = _playlist(
+        'default-collection',
+        name: '默认收藏',
+        kind: MusicPlaylistKind.createdPlaylist,
+      );
+      final favoriteSongs = _playlist(
+        'favorite-songs',
+        name: '我喜欢',
+        kind: MusicPlaylistKind.favoriteSongs,
+      );
+      final repository = _FakeMusicRepository(
+        playlists: [defaultCollection, favoriteSongs],
+        favoriteSongs: const [],
+      );
+      final controller = MusicLibraryController(repository);
+
+      await controller.ensureLoaded(LibrarySection.playlists, refresh: true);
+
+      expect(controller.createdPlaylists.map((item) => item.name), ['默认收藏']);
+      expect(controller.favoritePlaylist?.name, '我喜欢');
+    },
+  );
+
   test('collects playlist and refreshes playlist collection state', () async {
     const playlist = SearchCatalogItem(
       id: 'global-playlist-100',

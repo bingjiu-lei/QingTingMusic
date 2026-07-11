@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../controllers/playback_quality_controller.dart';
 import '../controllers/update_controller.dart';
 import '../models/app_update.dart';
 import '../services/api_endpoint_service.dart';
@@ -20,6 +21,7 @@ class SettingsPage extends StatefulWidget {
     required this.onCheckUpdates,
     required this.closeToTray,
     required this.onCloseToTrayChanged,
+    required this.playbackQualityController,
     this.onEndpointChanged,
     this.onDeveloperModeChanged,
   });
@@ -28,6 +30,7 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onCheckUpdates;
   final bool closeToTray;
   final ValueChanged<bool> onCloseToTrayChanged;
+  final PlaybackQualityController playbackQualityController;
   final VoidCallback? onEndpointChanged;
   final ValueChanged<bool>? onDeveloperModeChanged;
 
@@ -480,10 +483,8 @@ class _SettingsPageState extends State<SettingsPage> {
                       height: 30,
                       color: AppColors.divider.withValues(alpha: 0.72),
                     ),
-                    _SettingRow(
-                      icon: Icons.high_quality_rounded,
-                      title: '播放音质',
-                      value: '标准音质',
+                    _PlaybackQualitySection(
+                      controller: widget.playbackQualityController,
                     ),
                     Divider(
                       height: 30,
@@ -1046,34 +1047,85 @@ class _CacheInfo extends StatelessWidget {
   }
 }
 
-class _SettingRow extends StatelessWidget {
-  const _SettingRow({
-    required this.icon,
-    required this.title,
-    required this.value,
-  });
+class _PlaybackQualitySection extends StatelessWidget {
+  const _PlaybackQualitySection({required this.controller});
 
-  final IconData icon;
-  final String title;
-  final String value;
+  final PlaybackQualityController controller;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primary, size: 21),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            title,
-            style: TextStyle(
-              color: AppColors.text,
-              fontWeight: FontWeight.w600,
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (context, _) {
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.high_quality_rounded,
+              color: AppColors.primary,
+              size: 21,
             ),
-          ),
-        ),
-        Text(value, style: TextStyle(color: AppColors.muted, fontSize: 13)),
-      ],
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '播放音质',
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '新歌曲优先按此音质解析，不可用时会自动选择可播放版本。',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppColors.page,
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                border: Border.all(color: AppColors.divider),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<PlaybackQuality>(
+                  value: controller.quality,
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  dropdownColor: AppColors.surface,
+                  iconEnabledColor: AppColors.muted,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  items: PlaybackQuality.values
+                      .map(
+                        (quality) => DropdownMenuItem(
+                          value: quality,
+                          child: Text(
+                            quality == PlaybackQuality.standard
+                                ? '标准音质'
+                                : '${quality.label} 音质',
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) controller.select(value);
+                  },
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

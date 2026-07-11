@@ -26,10 +26,9 @@ class AppSidebar extends StatelessWidget {
   final bool isDark;
   final VoidCallback onToggleTheme;
 
-  static final items = [
+  static final primaryItems = [
     (Icons.library_music_rounded, '我的音乐'),
     (Icons.search_rounded, '搜索'),
-    (Icons.settings_rounded, '设置'),
   ];
 
   @override
@@ -50,15 +49,23 @@ class AppSidebar extends StatelessWidget {
             onToggleTheme: onToggleTheme,
           ),
           SizedBox(height: 24),
-          for (var index = 0; index < items.length; index++)
+          for (var index = 0; index < primaryItems.length; index++)
             _NavigationItem(
-              icon: items[index].$1,
-              label: items[index].$2,
+              icon: primaryItems[index].$1,
+              label: primaryItems[index].$2,
               compact: compact,
               selected: selectedIndex == index,
               onTap: () => onChanged(index),
             ),
           Spacer(),
+          _NavigationItem(
+            icon: Icons.settings_rounded,
+            label: '设置',
+            compact: compact,
+            selected: selectedIndex == 2,
+            onTap: () => onChanged(2),
+          ),
+          const SizedBox(height: 6),
           _LoginEntry(
             compact: compact,
             label: loginLabel,
@@ -285,10 +292,16 @@ class _NavigationItem extends StatelessWidget {
                       : MainAxisAlignment.start,
                   children: [
                     if (!compact) SizedBox(width: 12),
-                    Icon(
-                      icon,
-                      size: 21,
-                      color: selected ? AppColors.primary : AppColors.muted,
+                    SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: Center(
+                        child: Icon(
+                          icon,
+                          size: icon == Icons.settings_rounded ? 20 : 21,
+                          color: selected ? AppColors.primary : AppColors.muted,
+                        ),
+                      ),
                     ),
                     if (!compact) ...[
                       SizedBox(width: 12),

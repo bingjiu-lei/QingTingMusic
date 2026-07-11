@@ -2,17 +2,20 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../controllers/playback_quality_controller.dart';
 import '../controllers/player_controller.dart';
 import '../models/lyric.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'playback_quality_menu.dart';
 import 'song_row.dart';
 
 class NowPlayingPage extends StatelessWidget {
   const NowPlayingPage({
     super.key,
     required this.controller,
+    required this.playbackQualityController,
     required this.onClose,
     required this.loadLyrics,
     this.onLike,
@@ -22,6 +25,7 @@ class NowPlayingPage extends StatelessWidget {
   });
 
   final PlayerController controller;
+  final PlaybackQualityController playbackQualityController;
   final VoidCallback onClose;
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
   final ValueChanged<Song>? onLike;
@@ -70,6 +74,7 @@ class NowPlayingPage extends StatelessWidget {
                     const SizedBox(height: 12),
                     _PlaybackControls(
                       controller: controller,
+                      playbackQualityController: playbackQualityController,
                       compact: compact,
                       song: song,
                       onLike: onLike,
@@ -765,6 +770,7 @@ class _LyricEmptyText extends StatelessWidget {
 class _PlaybackControls extends StatelessWidget {
   const _PlaybackControls({
     required this.controller,
+    required this.playbackQualityController,
     required this.compact,
     required this.song,
     this.onLike,
@@ -773,6 +779,7 @@ class _PlaybackControls extends StatelessWidget {
   });
 
   final PlayerController controller;
+  final PlaybackQualityController playbackQualityController;
   final bool compact;
   final Song song;
   final ValueChanged<Song>? onLike;
@@ -821,6 +828,11 @@ class _PlaybackControls extends StatelessWidget {
                         compact: compact,
                       ),
                       SizedBox(width: compact ? 8 : 12),
+                      PlaybackQualityMenu(
+                        controller: playbackQualityController,
+                        compact: true,
+                      ),
+                      SizedBox(width: compact ? 6 : 8),
                       _GlassControlButton(
                         tooltip: controller.playbackMode.label,
                         icon: _modeIcon(controller.playbackMode),

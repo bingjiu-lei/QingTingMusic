@@ -9,6 +9,7 @@ import '../controllers/auth_controller.dart';
 import '../controllers/music_library_controller.dart';
 import '../controllers/music_search_controller.dart';
 import '../controllers/player_controller.dart';
+import '../controllers/playback_quality_controller.dart';
 import '../controllers/theme_controller.dart';
 import '../controllers/update_controller.dart';
 import '../data/demo_music_repository.dart';
@@ -67,6 +68,7 @@ class _MusicShellState extends State<MusicShell>
   KugouApiClient? apiClient;
   AuthController? authController;
   late final PlayerController playerController;
+  late final PlaybackQualityController playbackQualityController;
   late final MusicSearchController searchController;
   late final MusicLibraryController libraryController;
   late final UpdateController updateController;
@@ -110,10 +112,14 @@ class _MusicShellState extends State<MusicShell>
   @override
   void initState() {
     super.initState();
+    playbackQualityController = PlaybackQualityController()
+      ..addListener(_refresh);
     if (widget.useDemoData) {
       repository = demoRepository;
     } else {
-      apiClient = KugouApiClient();
+      apiClient = KugouApiClient(
+        playbackQualityController: playbackQualityController,
+      );
       authController = AuthController(apiClient!)
         ..addListener(_handleAuthChanged);
       repository = KugouMusicRepository(apiClient!);
@@ -147,6 +153,7 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _initializeData() async {
+    await playbackQualityController.initialize();
     await updateController.initialize(useFallbackVersion: widget.useDemoData);
     unawaited(cacheManagementService.clearDownloadedInstallers());
     await libraryController.initialize();
@@ -897,6 +904,9 @@ class _MusicShellState extends State<MusicShell>
     playerController
       ..removeListener(_handlePlayerChanged)
       ..dispose();
+    playbackQualityController
+      ..removeListener(_refresh)
+      ..dispose();
     searchController
       ..removeListener(_refresh)
       ..dispose();
@@ -965,6 +975,7 @@ class _MusicShellState extends State<MusicShell>
                   ),
                   PlayerBar(
                     controller: playerController,
+                    playbackQualityController: playbackQualityController,
                     onNowPlayingPressed: playerController.currentSong == null
                         ? null
                         : () => setState(() => showNowPlayingPage = true),
@@ -1038,6 +1049,8 @@ class _MusicShellState extends State<MusicShell>
                         ? NowPlayingPage(
                             key: const ValueKey('now-playing-page'),
                             controller: playerController,
+                            playbackQualityController:
+                                playbackQualityController,
                             onClose: () =>
                                 setState(() => showNowPlayingPage = false),
                             loadLyrics: _loadLyricsCached,
@@ -1156,6 +1169,7 @@ class _MusicShellState extends State<MusicShell>
       ),
       _ => SettingsPage(
         updateController: updateController,
+        playbackQualityController: playbackQualityController,
         onCheckUpdates: () => _checkForUpdates(),
         closeToTray: _closeToTray,
         onCloseToTrayChanged: _setCloseToTray,

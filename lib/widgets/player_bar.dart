@@ -2,16 +2,19 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../controllers/playback_quality_controller.dart';
 import '../controllers/player_controller.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'playback_quality_menu.dart';
 import 'song_row.dart';
 
 class PlayerBar extends StatelessWidget {
   const PlayerBar({
     super.key,
     required this.controller,
+    required this.playbackQualityController,
     this.onQueuePressed,
     this.onNowPlayingPressed,
     this.onOpenAlbum,
@@ -21,6 +24,7 @@ class PlayerBar extends StatelessWidget {
   });
 
   final PlayerController controller;
+  final PlaybackQualityController playbackQualityController;
   final VoidCallback? onQueuePressed;
   final VoidCallback? onNowPlayingPressed;
   final ValueChanged<Song>? onOpenAlbum;
@@ -191,6 +195,11 @@ class PlayerBar extends StatelessWidget {
                 ),
                 if (!compact) ...[
                   const SizedBox(width: 12),
+                  PlaybackQualityMenu(
+                    controller: playbackQualityController,
+                    compact: true,
+                  ),
+                  const SizedBox(width: 6),
                   _HoverVolumeControl(
                     volume: controller.volume,
                     onChanged: controller.setVolume,
