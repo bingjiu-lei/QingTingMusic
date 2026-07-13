@@ -295,6 +295,18 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setPlaybackMode(PlaybackMode mode) {
+    if (playbackMode == mode) return;
+    playbackMode = mode;
+    if (mode == PlaybackMode.shuffle) {
+      _startShufflePath(anchorId: currentSong?.id);
+    } else {
+      _clearShufflePath();
+    }
+    _schedulePlaybackStateSave(immediate: true);
+    notifyListeners();
+  }
+
   void setTechnicalPlaybackNoticesEnabled(bool value) {
     if (showTechnicalPlaybackNotices == value) return;
     showTechnicalPlaybackNotices = value;
@@ -313,6 +325,16 @@ class PlayerController extends ChangeNotifier {
     }
     if (playbackMode == PlaybackMode.shuffle) {
       _startShufflePath(anchorId: currentSong?.id ?? current?.id);
+    }
+    _schedulePlaybackStateSave();
+    notifyListeners();
+  }
+
+  void appendQueue(List<Song> songs) {
+    if (songs.isEmpty) return;
+    queue = List.unmodifiable(_dedupeSongs([...queue, ...songs]));
+    if (playbackMode == PlaybackMode.shuffle) {
+      _startShufflePath(anchorId: currentSong?.id);
     }
     _schedulePlaybackStateSave();
     notifyListeners();

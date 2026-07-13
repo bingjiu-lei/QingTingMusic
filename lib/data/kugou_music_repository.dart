@@ -17,6 +17,32 @@ class KugouMusicRepository implements MusicRepository {
   Future<List<Song>> getNewSongs() async => const [];
 
   @override
+  Future<List<Song>> getDailyRecommendations() {
+    return apiClient.getDailyRecommendations();
+  }
+
+  @override
+  Future<List<Song>> getPersonalFmSongs({
+    String action = 'play',
+    Song? contextSong,
+    int playtimeSeconds = 0,
+    bool isOverplay = false,
+    String mode = 'normal',
+    int songPoolId = 0,
+    int remainSongCount = 0,
+  }) {
+    return apiClient.getPersonalFmSongs(
+      action: action,
+      contextSong: contextSong,
+      playtimeSeconds: playtimeSeconds,
+      isOverplay: isOverplay,
+      mode: mode,
+      songPoolId: songPoolId,
+      remainSongCount: remainSongCount,
+    );
+  }
+
+  @override
   Future<List<String>> searchSuggestions(String keyword) {
     return apiClient.searchSuggestions(keyword);
   }

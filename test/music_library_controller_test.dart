@@ -338,6 +338,20 @@ class _FakeMusicRepository implements MusicRepository {
   Future<List<Song>> getNewSongs() async => const [];
 
   @override
+  Future<List<Song>> getDailyRecommendations() async => const [];
+
+  @override
+  Future<List<Song>> getPersonalFmSongs({
+    String action = 'play',
+    Song? contextSong,
+    int playtimeSeconds = 0,
+    bool isOverplay = false,
+    String mode = 'normal',
+    int songPoolId = 0,
+    int remainSongCount = 0,
+  }) async => const [];
+
+  @override
   Future<Song> resolvePlayback(Song song) async => song;
 
   @override

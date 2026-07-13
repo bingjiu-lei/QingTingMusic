@@ -43,6 +43,20 @@ class DemoMusicRepository implements MusicRepository {
   Future<List<Song>> getNewSongs() async => songs.reversed.toList();
 
   @override
+  Future<List<Song>> getDailyRecommendations() async => songs;
+
+  @override
+  Future<List<Song>> getPersonalFmSongs({
+    String action = 'play',
+    Song? contextSong,
+    int playtimeSeconds = 0,
+    bool isOverplay = false,
+    String mode = 'normal',
+    int songPoolId = 0,
+    int remainSongCount = 0,
+  }) async => songs.reversed.toList();
+
+  @override
   Future<List<String>> searchSuggestions(String keyword) async {
     final matches = await searchSongs(keyword);
     return matches.map((song) => song.title).toList();

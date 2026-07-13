@@ -10,6 +10,7 @@ import '../controllers/music_library_controller.dart';
 import '../controllers/music_search_controller.dart';
 import '../controllers/player_controller.dart';
 import '../controllers/playback_quality_controller.dart';
+import '../controllers/recommendation_controller.dart';
 import '../controllers/theme_controller.dart';
 import '../controllers/update_controller.dart';
 import '../data/demo_music_repository.dart';
@@ -41,6 +42,7 @@ import '../widgets/update_dialog.dart';
 import 'library_page.dart';
 import 'collection_detail_page.dart';
 import 'search_page.dart';
+import 'recommendation_page.dart';
 import 'settings_page.dart';
 
 class MusicShell extends StatefulWidget {
@@ -71,6 +73,7 @@ class _MusicShellState extends State<MusicShell>
   late final PlaybackQualityController playbackQualityController;
   late final MusicSearchController searchController;
   late final MusicLibraryController libraryController;
+  late final RecommendationController recommendationController;
   late final UpdateController updateController;
   final cacheManagementService = CacheManagementService();
   final _developerModeService = DeveloperModeService();
@@ -94,6 +97,9 @@ class _MusicShellState extends State<MusicShell>
   final List<_DetailSnapshot> detailHistory = [];
   bool showQueuePanel = false;
   bool showNowPlayingPage = false;
+  bool _isFmSession = false;
+  String? _lastFmSyncSongId;
+  PlaybackMode? _playbackModeBeforeFm;
   String? _activeUserId;
   bool _resettingAccountState = false;
   bool _showingUpdateDialog = false;
@@ -136,6 +142,8 @@ class _MusicShellState extends State<MusicShell>
     )..addListener(_refresh);
     libraryController = MusicLibraryController(repository)
       ..addListener(_refresh);
+    recommendationController = RecommendationController(repository)
+      ..addListener(_refresh);
     updateController = UpdateController()..addListener(_refresh);
     _loadWindowPreferences();
     _loadDeveloperMode();
@@ -168,6 +176,7 @@ class _MusicShellState extends State<MusicShell>
     }
     await libraryController.ensureLoaded(LibrarySection.songs);
     unawaited(libraryController.refreshCachedInBackground());
+    unawaited(recommendationController.loadDaily());
     if (!widget.useDemoData && updateController.autoCheck) {
       unawaited(_checkForUpdates(silent: true));
     }
@@ -378,7 +387,25 @@ class _MusicShellState extends State<MusicShell>
       _lastPreloadedLyricKey = key;
       unawaited(_loadLyricsCached(song));
     }
+    if (_isFmSession &&
+        song != null &&
+        recommendationController.isFmSong(song)) {
+      unawaited(_maintainFmQueue(song));
+    }
+    if (_isFmSession &&
+        playerController.playbackMode != PlaybackMode.sequence) {
+      playerController.setPlaybackMode(PlaybackMode.sequence);
+    }
     _refresh();
+  }
+
+  Future<void> _maintainFmQueue(Song song) async {
+    if (_lastFmSyncSongId == song.id) return;
+    _lastFmSyncSongId = song.id;
+    final additions = await recommendationController.syncFmPlayback(song);
+    if (_isFmSession && additions.isNotEmpty) {
+      playerController.appendQueue(additions);
+    }
   }
 
   void _handleAuthChanged() {
@@ -406,6 +433,7 @@ class _MusicShellState extends State<MusicShell>
       await playerController.clearAccountState();
       searchController.clearAccountState();
       libraryController.clearAccountState();
+      recommendationController.clearAccountState();
       if (!mounted) return;
       setState(() {
         detailTitle = null;
@@ -431,6 +459,7 @@ class _MusicShellState extends State<MusicShell>
           refresh: true,
         );
         unawaited(libraryController.refreshCachedInBackground());
+        unawaited(recommendationController.loadDaily(refresh: true));
       }
     } finally {
       _resettingAccountState = false;
@@ -438,6 +467,23 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _playSong(Song song, List<Song> sourceQueue) async {
+    final previousMode = _playbackModeBeforeFm;
+    _isFmSession = false;
+    _lastFmSyncSongId = null;
+    _playbackModeBeforeFm = null;
+    if (previousMode != null) playerController.setPlaybackMode(previousMode);
+    await _playFromQueue(song, sourceQueue);
+  }
+
+  Future<void> _playFmSong(Song song, List<Song> sourceQueue) async {
+    _playbackModeBeforeFm ??= playerController.playbackMode;
+    _isFmSession = true;
+    _lastFmSyncSongId = null;
+    playerController.setPlaybackMode(PlaybackMode.sequence);
+    await _playFromQueue(song, sourceQueue);
+  }
+
+  Future<void> _playFromQueue(Song song, List<Song> sourceQueue) async {
     if (playerController.currentSong?.id == song.id &&
         playerController.isPlaying) {
       await playerController.togglePlay();
@@ -447,6 +493,32 @@ class _MusicShellState extends State<MusicShell>
         ? sourceQueue
         : [song];
     await playerController.playSong(song, fromQueue: queue);
+  }
+
+  void _openDailyRecommendations() {
+    final songs = recommendationController.dailySongs;
+    if (songs.isEmpty) {
+      unawaited(recommendationController.loadDaily(refresh: true));
+      return;
+    }
+    setState(() {
+      detailTitle = '每日推荐';
+      detailSubtitle = '今天为你准备了 ${songs.length} 首歌';
+      detailImageUrl = null;
+      detailSongs = songs;
+      detailRelatedItems = const [];
+      detailRelatedLoadingMore = false;
+      detailRelatedHasMore = false;
+      detailLoading = false;
+      detailKind = CollectionDetailKind.playlist;
+      detailPlaylist = null;
+      detailCatalogItem = null;
+      detailIdentity =
+          'recommendation:daily:${DateTime.now().toIso8601String().substring(0, 10)}';
+      detailStorageKeyPrefix = detailIdentity;
+      detailSelectedTab = 0;
+      detailHistory.clear();
+    });
   }
 
   Future<void> _showLogin() async {
@@ -913,6 +985,9 @@ class _MusicShellState extends State<MusicShell>
     libraryController
       ..removeListener(_refresh)
       ..dispose();
+    recommendationController
+      ..removeListener(_refresh)
+      ..dispose();
     updateController
       ..removeListener(_refresh)
       ..dispose();
@@ -1162,6 +1237,13 @@ class _MusicShellState extends State<MusicShell>
         onAddToPlaylist: _showAddToPlaylist,
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
+      ),
+      2 => RecommendationPage(
+        controller: recommendationController,
+        currentSong: playerController.currentSong,
+        onPlay: _playSong,
+        onPlayFm: _playFmSong,
+        onOpenDaily: _openDailyRecommendations,
       ),
       _ => SettingsPage(
         updateController: updateController,

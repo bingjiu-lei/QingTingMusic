@@ -150,6 +150,10 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
   ) {
     final params = Map<String, Object?>.from(input);
     final cookie = _cookie(session);
+    final fmClienttime = DateTime.now().millisecondsSinceEpoch;
+    final body = data is Map
+        ? Map<String, Object?>.from(data.cast<Object?, Object?>())
+        : const <String, Object?>{};
 
     return switch (path) {
       '/login/qr/key' => _web('https://login-user.kugou.com', '/v2/qrcode', {
@@ -227,6 +231,54 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       '/user/cloud' => _cloudSongs(params, cookie),
       '/user/cloud/url' => _cloudSongUrl(params, cookie),
       '/user/follow' => _userFollow(cookie),
+      '/recommend/daily' => _android(
+        '/everyday_song_recommend',
+        {},
+        cookie,
+        method: 'POST',
+        data: {
+          'platform': 'android',
+          'userid': session.userId.isEmpty ? 0 : session.userId,
+        },
+        headers: {'x-router': 'everydayrec.service.kugou.com'},
+      ),
+      '/recommend/fm' => _android(
+        '/v2/personal_recommend',
+        {},
+        cookie,
+        method: 'POST',
+        data: {
+          'appid': liteAppid,
+          'clientver': liteClientver,
+          'clienttime': fmClienttime,
+          'mid': cookie['KUGOU_API_MID'] ?? session.mid,
+          'action': body['action'] ?? 'play',
+          'recommend_source_locked': 0,
+          'is_overplay': body['is_overplay'] ?? 0,
+          'remain_songcnt': body['remain_songcnt'] ?? 0,
+          'mode': body['mode'] ?? 'normal',
+          'song_pool_id': body['song_pool_id'] ?? 0,
+          'callerid': 0,
+          'm_type': 1,
+          'platform': 'android',
+          'area_code': 1,
+          'fakem': 'ca981cfc583a4c37f28d2d49000013c16a0a',
+          'key': _signParamsKey(
+            fmClienttime.toString(),
+            appId: liteAppid,
+            clientVersion: liteClientver,
+          ),
+          if (session.userId.isNotEmpty) 'userid': session.userId,
+          if (session.userId.isNotEmpty) 'kguid': session.userId,
+          if (session.token.isNotEmpty) 'token': session.token,
+          'vip_type': 0,
+          if ((body['hash']?.toString() ?? '').isNotEmpty) 'hash': body['hash'],
+          if ((body['songid']?.toString() ?? '').isNotEmpty)
+            'songid': body['songid'],
+          if ((body['playtime'] as int? ?? 0) > 0) 'playtime': body['playtime'],
+        },
+        headers: {'x-router': 'persnfm.service.kugou.com'},
+      ),
       '/playlist/public/track/all' =>
         _android('/pubsongs/v2/get_other_list_file_nofilt', {
           'area_code': 1,

@@ -8,6 +8,18 @@ abstract interface class MusicRepository {
 
   Future<List<Song>> getNewSongs();
 
+  Future<List<Song>> getDailyRecommendations();
+
+  Future<List<Song>> getPersonalFmSongs({
+    String action = 'play',
+    Song? contextSong,
+    int playtimeSeconds = 0,
+    bool isOverplay = false,
+    String mode = 'normal',
+    int songPoolId = 0,
+    int remainSongCount = 0,
+  });
+
   Future<List<String>> searchSuggestions(String keyword);
 
   Future<List<Song>> searchSongs(String keyword);

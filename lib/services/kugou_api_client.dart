@@ -562,6 +562,65 @@ class KugouApiClient {
     return _parseSongCollection(response.data);
   }
 
+  Future<List<Song>> getDailyRecommendations() async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    final response = await _officialRequest(
+      '/recommend/daily',
+      method: 'POST',
+      bypassCache: true,
+    );
+    _throwIfAuthFailed(response.data);
+    final body = _map(response.data);
+    final data = _map(body['data']);
+    return _deduplicateSongs(
+      _list(data['song_list'])
+          .map(
+            (value) => _songFromCollection(value, liked: false, cloud: false),
+          )
+          .whereType<Song>(),
+    );
+  }
+
+  Future<List<Song>> getPersonalFmSongs({
+    String action = 'play',
+    Song? contextSong,
+    int playtimeSeconds = 0,
+    bool isOverplay = false,
+    String mode = 'normal',
+    int songPoolId = 0,
+    int remainSongCount = 0,
+  }) async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    final response = await _officialRequest(
+      '/recommend/fm',
+      method: 'POST',
+      bypassCache: true,
+      data: {
+        'action': action,
+        'hash': contextSong?.hash ?? '',
+        'songid': contextSong?.albumAudioId ?? '',
+        'playtime': playtimeSeconds,
+        'is_overplay': isOverplay ? 1 : 0,
+        'mode': mode,
+        'song_pool_id': songPoolId,
+        'remain_songcnt': remainSongCount,
+      },
+    );
+    _throwIfAuthFailed(response.data);
+    final body = _map(response.data);
+    if (_toInt(body['error_code'] ?? body['ErrorCode']) != 0) {
+      throw const KugouApiException('私人 FM 暂时不可用，请稍后重试');
+    }
+    final data = _map(body['data']);
+    return _deduplicateSongs(
+      _list(data['song_list'])
+          .map(
+            (value) => _songFromCollection(value, liked: false, cloud: false),
+          )
+          .whereType<Song>(),
+    );
+  }
+
   Future<List<SearchCatalogItem>> getArtistAlbums(
     SearchCatalogItem artist,
   ) async {
@@ -1299,6 +1358,7 @@ class KugouApiClient {
     Map<String, Object?>? queryParameters,
     String method = 'GET',
     bool bypassCache = false,
+    Object? data,
   }) async {
     final result = await _officialClient.request(
       path,
@@ -1306,6 +1366,7 @@ class KugouApiClient {
       method: method,
       session: session,
       bypassCache: bypassCache,
+      data: data,
     );
     return Response<Object?>(
       data: result['data'],
@@ -1455,6 +1516,17 @@ class KugouApiClient {
         .toList();
   }
 
+  List<Song> _deduplicateSongs(Iterable<Song> songs) {
+    final result = <Song>[];
+    final seen = <String>{};
+    for (final song in songs) {
+      final key = song.hash?.isNotEmpty == true ? song.hash! : song.id;
+      if (key.isEmpty || !seen.add(key)) continue;
+      result.add(song);
+    }
+    return result;
+  }
+
   Song? _songFromCollection(
     Object? value, {
     required bool liked,
@@ -1464,6 +1536,10 @@ class KugouApiClient {
     final base = _map(json['base']);
     final audio = _map(json['audio_info']);
     final albumInfo = _map(json['album_info'] ?? json['albuminfo']);
+    final relateGoodsList = _list(json['relate_goods']);
+    final relateGoods = relateGoodsList.isEmpty
+        ? const <String, Object?>{}
+        : _map(relateGoodsList.first);
     final transParam = _map(json['trans_param']);
     final singerInfoValue = json['singerinfo'];
     final singerInfo = singerInfoValue is List && singerInfoValue.isNotEmpty
@@ -1532,6 +1608,8 @@ class KugouApiClient {
     );
     var duration = _toInt(
       json['timelen'] ??
+          json['time_length'] ??
+          json['timelength_320'] ??
           json['duration'] ??
           audio['duration'] ??
           audio['duration_128'],
@@ -1542,10 +1620,26 @@ class KugouApiClient {
       id: identity,
       title: title,
       artist: artist,
-      album: _read(json, [
-        'album_name',
-        'AlbumName',
-      ], fallback: _read(albumInfo, ['album_name', 'name'], fallback: '未知专辑')),
+      album: _read(
+        json,
+        ['album_name', 'AlbumName', 'albumname', 'album_title'],
+        fallback: _read(
+          albumInfo,
+          ['album_name', 'albumname', 'name'],
+          fallback: _read(
+            relateGoods,
+            ['album_name', 'albumname', 'name'],
+            fallback: _read(
+              base,
+              ['album_name', 'albumname'],
+              fallback: _read(audio, [
+                'album_name',
+                'albumname',
+              ], fallback: '未知专辑'),
+            ),
+          ),
+        ),
+      ),
       duration: Duration(seconds: duration),
       audioUrl: '',
       hash: hash.isEmpty ? null : hash,
@@ -1555,10 +1649,19 @@ class KugouApiClient {
             json['albumId'] ??
             base['album_id'] ??
             albumInfo['album_id'] ??
-            albumInfo['id'],
+            albumInfo['albumid'] ??
+            albumInfo['id'] ??
+            relateGoods['album_id'] ??
+            relateGoods['albumid'] ??
+            relateGoods['recommend_album_id'] ??
+            audio['album_id'] ??
+            audio['albumid'],
       ),
       albumAudioId: _nullableInt(
-        json['mixsongid'] ?? json['album_audio_id'] ?? base['album_audio_id'],
+        json['mixsongid'] ??
+            json['album_audio_id'] ??
+            base['album_audio_id'] ??
+            relateGoods['album_audio_id'],
       ),
       coverUrl: cover.isEmpty ? null : cover.replaceAll('{size}', '240'),
       fileId: _nullableInt(json['fileid'] ?? json['file_id']),

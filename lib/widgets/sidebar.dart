@@ -29,6 +29,7 @@ class AppSidebar extends StatelessWidget {
   static final primaryItems = [
     (Icons.library_music_rounded, '我的音乐'),
     (Icons.search_rounded, '搜索'),
+    (Icons.auto_awesome_rounded, '推荐'),
   ];
 
   @override
@@ -62,8 +63,8 @@ class AppSidebar extends StatelessWidget {
             icon: Icons.settings_rounded,
             label: '设置',
             compact: compact,
-            selected: selectedIndex == 2,
-            onTap: () => onChanged(2),
+            selected: selectedIndex == 3,
+            onTap: () => onChanged(3),
           ),
           const SizedBox(height: 6),
           _LoginEntry(
