@@ -63,7 +63,7 @@ class _SearchPageState extends State<SearchPage> {
       animation: widget.controller,
       builder: (context, _) {
         return Padding(
-          padding: EdgeInsets.fromLTRB(24, 34, 30, 24),
+          padding: const EdgeInsets.fromLTRB(24, 26, 30, 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -113,15 +113,32 @@ class _SearchPageState extends State<SearchPage> {
                           ? null
                           : IconButton(
                               tooltip: '清空',
+                              constraints: const BoxConstraints.tightFor(
+                                width: 44,
+                                height: 44,
+                              ),
+                              padding: EdgeInsets.zero,
                               onPressed: () {
                                 _textController.clear();
                                 widget.controller.updateKeyword('');
                                 setState(() {});
                               },
-                              icon: Icon(Icons.close_rounded),
+                              icon: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  size: 17,
+                                  color: AppColors.muted,
+                                ),
+                              ),
                             ),
                       filled: false,
-                      contentPadding: EdgeInsets.symmetric(vertical: 19),
+                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
                       border: InputBorder.none,
                       enabledBorder: InputBorder.none,
                       focusedBorder: InputBorder.none,
@@ -129,7 +146,7 @@ class _SearchPageState extends State<SearchPage> {
                   ),
                 ),
               ),
-              SizedBox(height: 22),
+              const SizedBox(height: 16),
               Expanded(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: 1120),
@@ -382,7 +399,7 @@ class _SearchResultsState extends State<_SearchResults> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Container(
-      padding: EdgeInsets.fromLTRB(22, 18, 22, 0),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.xl),
@@ -392,29 +409,15 @@ class _SearchResultsState extends State<_SearchResults> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text(
-                '搜索结果',
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
+          if (controller.isLoading)
+            const Align(
+              alignment: Alignment.centerRight,
+              child: SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
               ),
-              const SizedBox(width: 10),
-              if (controller.isLoading)
-                SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppColors.primary,
-                  ),
-                ),
-            ],
-          ),
-          SizedBox(height: 12),
+            ),
           Row(
             children: [
               for (final category in SearchCategory.values) ...[
@@ -428,7 +431,7 @@ class _SearchResultsState extends State<_SearchResults> {
               ],
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Expanded(
             child: Stack(
               children: [
@@ -477,8 +480,12 @@ class _SearchResultsState extends State<_SearchResults> {
         );
       }
       return ListView.separated(
+        key: PageStorageKey(
+          'search-song-${controller.keyword.trim().toLowerCase()}',
+        ),
         controller: _scrollController,
-        padding: EdgeInsets.only(top: 8, bottom: 24),
+        padding: const EdgeInsets.only(top: 6, bottom: 20),
+        cacheExtent: 900,
         itemCount: controller.results.length,
         separatorBuilder: (_, _) => Divider(
           height: 1,
@@ -514,6 +521,9 @@ class _SearchResultsState extends State<_SearchResults> {
       items: controller.catalogResults,
       emptyText: '没有找到相关${controller.category.label}',
       onSelected: widget.onOpenCatalog,
+      storageKey: PageStorageKey(
+        'search-${controller.category.name}-${controller.keyword.trim().toLowerCase()}',
+      ),
     );
   }
 
@@ -547,7 +557,7 @@ class _CategoryTab extends StatelessWidget {
         hoverColor: AppColors.surfaceHover,
         mouseCursor: SystemMouseCursors.click,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(15, 10, 15, 10),
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
           child: Column(
             children: [
               Text(
@@ -558,7 +568,7 @@ class _CategoryTab extends StatelessWidget {
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 ),
               ),
-              SizedBox(height: 7),
+              const SizedBox(height: 5),
               AnimatedContainer(
                 duration: AppMotion.fast,
                 curve: AppMotion.curve,
@@ -616,32 +626,180 @@ class _Suggestions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return _SearchPromptShell(
-        title: '联想搜索',
-        icon: Icons.auto_awesome_rounded,
-        child: SizedBox(
-          height: 96,
-          child: Center(
-            child: Text('暂无联想结果', style: TextStyle(color: AppColors.faint)),
-          ),
-        ),
-      );
+      return const _SuggestionEmptyState();
     }
 
-    return _SearchPromptShell(
-      title: '联想搜索',
-      icon: Icons.auto_awesome_rounded,
-      child: ListView.builder(
-        shrinkWrap: true,
-        itemCount: values.length,
-        itemBuilder: (context, index) {
-          final value = values[index];
-          return _PromptTile(
-            value: value,
-            icon: Icons.search_rounded,
-            onTap: () => onSelected(value),
-          );
-        },
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(AppRadius.xl),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(6, 2, 4, 10),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.auto_awesome_rounded,
+                      size: 17,
+                      color: AppColors.primary,
+                    ),
+                    const SizedBox(width: 7),
+                    Text(
+                      '相关搜索',
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: values.length,
+                itemBuilder: (context, index) => _SuggestionTile(
+                  value: values[index],
+                  onTap: () => onSelected(values[index]),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RecentSearchEmptyState extends StatelessWidget {
+  const _RecentSearchEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: const Alignment(0, -0.2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: AppColors.selected,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.search_rounded,
+              color: AppColors.primary,
+              size: 25,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            '搜索你想听的音乐',
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SuggestionTile extends StatelessWidget {
+  const _SuggestionTile({required this.value, required this.onTap});
+
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        hoverColor: AppColors.surfaceHover,
+        mouseCursor: SystemMouseCursors.click,
+        child: SizedBox(
+          height: 42,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: AppColors.muted, size: 18),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SuggestionEmptyState extends StatelessWidget {
+  const _SuggestionEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(top: 72),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: AppColors.selected,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search_rounded,
+                color: AppColors.primary,
+                size: 25,
+              ),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              '搜索你想听的音乐',
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -702,16 +860,7 @@ class _SearchHistory extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (values.isEmpty) {
-      return _SearchPromptShell(
-        title: '最近搜索',
-        icon: Icons.history_rounded,
-        child: SizedBox(
-          height: 110,
-          child: Center(
-            child: Text('搜索记录会保存在这里', style: TextStyle(color: AppColors.faint)),
-          ),
-        ),
-      );
+      return const _RecentSearchEmptyState();
     }
 
     return _SearchPromptShell(

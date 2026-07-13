@@ -30,7 +30,8 @@ class SearchCatalogList extends StatelessWidget {
 
     return ListView.separated(
       key: storageKey,
-      padding: EdgeInsets.only(top: 6, bottom: 12),
+      padding: const EdgeInsets.only(top: 4, bottom: 12),
+      cacheExtent: 720,
       itemCount: items.length,
       separatorBuilder: (_, _) => Divider(
         height: 1,
@@ -50,11 +51,11 @@ class SearchCatalogList extends StatelessWidget {
             hoverColor: AppColors.surfaceHover,
             mouseCursor: SystemMouseCursors.click,
             child: SizedBox(
-              height: 72,
+              height: 64,
               child: Row(
                 children: [
                   _CatalogImage(item: item),
-                  SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -74,7 +75,7 @@ class SearchCatalogList extends StatelessWidget {
                             ),
                           ),
                         ),
-                        SizedBox(height: 5),
+                        const SizedBox(height: 3),
                         Text(
                           item.subtitle,
                           maxLines: 1,
@@ -92,7 +93,7 @@ class SearchCatalogList extends StatelessWidget {
                     size: 20,
                     color: AppColors.faint,
                   ),
-                  SizedBox(width: 6),
+                  const SizedBox(width: 4),
                 ],
               ),
             ),
@@ -122,8 +123,8 @@ class _CatalogImage extends StatelessWidget {
         item.category == SearchCategory.artist ? 24 : AppRadius.sm,
       ),
       child: Container(
-        width: 48,
-        height: 48,
+        width: 44,
+        height: 44,
         color: AppColors.surfaceMuted,
         child: item.imageUrl == null
             ? Icon(icon, color: AppColors.muted, size: 22)

@@ -36,6 +36,8 @@ class PlaybackStateService {
           milliseconds: int.tryParse(json['positionMs']?.toString() ?? '') ?? 0,
         ),
         playbackMode: mode,
+        shuffleHistory: _readSongIds(json['shuffleHistory']),
+        shuffleUpcoming: _readSongIds(json['shuffleUpcoming']),
       );
     } catch (_) {
       return null;
@@ -49,6 +51,8 @@ class PlaybackStateService {
       'currentSong': snapshot.currentSong?.toJson(),
       'positionMs': snapshot.position.inMilliseconds,
       'playbackMode': snapshot.playbackMode.name,
+      'shuffleHistory': snapshot.shuffleHistory,
+      'shuffleUpcoming': snapshot.shuffleUpcoming,
     });
   }
 
@@ -61,10 +65,22 @@ class PlaybackSnapshot {
     required this.currentSong,
     required this.position,
     required this.playbackMode,
+    this.shuffleHistory = const [],
+    this.shuffleUpcoming = const [],
   });
 
   final List<Song> queue;
   final Song? currentSong;
   final Duration position;
   final PlaybackMode playbackMode;
+  final List<String> shuffleHistory;
+  final List<String> shuffleUpcoming;
+}
+
+List<String> _readSongIds(Object? value) {
+  if (value is! List) return const [];
+  return value
+      .map((item) => item.toString())
+      .where((id) => id.isNotEmpty)
+      .toList();
 }

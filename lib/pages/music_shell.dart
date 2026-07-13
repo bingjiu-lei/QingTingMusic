@@ -1030,34 +1030,30 @@ class _MusicShellState extends State<MusicShell>
                       );
                       return FadeTransition(
                         opacity: curved,
-                        child: ScaleTransition(
-                          scale: Tween<double>(
-                            begin: 0.985,
-                            end: 1,
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.032),
+                            end: Offset.zero,
                           ).animate(curved),
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.045),
-                              end: Offset.zero,
-                            ).animate(curved),
-                            child: child,
-                          ),
+                          child: child,
                         ),
                       );
                     },
                     child: showNowPlayingPage
-                        ? NowPlayingPage(
+                        ? RepaintBoundary(
                             key: const ValueKey('now-playing-page'),
-                            controller: playerController,
-                            playbackQualityController:
-                                playbackQualityController,
-                            onClose: () =>
-                                setState(() => showNowPlayingPage = false),
-                            loadLyrics: _loadLyricsCached,
-                            onLike: _toggleFavorite,
-                            onAddToPlaylist: _showAddToPlaylist,
-                            onOpenAlbum: _openAlbumFromNowPlaying,
-                            onOpenArtist: _openArtistFromNowPlaying,
+                            child: NowPlayingPage(
+                              controller: playerController,
+                              playbackQualityController:
+                                  playbackQualityController,
+                              onClose: () =>
+                                  setState(() => showNowPlayingPage = false),
+                              loadLyrics: _loadLyricsCached,
+                              onLike: _toggleFavorite,
+                              onAddToPlaylist: _showAddToPlaylist,
+                              onOpenAlbum: _openAlbumFromNowPlaying,
+                              onOpenArtist: _openArtistFromNowPlaying,
+                            ),
                           )
                         : const SizedBox.shrink(
                             key: ValueKey('now-playing-empty'),

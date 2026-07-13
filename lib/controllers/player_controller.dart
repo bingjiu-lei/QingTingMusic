@@ -92,6 +92,8 @@ class PlayerController extends ChangeNotifier {
   Timer? _savePlaybackTimer;
   DateTime? _songStartedAt;
   final Random _random = Random();
+  final List<String> _shuffleHistory = [];
+  final List<String> _shuffleUpcoming = [];
   bool _hasOpenSource = false;
 
   int get queueIndex {
@@ -126,6 +128,13 @@ class PlayerController extends ChangeNotifier {
       queue = List.unmodifiable(_dedupeSongs(snapshot.queue));
       currentSong = snapshot.currentSong;
       playbackMode = snapshot.playbackMode;
+      _shuffleHistory
+        ..clear()
+        ..addAll(snapshot.shuffleHistory);
+      _shuffleUpcoming
+        ..clear()
+        ..addAll(snapshot.shuffleUpcoming);
+      _sanitizeShufflePath();
       position = snapshot.position;
       duration = snapshot.currentSong?.duration ?? Duration.zero;
       bufferedPosition = Duration.zero;
@@ -140,11 +149,15 @@ class PlayerController extends ChangeNotifier {
     Song song, {
     List<Song>? fromQueue,
     Duration startPosition = Duration.zero,
+    bool preserveShufflePath = false,
   }) async {
     if (fromQueue != null && fromQueue.isNotEmpty) {
-      queue = List.unmodifiable(fromQueue);
+      queue = List.unmodifiable(_dedupeSongs(fromQueue));
     } else if (!queue.any((item) => item.id == song.id)) {
-      queue = [song];
+      queue = List.unmodifiable([song]);
+    }
+    if (playbackMode == PlaybackMode.shuffle && !preserveShufflePath) {
+      _startShufflePath(anchorId: song.id);
     }
 
     final previousSong = currentSong;
@@ -273,6 +286,11 @@ class PlayerController extends ChangeNotifier {
     final values = PlaybackMode.values;
     final nextIndex = (values.indexOf(playbackMode) + 1) % values.length;
     playbackMode = values[nextIndex];
+    if (playbackMode == PlaybackMode.shuffle) {
+      _startShufflePath(anchorId: currentSong?.id);
+    } else {
+      _clearShufflePath();
+    }
     _schedulePlaybackStateSave(immediate: true);
     notifyListeners();
   }
@@ -293,11 +311,23 @@ class PlayerController extends ChangeNotifier {
     if (current != null && !queue.any((item) => item.id == current.id)) {
       queue = List.unmodifiable([current, ...queue]);
     }
+    if (playbackMode == PlaybackMode.shuffle) {
+      _startShufflePath(anchorId: currentSong?.id ?? current?.id);
+    }
     _schedulePlaybackStateSave();
     notifyListeners();
   }
 
   Future<void> playQueueSong(Song song) async {
+    if (playbackMode == PlaybackMode.shuffle && currentSong?.id != song.id) {
+      _recordManualShuffleSelection(song.id);
+      await playSong(
+        song,
+        fromQueue: queue.isEmpty ? [song] : queue,
+        preserveShufflePath: true,
+      );
+      return;
+    }
     await playSong(song, fromQueue: queue.isEmpty ? [song] : queue);
   }
 
@@ -305,6 +335,7 @@ class PlayerController extends ChangeNotifier {
     final wasCurrent = currentSong?.id == song.id;
     final nextQueue = queue.where((item) => item.id != song.id).toList();
     queue = List.unmodifiable(nextQueue);
+    _sanitizeShufflePath();
     _schedulePlaybackStateSave();
     notifyListeners();
     if (!wasCurrent) return;
@@ -320,12 +351,17 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    if (playbackMode == PlaybackMode.shuffle) {
+      await _playShuffleNext();
+      return;
+    }
     await playSong(queue.first, fromQueue: queue);
   }
 
   void clearQueue() {
     final song = currentSong;
     queue = song == null ? const [] : List.unmodifiable([song]);
+    _startShufflePath(anchorId: song?.id);
     _schedulePlaybackStateSave(immediate: true);
     notifyListeners();
   }
@@ -335,6 +371,7 @@ class PlayerController extends ChangeNotifier {
     _nearEndTimer?.cancel();
     await audioService.pause();
     queue = const [];
+    _clearShufflePath();
     currentSong = null;
     isPlaying = false;
     isPreparing = false;
@@ -423,6 +460,7 @@ class PlayerController extends ChangeNotifier {
       song,
       fromQueue: queue.isEmpty ? [song] : queue,
       startPosition: position,
+      preserveShufflePath: playbackMode == PlaybackMode.shuffle,
     );
     if (!audioService.isEnabled) {
       isPlaying = true;
@@ -430,7 +468,13 @@ class PlayerController extends ChangeNotifier {
     }
   }
 
-  Future<void> playPrevious() async => _playOffset(-1);
+  Future<void> playPrevious() async {
+    if (playbackMode == PlaybackMode.shuffle) {
+      await _playShufflePrevious();
+      return;
+    }
+    await _playOffset(-1);
+  }
 
   Future<void> playNext({bool autoAdvance = false}) async {
     if (autoAdvance && playbackMode == PlaybackMode.repeatOne) {
@@ -442,6 +486,10 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> _playOffset(int offset, {bool autoAdvance = false}) async {
+    if (playbackMode == PlaybackMode.shuffle && offset > 0) {
+      await _playShuffleNext();
+      return;
+    }
     final song = currentSong;
     if (song == null || queue.isEmpty) return;
     final currentIndex = queue.indexWhere((item) => item.id == song.id);
@@ -460,6 +508,43 @@ class PlayerController extends ChangeNotifier {
     await playSong(queue[targetIndex], fromQueue: queue);
   }
 
+  Future<void> _playShuffleNext() async {
+    final current = currentSong;
+    if (current == null || queue.length <= 1) return;
+    _sanitizeShufflePath();
+    if (_shuffleUpcoming.isEmpty) {
+      _refillShuffleUpcoming(excluding: current.id);
+    }
+    if (_shuffleUpcoming.isEmpty) return;
+    final targetId = _shuffleUpcoming.removeAt(0);
+    final target = _songForId(targetId);
+    if (target == null) {
+      _sanitizeShufflePath();
+      await _playShuffleNext();
+      return;
+    }
+    _shuffleHistory.add(current.id);
+    await playSong(target, fromQueue: queue, preserveShufflePath: true);
+  }
+
+  Future<void> _playShufflePrevious() async {
+    final current = currentSong;
+    if (current == null || _shuffleHistory.isEmpty) return;
+    _sanitizeShufflePath();
+    if (_shuffleHistory.isEmpty) return;
+    final targetId = _shuffleHistory.removeLast();
+    final target = _songForId(targetId);
+    if (target == null) {
+      await _playShufflePrevious();
+      return;
+    }
+    _shuffleUpcoming
+      ..remove(targetId)
+      ..remove(current.id)
+      ..insert(0, current.id);
+    await playSong(target, fromQueue: queue, preserveShufflePath: true);
+  }
+
   int? _targetIndex(int currentIndex, int offset, bool autoAdvance) {
     if (queue.length == 1) {
       return playbackMode == PlaybackMode.repeatAll ||
@@ -467,12 +552,6 @@ class PlayerController extends ChangeNotifier {
           ? 0
           : null;
     }
-    if (playbackMode == PlaybackMode.shuffle && offset > 0) {
-      var next = _random.nextInt(queue.length);
-      if (next == currentIndex) next = (next + 1) % queue.length;
-      return next;
-    }
-
     final raw = currentIndex + offset;
     if (raw >= 0 && raw < queue.length) return raw;
     if (playbackMode == PlaybackMode.repeatAll || !autoAdvance) {
@@ -526,6 +605,8 @@ class PlayerController extends ChangeNotifier {
           currentSong: currentSong,
           position: position,
           playbackMode: playbackMode,
+          shuffleHistory: List.unmodifiable(_shuffleHistory),
+          shuffleUpcoming: List.unmodifiable(_shuffleUpcoming),
         ),
       );
     } catch (error, stackTrace) {
@@ -549,6 +630,50 @@ class PlayerController extends ChangeNotifier {
       }
     }
     notifyListeners();
+  }
+
+  void _startShufflePath({String? anchorId}) {
+    _clearShufflePath();
+    if (playbackMode != PlaybackMode.shuffle || queue.length <= 1) return;
+    _refillShuffleUpcoming(excluding: anchorId);
+  }
+
+  void _recordManualShuffleSelection(String targetId) {
+    final current = currentSong;
+    if (current != null && current.id != targetId) {
+      _shuffleHistory.add(current.id);
+    }
+    _shuffleUpcoming
+      ..clear()
+      ..addAll(queue.map((song) => song.id).where((id) => id != targetId));
+    _shuffleUpcoming.shuffle(_random);
+  }
+
+  void _refillShuffleUpcoming({String? excluding}) {
+    _shuffleUpcoming
+      ..clear()
+      ..addAll(queue.map((song) => song.id).where((id) => id != excluding));
+    _shuffleUpcoming.shuffle(_random);
+  }
+
+  void _sanitizeShufflePath() {
+    final validIds = queue.map((song) => song.id).toSet();
+    _shuffleHistory.removeWhere((id) => !validIds.contains(id));
+    _shuffleUpcoming.removeWhere((id) => !validIds.contains(id));
+    final currentId = currentSong?.id;
+    if (currentId != null) _shuffleUpcoming.remove(currentId);
+  }
+
+  void _clearShufflePath() {
+    _shuffleHistory.clear();
+    _shuffleUpcoming.clear();
+  }
+
+  Song? _songForId(String id) {
+    for (final song in queue) {
+      if (song.id == id) return song;
+    }
+    return null;
   }
 
   @override

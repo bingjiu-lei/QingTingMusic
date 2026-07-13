@@ -49,7 +49,7 @@ class _SongRowState extends State<SongRow> {
     final height = widget.compact ? 58.0 : 66.0;
 
     return MouseRegion(
-      cursor: SystemMouseCursors.click,
+      cursor: SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(

@@ -116,35 +116,37 @@ class _BlurredCoverBackground extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 680),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              child: Opacity(
-                key: ValueKey(hasCover ? coverUrl : 'album-placeholder-bg'),
-                opacity: hasCover ? 0.92 : 0.42,
-                child: ImageFiltered(
-                  imageFilter: ImageFilter.blur(sigmaX: 86, sigmaY: 86),
-                  child: Transform.scale(
-                    scale: 2.28,
-                    child: SizedBox.expand(
-                      child: hasCover
-                          ? Image.network(
-                              coverUrl,
-                              fit: BoxFit.cover,
-                              gaplessPlayback: true,
-                              filterQuality: FilterQuality.low,
-                              errorBuilder: (_, _, _) => Image.asset(
+            RepaintBoundary(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: Opacity(
+                  key: ValueKey(hasCover ? coverUrl : 'album-placeholder-bg'),
+                  opacity: hasCover ? 0.92 : 0.42,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(sigmaX: 54, sigmaY: 54),
+                    child: Transform.scale(
+                      scale: 2.12,
+                      child: SizedBox.expand(
+                        child: hasCover
+                            ? Image.network(
+                                coverUrl,
+                                fit: BoxFit.cover,
+                                gaplessPlayback: true,
+                                filterQuality: FilterQuality.low,
+                                errorBuilder: (_, _, _) => Image.asset(
+                                  'assets/images/album_placeholder.png',
+                                  fit: BoxFit.cover,
+                                  filterQuality: FilterQuality.low,
+                                ),
+                              )
+                            : Image.asset(
                                 'assets/images/album_placeholder.png',
                                 fit: BoxFit.cover,
                                 filterQuality: FilterQuality.low,
                               ),
-                            )
-                          : Image.asset(
-                              'assets/images/album_placeholder.png',
-                              fit: BoxFit.cover,
-                              filterQuality: FilterQuality.low,
-                            ),
+                      ),
                     ),
                   ),
                 ),
@@ -800,11 +802,11 @@ class _PlaybackControls extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(999),
             child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: AppColors.surface.withValues(
-                    alpha: AppColors.isDark ? 0.26 : 0.34,
+                    alpha: AppColors.isDark ? 0.62 : 0.70,
                   ),
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(

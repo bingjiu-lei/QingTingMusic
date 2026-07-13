@@ -105,6 +105,35 @@ void main() {
     controller.dispose();
   });
 
+  test('shuffle playback returns along the actual listening path', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final songs = [_song('one'), _song('two'), _song('three')];
+
+    controller
+      ..cyclePlaybackMode()
+      ..cyclePlaybackMode()
+      ..cyclePlaybackMode();
+    await controller.playSong(songs.first, fromQueue: songs);
+    await controller.playNext();
+    final secondId = controller.currentSong!.id;
+    await controller.playNext();
+    final thirdId = controller.currentSong!.id;
+
+    expect(controller.playbackMode, PlaybackMode.shuffle);
+    expect(secondId, isNot('one'));
+    expect(thirdId, isNot(secondId));
+
+    await controller.playPrevious();
+    expect(controller.currentSong?.id, secondId);
+    await controller.playPrevious();
+    expect(controller.currentSong?.id, 'one');
+    await controller.playNext();
+    expect(controller.currentSong?.id, secondId);
+
+    controller.dispose();
+  });
+
   test('ignores a stale completion event while a song is starting', () async {
     final audio = _FakeAudioPlayerService();
     final controller = PlayerController(audioService: audio);

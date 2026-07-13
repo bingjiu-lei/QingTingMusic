@@ -97,7 +97,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(24, 16, 30, 24),
+      padding: const EdgeInsets.fromLTRB(24, 12, 30, 18),
       child: Column(
         children: [
           Row(
@@ -122,8 +122,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                 ),
               ),
               SizedBox(width: 10),
-              AlbumArt(size: 92, imageUrl: widget.imageUrl),
-              SizedBox(width: 20),
+              AlbumArt(size: 80, imageUrl: widget.imageUrl),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,12 +139,12 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                         height: 1.16,
                       ),
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     _HeaderSubtitle(
                       text: widget.subtitle,
                       onTap: widget.onOpenHeaderArtist,
                     ),
-                    SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     Wrap(
                       spacing: 10,
                       runSpacing: 8,
@@ -192,7 +192,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
               ),
             ],
           ),
-          SizedBox(height: 22),
+          const SizedBox(height: 14),
           Row(
             children: [
               for (var index = 0; index < tabs.length; index++) ...[
@@ -205,7 +205,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
               ],
             ],
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 6),
           Expanded(
             child: widget.isLoading
                 ? const _DetailLoadingPlaceholder()
@@ -226,6 +226,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         songs: songs,
         currentSong: widget.currentSong,
         isPlaying: widget.isPlaying,
+        compactRows: true,
         onPlay: widget.onPlay,
         onLike: widget.onLike,
         onAddToPlaylist: widget.onAddToPlaylist,

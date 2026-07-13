@@ -60,12 +60,12 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(26, 10, 30, 24),
+      padding: const EdgeInsets.fromLTRB(26, 6, 30, 18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(title: '我的音乐', subtitle: '收藏与个人音乐内容'),
-          const SizedBox(height: 16),
+          const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -84,7 +84,7 @@ class _LibraryPageState extends State<LibraryPage> {
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           Expanded(child: _content()),
         ],
       ),
@@ -184,6 +184,7 @@ class _LibraryPageState extends State<LibraryPage> {
       songs: songs,
       currentSong: widget.currentSong,
       isPlaying: widget.isPlaying,
+      compactRows: true,
       emptyText: emptyText,
       onPlay: widget.onPlay,
       onLike: widget.onLike,
