@@ -91,7 +91,7 @@ class _PlayQueuePanelState extends State<PlayQueuePanel> {
         return Container(
           width: 388,
           height: double.infinity,
-          margin: const EdgeInsets.only(top: 36, bottom: 92),
+          margin: const EdgeInsets.only(top: 36, bottom: 104),
           clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: AppColors.surface,
@@ -166,6 +166,7 @@ class _PlayQueuePanelState extends State<PlayQueuePanel> {
                       )
                     : ListView.builder(
                         controller: _scrollController,
+                        itemExtent: _itemExtent,
                         padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
                         itemCount: queue.length,
                         itemBuilder: (context, index) {

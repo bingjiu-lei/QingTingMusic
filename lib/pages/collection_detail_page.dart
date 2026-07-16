@@ -174,7 +174,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                 vertical: 11,
                               ),
                               foregroundColor: widget.isCollected
-                                  ? AppColors.primary
+                                  ? AppColors.favorite
                                   : AppColors.muted,
                             ),
                             icon: Icon(

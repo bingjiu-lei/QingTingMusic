@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 class AlbumArt extends StatelessWidget {
   const AlbumArt({
     super.key,
@@ -14,26 +16,50 @@ class AlbumArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final placeholder = ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.asset(
-        'assets/images/album_placeholder.png',
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-      ),
+    final radius = BorderRadius.circular(
+      size >= 50 ? AppRadius.lg : AppRadius.sm,
     );
-    if (imageUrl == null || imageUrl!.isEmpty) return placeholder;
+    final placeholder = Image.asset(
+      'assets/images/album_placeholder.png',
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      gaplessPlayback: true,
+    );
+    final image = imageUrl == null || imageUrl!.isEmpty
+        ? placeholder
+        : Image.network(
+            imageUrl!,
+            key: ValueKey(imageUrl),
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            gaplessPlayback: true,
+            cacheWidth: (size * 2).round(),
+            errorBuilder: (_, _, _) => placeholder,
+          );
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: Image.network(
-        imageUrl!,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => placeholder,
+    return AnimatedContainer(
+      duration: AppMotion.normal,
+      width: size,
+      height: size,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        border: emphasized
+            ? Border.all(color: AppColors.primary.withValues(alpha: 0.34))
+            : null,
+        boxShadow: emphasized ? AppShadows.card : null,
+      ),
+      child: AnimatedSwitcher(
+        duration: AppMotion.normal,
+        switchInCurve: AppMotion.curve,
+        switchOutCurve: Curves.easeInCubic,
+        child: ClipRRect(
+          key: ValueKey(imageUrl ?? 'placeholder'),
+          borderRadius: radius,
+          child: image,
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 
 import '../models/search_catalog_item.dart';
 import '../theme/app_theme.dart';
@@ -31,7 +32,7 @@ class SearchCatalogList extends StatelessWidget {
     return ListView.separated(
       key: storageKey,
       padding: const EdgeInsets.only(top: 4, bottom: 12),
-      cacheExtent: 720,
+      scrollCacheExtent: const ScrollCacheExtent.pixels(720),
       itemCount: items.length,
       separatorBuilder: (_, _) => Divider(
         height: 1,

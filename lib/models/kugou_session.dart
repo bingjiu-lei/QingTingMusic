@@ -8,6 +8,7 @@ class KugouSession {
     this.device = '',
     this.mac = '',
     this.nickname = '',
+    this.avatarUrl = '',
   });
 
   final String token;
@@ -18,6 +19,7 @@ class KugouSession {
   final String device;
   final String mac;
   final String nickname;
+  final String avatarUrl;
 
   bool get isLoggedIn => token.isNotEmpty && userId.isNotEmpty;
   bool get hasDevice => dfid.isNotEmpty;
@@ -53,6 +55,7 @@ class KugouSession {
     String? device,
     String? mac,
     String? nickname,
+    String? avatarUrl,
   }) {
     return KugouSession(
       token: token ?? this.token,
@@ -63,6 +66,7 @@ class KugouSession {
       device: device ?? this.device,
       mac: mac ?? this.mac,
       nickname: nickname ?? this.nickname,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
     );
   }
 
@@ -85,6 +89,7 @@ class KugouSession {
     'device': device,
     'mac': mac,
     'nickname': nickname,
+    'avatarUrl': avatarUrl,
   };
 
   factory KugouSession.fromJson(Map<String, Object?> json) {
@@ -98,6 +103,7 @@ class KugouSession {
       device: read('device'),
       mac: read('mac'),
       nickname: read('nickname'),
+      avatarUrl: read('avatarUrl'),
     );
   }
 }

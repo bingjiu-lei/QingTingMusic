@@ -7,6 +7,7 @@ import '../controllers/player_controller.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
 import 'song_row.dart';
 
@@ -33,274 +34,449 @@ class PlayerBar extends StatelessWidget {
   final ValueChanged<Song>? onAddToPlaylist;
 
   @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) {
+      final song = controller.currentSong;
+      final duration = controller.duration == Duration.zero && song != null
+          ? song.duration
+          : controller.duration;
+      return Container(
+        height: 92,
+        decoration: BoxDecoration(
+          color: AppColors.playerSurface,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.shadow.withValues(alpha: 0.42),
+              blurRadius: 20,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Positioned(
+              left: 18,
+              top: 0,
+              right: 18,
+              child: PlaybackProgress(
+                position: controller.position,
+                bufferedPosition: controller.bufferedPosition,
+                duration: duration,
+                onSeek: controller.seekByRatio,
+                compact: true,
+              ),
+            ),
+            Positioned.fill(
+              top: 13,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact = constraints.maxWidth < 1080;
+                  return Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 14 : 22,
+                      vertical: 8,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: _TrackSection(
+                            song: song,
+                            compact: compact,
+                            onNowPlayingPressed: onNowPlayingPressed,
+                            onOpenArtist: onOpenArtist,
+                            onOpenAlbum: onOpenAlbum,
+                            onLike: onLike,
+                            onAddToPlaylist: onAddToPlaylist,
+                            playbackMode: controller.playbackMode,
+                            onCyclePlaybackMode: controller.cyclePlaybackMode,
+                            subtitle:
+                                controller.errorText ??
+                                controller.playbackNotice ??
+                                (controller.isPreparing
+                                    ? '正在准备播放'
+                                    : song?.artist ?? ''),
+                            subtitleColor: controller.errorText != null
+                                ? AppColors.danger
+                                : controller.playbackNotice != null
+                                ? AppColors.primary
+                                : AppColors.muted,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 3,
+                          child: _TransportSection(
+                            controller: controller,
+                            song: song,
+                          ),
+                        ),
+                        Expanded(
+                          flex: 4,
+                          child: _ToolSection(
+                            song: song,
+                            onOpenAlbum: onOpenAlbum,
+                            volume: controller.volume,
+                            onVolumeChanged: controller.setVolume,
+                            qualityController: playbackQualityController,
+                            onQueuePressed: onQueuePressed,
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _TrackSection extends StatelessWidget {
+  const _TrackSection({
+    required this.song,
+    required this.compact,
+    required this.onNowPlayingPressed,
+    required this.onOpenArtist,
+    required this.onOpenAlbum,
+    required this.onLike,
+    required this.onAddToPlaylist,
+    required this.playbackMode,
+    required this.onCyclePlaybackMode,
+    required this.subtitle,
+    required this.subtitleColor,
+  });
+
+  final Song? song;
+  final bool compact;
+  final VoidCallback? onNowPlayingPressed;
+  final ValueChanged<Song>? onOpenArtist;
+  final ValueChanged<Song>? onOpenAlbum;
+  final ValueChanged<Song>? onLike;
+  final ValueChanged<Song>? onAddToPlaylist;
+  final PlaybackMode playbackMode;
+  final VoidCallback onCyclePlaybackMode;
+  final String subtitle;
+  final Color subtitleColor;
+
+  @override
   Widget build(BuildContext context) {
-    final song = controller.currentSong;
-    return Container(
-      height: 92,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        border: Border(top: BorderSide(color: AppColors.border)),
-        boxShadow: AppColors.isDark ? null : AppShadows.soft,
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 920;
-          return Padding(
-            padding: EdgeInsets.symmetric(horizontal: compact ? 12 : 22),
-            child: Row(
-              children: [
-                MouseRegion(
-                  cursor: song == null || onNowPlayingPressed == null
-                      ? MouseCursor.defer
-                      : SystemMouseCursors.click,
-                  child: Tooltip(
-                    message: song == null ? '' : '打开播放页',
-                    child: GestureDetector(
-                      onTap: song == null ? null : onNowPlayingPressed,
-                      child: AlbumArt(
-                        size: 58,
-                        emphasized: song != null,
-                        imageUrl: song?.coverUrl,
+    return Row(
+      children: [
+        MouseRegion(
+          cursor: song == null || onNowPlayingPressed == null
+              ? MouseCursor.defer
+              : SystemMouseCursors.click,
+          child: Tooltip(
+            message: song == null ? '' : '打开播放页',
+            child: GestureDetector(
+              onTap: song == null ? null : onNowPlayingPressed,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  boxShadow: song == null ? null : AppShadows.card,
+                ),
+                child: AlbumArt(
+                  size: compact ? 52 : 58,
+                  emphasized: song != null,
+                  imageUrl: song?.coverUrl,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 13),
+        Expanded(
+          child: song == null
+              ? Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '让音乐从这里开始',
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: compact ? 120 : 190,
-                  child: song == null
-                      ? Text(
-                          '选择一首歌开始播放',
-                          style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
-                          ),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.text,
-                                fontWeight: FontWeight.w700,
+                    const SizedBox(height: 3),
+                    Text(
+                      '选择歌曲或开启私人 FM',
+                      style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      song!.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    if (subtitle == song!.artist)
+                      SongArtistLine(
+                        song: song!,
+                        onArtistLink: onOpenArtist == null
+                            ? null
+                            : (artist) => onOpenArtist!(
+                                song!.copyWith(
+                                  artist: artist.name,
+                                  artistId: artist.id,
+                                  artists: [artist],
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            _PlayerSubtitle(
-                              song: song,
-                              text:
-                                  controller.errorText ??
-                                  controller.playbackNotice ??
-                                  (controller.isPreparing
-                                      ? '正在准备播放'
-                                      : song.artist),
-                              interactive:
-                                  controller.errorText == null &&
-                                  controller.playbackNotice == null &&
-                                  !controller.isPreparing &&
-                                  onOpenArtist != null,
-                              color: controller.errorText != null
-                                  ? AppColors.danger
-                                  : controller.playbackNotice != null
-                                  ? AppColors.primary
-                                  : AppColors.muted,
-                              onOpenArtist: onOpenArtist,
-                            ),
-                          ],
+                      )
+                    else
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: subtitleColor,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
+                      ),
+                  ],
                 ),
-                if (song != null && !compact) ...[
-                  _BarIconButton(
-                    tooltip: song.liked ? '取消收藏' : '收藏',
-                    onPressed: onLike == null ? null : () => onLike!(song),
-                    icon: Icon(
-                      song.liked
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: song.liked ? AppColors.primary : AppColors.muted,
-                    ),
-                  ),
-                  _BarIconButton(
-                    tooltip: '添加到歌单',
-                    onPressed: onAddToPlaylist == null
-                        ? null
-                        : () => onAddToPlaylist!(song),
-                    icon: const Icon(Icons.playlist_add_rounded),
-                  ),
-                  _BarIconButton(
-                    tooltip: '打开专辑',
-                    onPressed: _hasAlbum(song) && onOpenAlbum != null
-                        ? () => onOpenAlbum!(song)
-                        : null,
-                    icon: const Icon(Icons.album_rounded),
-                  ),
-                ],
-                _BarIconButton(
-                  tooltip: controller.playbackMode.label,
-                  onPressed: controller.cyclePlaybackMode,
-                  icon: Icon(_modeIcon(controller.playbackMode)),
-                ),
-                _BarIconButton(
-                  tooltip: '上一首',
-                  onPressed: song == null ? null : controller.playPrevious,
-                  icon: const Icon(Icons.fast_rewind_rounded, size: 23),
-                ),
-                FilledButton(
-                  onPressed: song == null || controller.isPreparing
-                      ? null
-                      : controller.togglePlay,
-                  style: FilledButton.styleFrom(
-                    enabledMouseCursor: SystemMouseCursors.click,
-                    disabledMouseCursor: SystemMouseCursors.basic,
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: AppColors.primary.withValues(
-                      alpha: 0.5,
-                    ),
-                    shape: const CircleBorder(),
-                    padding: const EdgeInsets.all(14),
-                    elevation: 0,
-                  ),
-                  child: Icon(
-                    controller.isPlaying || controller.isPreparing
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    size: 28,
-                  ),
-                ),
-                _BarIconButton(
-                  tooltip: '下一首',
-                  onPressed: song == null ? null : () => controller.playNext(),
-                  icon: const Icon(Icons.fast_forward_rounded, size: 23),
-                ),
-                SizedBox(width: compact ? 8 : 18),
-                Text(
-                  formatDuration(controller.position),
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
-                ),
-                const SizedBox(width: 8),
-                Expanded(child: _BufferedProgress(controller: controller)),
-                const SizedBox(width: 8),
-                Text(
-                  formatDuration(
-                    controller.duration == Duration.zero && song != null
-                        ? song.duration
-                        : controller.duration,
-                  ),
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
-                ),
-                if (!compact) ...[
-                  const SizedBox(width: 12),
-                  PlaybackQualityMenu(
-                    controller: playbackQualityController,
-                    compact: true,
-                  ),
-                  const SizedBox(width: 6),
-                  _HoverVolumeControl(
-                    volume: controller.volume,
-                    onChanged: controller.setVolume,
-                  ),
-                  _BarIconButton(
-                    tooltip: '播放队列',
-                    onPressed: onQueuePressed,
-                    icon: const Icon(Icons.queue_music_rounded),
-                  ),
-                ],
-              ],
-            ),
-          );
-        },
-      ),
+        ),
+        if (song != null) ...[
+          _ControlIconButton(
+            tooltip: song!.liked ? '取消收藏' : '收藏',
+            onPressed: onLike == null ? null : () => onLike!(song!),
+            icon: song!.liked
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            selected: song!.liked,
+            selectedColor: AppColors.favorite,
+            selectedBackgroundColor: Colors.transparent,
+          ),
+          _ControlIconButton(
+            tooltip: '添加到歌单',
+            onPressed: onAddToPlaylist == null
+                ? null
+                : () => onAddToPlaylist!(song!),
+            icon: Icons.playlist_add_rounded,
+            size: 38,
+          ),
+          _ControlIconButton(
+            tooltip: playbackMode.label,
+            onPressed: onCyclePlaybackMode,
+            icon: _playbackModeIcon(playbackMode),
+            size: 38,
+          ),
+        ],
+      ],
     );
-  }
-
-  IconData _modeIcon(PlaybackMode mode) {
-    return switch (mode) {
-      PlaybackMode.sequence => Icons.format_list_numbered_rounded,
-      PlaybackMode.repeatAll => Icons.repeat_rounded,
-      PlaybackMode.repeatOne => Icons.repeat_one_rounded,
-      PlaybackMode.shuffle => Icons.shuffle_rounded,
-    };
-  }
-
-  bool _hasAlbum(Song song) {
-    final album = song.album.trim();
-    return album.isNotEmpty && album != '未知专辑';
   }
 }
 
-class _BarIconButton extends StatelessWidget {
-  const _BarIconButton({
-    required this.tooltip,
-    required this.icon,
+class _TransportSection extends StatelessWidget {
+  const _TransportSection({required this.controller, required this.song});
+
+  final PlayerController controller;
+  final Song? song;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      _ControlIconButton(
+        tooltip: '上一首',
+        onPressed: song == null ? null : controller.playPrevious,
+        icon: Icons.skip_previous_rounded,
+        iconSize: 25,
+      ),
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: _PrimaryPlayButton(
+          isPlaying: controller.isPlaying,
+          preparing: controller.isPreparing,
+          enabled: song != null,
+          onPressed: controller.togglePlay,
+        ),
+      ),
+      _ControlIconButton(
+        tooltip: '下一首',
+        onPressed: song == null ? null : () => controller.playNext(),
+        icon: Icons.skip_next_rounded,
+        iconSize: 25,
+      ),
+    ],
+  );
+}
+
+class _ToolSection extends StatelessWidget {
+  const _ToolSection({
+    required this.song,
+    required this.onOpenAlbum,
+    required this.volume,
+    required this.onVolumeChanged,
+    required this.qualityController,
+    required this.onQueuePressed,
+  });
+
+  final Song? song;
+  final ValueChanged<Song>? onOpenAlbum;
+  final double volume;
+  final ValueChanged<double> onVolumeChanged;
+  final PlaybackQualityController qualityController;
+  final VoidCallback? onQueuePressed;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisAlignment: MainAxisAlignment.end,
+    children: [
+      if (song != null && _hasPlayableAlbum(song!))
+        _ControlIconButton(
+          tooltip: '打开专辑',
+          onPressed: onOpenAlbum == null ? null : () => onOpenAlbum!(song!),
+          icon: Icons.album_outlined,
+        ),
+      PlaybackQualityMenu(controller: qualityController, compact: true),
+      const SizedBox(width: 4),
+      _HoverVolumeControl(volume: volume, onChanged: onVolumeChanged),
+      _ControlIconButton(
+        tooltip: '播放队列',
+        onPressed: onQueuePressed,
+        icon: Icons.queue_music_rounded,
+      ),
+    ],
+  );
+}
+
+bool _hasPlayableAlbum(Song song) {
+  final album = song.album.trim();
+  return album.isNotEmpty && album != '未知专辑';
+}
+
+IconData _playbackModeIcon(PlaybackMode mode) => switch (mode) {
+  PlaybackMode.sequence => Icons.format_list_numbered_rounded,
+  PlaybackMode.repeatAll => Icons.repeat_rounded,
+  PlaybackMode.repeatOne => Icons.repeat_one_rounded,
+  PlaybackMode.shuffle => Icons.shuffle_rounded,
+};
+
+class _PrimaryPlayButton extends StatelessWidget {
+  const _PrimaryPlayButton({
+    required this.isPlaying,
+    required this.preparing,
+    required this.enabled,
     required this.onPressed,
   });
 
-  final String tooltip;
-  final Widget icon;
-  final VoidCallback? onPressed;
+  final bool isPlaying;
+  final bool preparing;
+  final bool enabled;
+  final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      mouseCursor: onPressed == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      icon: icon,
-      style: IconButton.styleFrom(
-        minimumSize: const Size(38, 38),
-        fixedSize: const Size(38, 38),
-        padding: EdgeInsets.zero,
-        iconSize: 21,
-        foregroundColor: AppColors.muted,
-        disabledForegroundColor: AppColors.faint.withValues(alpha: 0.44),
-        hoverColor: AppColors.primary.withValues(alpha: 0.08),
-        highlightColor: AppColors.primary.withValues(alpha: 0.12),
-        shape: const CircleBorder(),
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: isPlaying ? '暂停' : '播放',
+    child: Tooltip(
+      message: preparing
+          ? '正在准备'
+          : isPlaying
+          ? '暂停'
+          : '播放',
+      child: AnimatedContainer(
+        duration: AppMotion.fast,
+        width: 46,
+        height: 46,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled ? AppColors.selected : AppColors.surfaceMuted,
+        ),
+        child: Material(
+          color: Colors.transparent,
+          shape: const CircleBorder(),
+          child: InkWell(
+            onTap: !enabled || preparing ? null : onPressed,
+            customBorder: const CircleBorder(),
+            mouseCursor: enabled && !preparing
+                ? SystemMouseCursors.click
+                : SystemMouseCursors.basic,
+            child: Center(
+              child: preparing
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.2,
+                        color: AppColors.primary,
+                      ),
+                    )
+                  : Icon(
+                      isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: enabled ? AppColors.primary : AppColors.faint,
+                      size: 27,
+                    ),
+            ),
+          ),
+        ),
       ),
-    );
-  }
+    ),
+  );
 }
 
-class _PlayerSubtitle extends StatelessWidget {
-  const _PlayerSubtitle({
-    required this.song,
-    required this.text,
-    required this.interactive,
-    required this.color,
-    required this.onOpenArtist,
+class _ControlIconButton extends StatelessWidget {
+  const _ControlIconButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.icon,
+    this.iconSize = 21,
+    this.selected = false,
+    this.size = 42,
+    this.selectedColor,
+    this.selectedBackgroundColor,
   });
 
-  final Song song;
-  final String text;
-  final bool interactive;
-  final Color color;
-  final ValueChanged<Song>? onOpenArtist;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final double iconSize;
+  final bool selected;
+  final double size;
+  final Color? selectedColor;
+  final Color? selectedBackgroundColor;
 
   @override
-  Widget build(BuildContext context) {
-    final child = Text(
-      text,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(color: color, fontSize: 12),
-    );
-    if (!interactive) return child;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => onOpenArtist?.call(song),
-        child: child,
-      ),
-    );
-  }
+  Widget build(BuildContext context) => IconButton(
+    tooltip: tooltip,
+    onPressed: onPressed,
+    mouseCursor: onPressed == null
+        ? SystemMouseCursors.basic
+        : SystemMouseCursors.click,
+    icon: Icon(icon, size: iconSize),
+    style: IconButton.styleFrom(
+      minimumSize: Size(size, size),
+      fixedSize: Size(size, size),
+      foregroundColor: selected
+          ? selectedColor ?? AppColors.primary
+          : AppColors.muted,
+      disabledForegroundColor: AppColors.faint.withValues(alpha: 0.42),
+      backgroundColor: selected
+          ? selectedBackgroundColor ?? AppColors.selected
+          : Colors.transparent,
+      hoverColor: AppColors.selected,
+      highlightColor: AppColors.surfacePressed,
+      shape: const CircleBorder(),
+    ),
+  );
 }
 
 class _HoverVolumeControl extends StatefulWidget {
@@ -320,13 +496,13 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   Timer? _hideTimer;
   bool _anchorHovered = false;
   bool _panelHovered = false;
+  double _lastAudibleVolume = 0.78;
 
   @override
   void didUpdateWidget(covariant _HoverVolumeControl oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.volume != widget.volume) {
-      _overlayEntry?.markNeedsBuild();
-    }
+    if (widget.volume > 0.01) _lastAudibleVolume = widget.volume;
+    if (oldWidget.volume != widget.volume) _overlayEntry?.markNeedsBuild();
   }
 
   @override
@@ -344,52 +520,55 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
       _overlayEntry?.markNeedsBuild();
       return;
     }
-
     _overlayEntry = OverlayEntry(
-      builder: (context) {
-        return CompositedTransformFollower(
+      builder: (context) => Positioned(
+        width: 210,
+        height: 54,
+        child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          targetAnchor: Alignment.topCenter,
-          followerAnchor: Alignment.bottomCenter,
-          offset: const Offset(0, -10),
-          child: UnconstrainedBox(
-            alignment: Alignment.bottomCenter,
-            child: Material(
-              type: MaterialType.transparency,
-              child: MouseRegion(
-                cursor: SystemMouseCursors.basic,
-                onEnter: (_) {
-                  _panelHovered = true;
-                  _hideTimer?.cancel();
+          targetAnchor: Alignment.topRight,
+          followerAnchor: Alignment.bottomRight,
+          offset: const Offset(0, -8),
+          child: Material(
+            type: MaterialType.transparency,
+            child: MouseRegion(
+              onEnter: (_) {
+                _panelHovered = true;
+                _hideTimer?.cancel();
+              },
+              onExit: (_) {
+                _panelHovered = false;
+                _scheduleHide();
+              },
+              child: _VolumePopover(
+                volume: widget.volume,
+                onChanged: (value) {
+                  widget.onChanged(value);
+                  _overlayEntry?.markNeedsBuild();
                 },
-                onExit: (_) {
-                  _panelHovered = false;
-                  _scheduleHide();
-                },
-                child: _VolumePopover(
-                  volume: widget.volume,
-                  onChanged: (value) {
-                    widget.onChanged(value);
-                    _overlayEntry?.markNeedsBuild();
-                  },
-                ),
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
     Overlay.of(context).insert(_overlayEntry!);
+  }
+
+  void _scheduleShow() {
+    _showTimer?.cancel();
+    _hideTimer?.cancel();
+    _showTimer = Timer(const Duration(milliseconds: 160), () {
+      if (_anchorHovered || _panelHovered) _showOverlay();
+    });
   }
 
   void _scheduleHide() {
     _showTimer?.cancel();
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(milliseconds: 320), () {
-      if (!_anchorHovered && !_panelHovered) {
-        _removeOverlay();
-      }
+      if (!_anchorHovered && !_panelHovered) _removeOverlay();
     });
   }
 
@@ -399,44 +578,51 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
     _overlayEntry = null;
   }
 
-  void _scheduleShow() {
-    _showTimer?.cancel();
-    _hideTimer?.cancel();
-    _showTimer = Timer(const Duration(milliseconds: 180), () {
-      if (_anchorHovered || _panelHovered) _showOverlay();
-    });
+  void _toggleMute() {
+    _removeOverlay();
+    if (widget.volume <= 0.01) {
+      widget.onChanged(_lastAudibleVolume.clamp(0.08, 1.0));
+    } else {
+      _lastAudibleVolume = widget.volume;
+      widget.onChanged(0);
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) {
-          _anchorHovered = true;
-          _scheduleShow();
-        },
-        onExit: (_) {
-          _anchorHovered = false;
-          _scheduleHide();
-        },
-        child: SizedBox(
-          width: 36,
-          height: 42,
-          child: Icon(
+  Widget build(BuildContext context) => CompositedTransformTarget(
+    link: _layerLink,
+    child: MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) {
+        _anchorHovered = true;
+        _scheduleShow();
+      },
+      onExit: (_) {
+        _anchorHovered = false;
+        _scheduleHide();
+      },
+      child: Tooltip(
+        message: widget.volume <= 0.01 ? '恢复音量' : '静音',
+        child: IconButton(
+          onPressed: _toggleMute,
+          icon: Icon(
             widget.volume <= 0.01
                 ? Icons.volume_off_rounded
                 : widget.volume < 0.45
                 ? Icons.volume_down_rounded
                 : Icons.volume_up_rounded,
-            color: AppColors.muted,
-            size: 21,
+          ),
+          style: IconButton.styleFrom(
+            minimumSize: const Size(42, 42),
+            fixedSize: const Size(42, 42),
+            foregroundColor: AppColors.muted,
+            hoverColor: AppColors.selected,
+            shape: const CircleBorder(),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
 }
 
 class _VolumePopover extends StatelessWidget {
@@ -448,219 +634,39 @@ class _VolumePopover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percent = (volume.clamp(0.0, 1.0) * 100).round();
-    return SizedBox(
-      width: 54,
-      height: 166,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.xl),
-          border: Border.all(color: AppColors.border),
-          boxShadow: AppShadows.popover,
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
-          child: Column(
-            children: [
-              Text(
-                '$percent',
-                style: TextStyle(
-                  color: AppColors.muted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Expanded(
-                child: Center(
-                  child: RotatedBox(
-                    quarterTurns: -1,
-                    child: SizedBox(
-                      width: 112,
-                      child: SliderTheme(
-                        data: SliderTheme.of(context).copyWith(
-                          trackHeight: 4,
-                          activeTrackColor: AppColors.primary,
-                          inactiveTrackColor: AppColors.divider,
-                          thumbColor: AppColors.surface,
-                          overlayColor: AppColors.primary.withValues(
-                            alpha: 0.12,
-                          ),
-                          thumbShape: const RoundSliderThumbShape(
-                            enabledThumbRadius: 7,
-                          ),
-                          overlayShape: const RoundSliderOverlayShape(
-                            overlayRadius: 15,
-                          ),
-                          trackShape: const _EdgeToEdgeSliderTrackShape(),
-                        ),
-                        child: Slider(
-                          value: volume.clamp(0.0, 1.0),
-                          onChanged: onChanged,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+    return Container(
+      width: 210,
+      height: 54,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.popover,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            volume <= 0.01 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+            color: AppColors.muted,
+            size: 19,
           ),
-        ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Slider(value: volume.clamp(0.0, 1.0), onChanged: onChanged),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$percent%',
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
       ),
     );
-  }
-}
-
-class _BufferedProgress extends StatelessWidget {
-  const _BufferedProgress({required this.controller});
-
-  final PlayerController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final played = _ratio(controller.position);
-    final buffered = _ratio(controller.bufferedPosition);
-    final enabled = controller.currentSong != null;
-    return MouseRegion(
-      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          void seek(Offset localPosition) {
-            if (!enabled || constraints.maxWidth <= 0) return;
-            controller.seekByRatio(
-              (localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0),
-            );
-          }
-
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: (details) => seek(details.localPosition),
-            onHorizontalDragUpdate: (details) => seek(details.localPosition),
-            child: SizedBox(
-              height: 30,
-              child: Stack(
-                alignment: Alignment.centerLeft,
-                children: [
-                  _ProgressTrack(
-                    played: enabled ? played : 0,
-                    buffered: enabled ? buffered : 0,
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  double _ratio(Duration value) {
-    if (controller.duration.inMilliseconds <= 0) return 0;
-    return (value.inMilliseconds / controller.duration.inMilliseconds).clamp(
-      0,
-      1,
-    );
-  }
-}
-
-class _ProgressTrack extends StatelessWidget {
-  const _ProgressTrack({required this.played, required this.buffered});
-
-  final double played;
-  final double buffered;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final playedWidth = width * played.clamp(0.0, 1.0);
-        final bufferedWidth = width * buffered.clamp(0.0, 1.0);
-        final thumbLeft = width <= 10
-            ? 0.0
-            : (playedWidth - 5).clamp(0.0, width - 10);
-        return Stack(
-          alignment: Alignment.centerLeft,
-          children: [
-            Container(
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppColors.divider.withValues(
-                  alpha: AppColors.isDark ? 0.56 : 0.86,
-                ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              width: bufferedWidth,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(
-                  alpha: AppColors.isDark ? 0.20 : 0.16,
-                ),
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              width: playedWidth,
-              height: 5,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            AnimatedPositioned(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              left: thumbLeft,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.surface,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.24),
-                      blurRadius: 12,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: Container(
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: AppColors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _EdgeToEdgeSliderTrackShape extends RoundedRectSliderTrackShape {
-  const _EdgeToEdgeSliderTrackShape();
-
-  @override
-  Rect getPreferredRect({
-    required RenderBox parentBox,
-    Offset offset = Offset.zero,
-    required SliderThemeData sliderTheme,
-    bool isEnabled = false,
-    bool isDiscrete = false,
-  }) {
-    final trackHeight = sliderTheme.trackHeight ?? 0;
-    final top = offset.dy + (parentBox.size.height - trackHeight) / 2;
-    return Rect.fromLTWH(offset.dx, top, parentBox.size.width, trackHeight);
   }
 }

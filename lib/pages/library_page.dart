@@ -405,7 +405,7 @@ class _LibraryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.selected : Colors.transparent,
+      color: Colors.transparent,
       borderRadius: BorderRadius.circular(AppRadius.sm),
       child: InkWell(
         onTap: onTap,
@@ -413,23 +413,23 @@ class _LibraryTab extends StatelessWidget {
         hoverColor: AppColors.surfaceHover,
         mouseCursor: SystemMouseCursors.click,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           child: Column(
             children: [
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? AppColors.text : AppColors.muted,
+                  color: selected ? AppColors.primaryPressed : AppColors.muted,
                   fontSize: 14,
                   fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 6),
               AnimatedContainer(
                 duration: AppMotion.fast,
                 curve: AppMotion.curve,
-                width: selected ? 24 : 0,
-                height: 2,
+                width: selected ? 20 : 0,
+                height: 2.5,
                 decoration: BoxDecoration(
                   color: AppColors.primary,
                   borderRadius: BorderRadius.circular(2),

@@ -86,17 +86,16 @@ class KugouApiClient {
     Dio? dio,
     SecureSessionStorage? storage,
     ApiEndpointService? endpointService,
-    PlaybackQualityController? playbackQualityController,
+    this.playbackQualityController,
   }) : _dio = dio ?? _createDio(''),
        _storage = storage ?? SecureSessionStorage(),
        _endpointService = endpointService ?? ApiEndpointService(),
-       _playbackQualityController = playbackQualityController,
        _officialClient = KugouOfficialClient();
 
   final Dio _dio;
   final SecureSessionStorage _storage;
   final ApiEndpointService _endpointService;
-  final PlaybackQualityController? _playbackQualityController;
+  final PlaybackQualityController? playbackQualityController;
   final KugouOfficialClient _officialClient;
 
   KugouSession session = const KugouSession();
@@ -233,6 +232,7 @@ class KugouApiClient {
         token: token,
         userId: userId,
         nickname: (data['nickname'] ?? data['username'] ?? '').toString(),
+        avatarUrl: _read(data, ['pic', 'avatar', 'img', 'avatar_url']),
       ),
       response.headers.map['set-cookie'] ?? const [],
     );
@@ -435,6 +435,12 @@ class KugouApiClient {
           'username',
           'nick_name',
         ], fallback: _read(body, ['nickname', 'username', 'nick_name'])),
+        avatarUrl: _read(data, [
+          'pic',
+          'avatar',
+          'img',
+          'avatar_url',
+        ], fallback: _read(body, ['pic', 'avatar', 'img', 'avatar_url'])),
       ),
       response.headers.map['set-cookie'] ?? const [],
     );
@@ -1195,7 +1201,7 @@ class KugouApiClient {
 
   Future<String?> _resolvePreferredSongUrl(Song song) async {
     final qualities =
-        _playbackQualityController?.requestCandidates ?? const <Object>[128];
+        playbackQualityController?.requestCandidates ?? const <Object>[128];
     for (final quality in qualities) {
       final url = await _resolveSongUrl(song, quality: quality);
       if (url != null) return url;

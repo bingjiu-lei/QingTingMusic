@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
+import 'package:flutter/services.dart';
 
 import '../controllers/music_search_controller.dart';
 import '../models/search_catalog_item.dart';
@@ -47,7 +49,18 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _textController = TextEditingController(text: widget.controller.keyword);
-    _focusNode = FocusNode();
+    _focusNode = FocusNode()..addListener(_handleFocusChanged);
+  }
+
+  void _handleFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  void _clearSearch() {
+    _textController.clear();
+    widget.controller.updateKeyword('');
+    _focusNode.requestFocus();
+    setState(() {});
   }
 
   @override
@@ -59,109 +72,116 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.controller,
-      builder: (context, _) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 26, 30, 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: 900),
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(AppRadius.xl),
-                    border: Border.all(
-                      color: _focusNode.hasFocus
-                          ? AppColors.primary
-                          : AppColors.border,
-                      width: _focusNode.hasFocus ? 1.4 : 1,
-                    ),
-                    boxShadow: AppColors.isDark ? null : AppShadows.soft,
-                  ),
-                  child: TextField(
-                    controller: _textController,
-                    focusNode: _focusNode,
-                    autofocus: true,
-                    textInputAction: TextInputAction.search,
-                    onTap: () => setState(() {}),
-                    onChanged: (value) {
-                      widget.controller.updateKeyword(value);
-                      setState(() {});
-                    },
-                    onSubmitted: widget.controller.search,
-                    style: TextStyle(
-                      color: AppColors.text,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    decoration: InputDecoration(
-                      hintText: '搜索歌曲、歌单、歌手或专辑',
-                      hintStyle: TextStyle(
-                        color: AppColors.faint,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      prefixIcon: Icon(
-                        Icons.search_rounded,
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true): () =>
+            _focusNode.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.escape): _clearSearch,
+      },
+      child: AnimatedBuilder(
+        animation: widget.controller,
+        builder: (context, _) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(24, 26, 30, 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 900),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      border: Border.all(
                         color: _focusNode.hasFocus
                             ? AppColors.primary
-                            : AppColors.muted,
+                            : AppColors.border,
+                        width: _focusNode.hasFocus ? 1.4 : 1,
                       ),
-                      suffixIcon: _textController.text.isEmpty
-                          ? null
-                          : IconButton(
-                              tooltip: '清空',
-                              constraints: const BoxConstraints.tightFor(
-                                width: 44,
-                                height: 44,
-                              ),
-                              padding: EdgeInsets.zero,
-                              onPressed: () {
-                                _textController.clear();
-                                widget.controller.updateKeyword('');
-                                setState(() {});
-                              },
-                              icon: Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: AppColors.surfaceMuted,
-                                  shape: BoxShape.circle,
+                      boxShadow: AppColors.isDark ? null : AppShadows.soft,
+                    ),
+                    child: TextField(
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      onTap: () => setState(() {}),
+                      onChanged: (value) {
+                        widget.controller.updateKeyword(value);
+                        setState(() {});
+                      },
+                      onSubmitted: widget.controller.search,
+                      style: TextStyle(
+                        color: AppColors.text,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '搜索歌曲、歌单、歌手或专辑',
+                        hintStyle: TextStyle(
+                          color: AppColors.faint,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: _focusNode.hasFocus
+                              ? AppColors.primary
+                              : AppColors.muted,
+                        ),
+                        suffixIcon: _textController.text.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: '清空',
+                                constraints: const BoxConstraints.tightFor(
+                                  width: 44,
+                                  height: 44,
                                 ),
-                                child: Icon(
-                                  Icons.close_rounded,
-                                  size: 17,
-                                  color: AppColors.muted,
+                                padding: EdgeInsets.zero,
+                                onPressed: () {
+                                  _clearSearch();
+                                },
+                                icon: Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceMuted,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.close_rounded,
+                                    size: 17,
+                                    color: AppColors.muted,
+                                  ),
                                 ),
                               ),
-                            ),
-                      filled: false,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 16),
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
+                        filled: false,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 16,
+                        ),
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: 1120),
-                  child: AnimatedSwitcher(
-                    duration: AppMotion.normal,
-                    switchInCurve: AppMotion.curve,
-                    switchOutCurve: Curves.easeInCubic,
-                    child: _content(),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: 1120),
+                    child: AnimatedSwitcher(
+                      duration: AppMotion.normal,
+                      switchInCurve: AppMotion.curve,
+                      switchOutCurve: Curves.easeInCubic,
+                      child: _content(),
+                    ),
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 
@@ -409,15 +429,26 @@ class _SearchResultsState extends State<_SearchResults> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (controller.isLoading)
-            const Align(
-              alignment: Alignment.centerRight,
-              child: SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2),
+          Row(
+            children: [
+              Text(
+                '搜索结果',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
+              const Spacer(),
+              if (controller.isLoading)
+                const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               for (final category in SearchCategory.values) ...[
@@ -485,7 +516,7 @@ class _SearchResultsState extends State<_SearchResults> {
         ),
         controller: _scrollController,
         padding: const EdgeInsets.only(top: 6, bottom: 20),
-        cacheExtent: 900,
+        scrollCacheExtent: const ScrollCacheExtent.pixels(900),
         itemCount: controller.results.length,
         separatorBuilder: (_, _) => Divider(
           height: 1,
@@ -688,36 +719,121 @@ class _RecentSearchEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: const Alignment(0, -0.2),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.selected,
-              shape: BoxShape.circle,
+      alignment: const Alignment(0, -0.08),
+      child: SizedBox(
+        width: 520,
+        height: 250,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Positioned(
+              left: 72,
+              top: 28,
+              child: Container(
+                width: 82,
+                height: 82,
+                decoration: BoxDecoration(
+                  color: AppColors.accent.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                ),
+              ),
             ),
-            child: Icon(
-              Icons.search_rounded,
-              color: AppColors.primary,
-              size: 25,
+            Positioned(
+              right: 74,
+              bottom: 28,
+              child: Container(
+                width: 108,
+                height: 108,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.06),
+                  shape: BoxShape.circle,
+                ),
+              ),
             ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            '搜索你想听的音乐',
-            style: TextStyle(
-              color: AppColors.text,
-              fontSize: 16,
-              fontWeight: FontWeight.w800,
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 62,
+                  height: 62,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [AppColors.primary, AppColors.accent],
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: AppShadows.primaryGlow,
+                  ),
+                  child: const Icon(
+                    Icons.search_rounded,
+                    color: Colors.white,
+                    size: 28,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  '下一首喜欢的歌，就从这里找到',
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '搜索歌曲、歌手、歌单或专辑',
+                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+                ),
+                const SizedBox(height: 18),
+                const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _ShortcutHint(keys: 'Ctrl  K', label: '聚焦搜索'),
+                    SizedBox(width: 8),
+                    _ShortcutHint(keys: 'Enter', label: '开始搜索'),
+                    SizedBox(width: 8),
+                    _ShortcutHint(keys: 'Esc', label: '清空'),
+                  ],
+                ),
+              ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
+}
+
+class _ShortcutHint extends StatelessWidget {
+  const _ShortcutHint({required this.keys, required this.label});
+  final String keys;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+    decoration: BoxDecoration(
+      color: AppColors.surface.withValues(alpha: 0.78),
+      borderRadius: BorderRadius.circular(AppRadius.md),
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          keys,
+          style: TextStyle(
+            color: AppColors.text,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: AppColors.muted, fontSize: 10)),
+      ],
+    ),
+  );
 }
 
 class _SuggestionTile extends StatelessWidget {

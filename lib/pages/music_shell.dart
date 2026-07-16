@@ -113,7 +113,10 @@ class _MusicShellState extends State<MusicShell>
   final Map<String, List<LyricLine>> _lyricsCache = {};
   final Map<String, Future<List<LyricLine>>> _lyricsRequests = {};
   String? _lastPreloadedLyricKey;
+  String? _lastShellSongId;
+  bool _lastShellPlaying = false;
   StreamSubscription<void>? _sessionExpiredSubscription;
+  final Set<String> _favoriteUpdates = <String>{};
 
   @override
   void initState() {
@@ -382,6 +385,11 @@ class _MusicShellState extends State<MusicShell>
 
   void _handlePlayerChanged() {
     final song = playerController.currentSong;
+    final shouldRefreshShell =
+        _lastShellSongId != song?.id ||
+        _lastShellPlaying != playerController.isPlaying;
+    _lastShellSongId = song?.id;
+    _lastShellPlaying = playerController.isPlaying;
     final key = song == null ? null : _lyricCacheKey(song);
     if (song != null && key != null && key != _lastPreloadedLyricKey) {
       _lastPreloadedLyricKey = key;
@@ -396,7 +404,7 @@ class _MusicShellState extends State<MusicShell>
         playerController.playbackMode != PlaybackMode.sequence) {
       playerController.setPlaybackMode(PlaybackMode.sequence);
     }
-    _refresh();
+    if (shouldRefreshShell) _refresh();
   }
 
   Future<void> _maintainFmQueue(Song song) async {
@@ -549,33 +557,33 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _toggleFavorite(Song song) async {
+    if (!_favoriteUpdates.add(song.id)) return;
+    final previous = libraryController.isFavorite(song);
+    final desired = !previous;
+    _applyFavoriteState(song, desired);
     try {
       await libraryController.toggleFavorite(song);
-      detailSongs = detailSongs
-          .map(
-            (item) => item.id == song.id
-                ? item.copyWith(liked: libraryController.isFavorite(item))
-                : item,
-          )
-          .toList();
-      searchController.results = searchController.results
-          .map(
-            (item) => item.id == song.id
-                ? item.copyWith(liked: libraryController.isFavorite(item))
-                : item,
-          )
-          .toList();
-      playerController.updateSongFavorite(
-        song,
-        libraryController.isFavorite(song),
-      );
-      _refresh();
+      _applyFavoriteState(song, libraryController.isFavorite(song));
     } catch (error) {
+      _applyFavoriteState(song, previous);
       if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
+    } finally {
+      _favoriteUpdates.remove(song.id);
     }
+  }
+
+  void _applyFavoriteState(Song song, bool liked) {
+    detailSongs = detailSongs
+        .map((item) => item.id == song.id ? item.copyWith(liked: liked) : item)
+        .toList();
+    searchController.results = searchController.results
+        .map((item) => item.id == song.id ? item.copyWith(liked: liked) : item)
+        .toList();
+    playerController.updateSongFavorite(song, liked);
+    _refresh();
   }
 
   Future<void> _openCatalog(SearchCatalogItem item) async {
@@ -1000,156 +1008,201 @@ class _MusicShellState extends State<MusicShell>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.transparent,
       body: LayoutBuilder(
         builder: (context, constraints) {
           final compactSidebar = constraints.maxWidth < 1050;
-          final sidebarWidth = compactSidebar ? 76.0 : 214.0;
-          return Stack(
-            children: [
-              Column(
-                children: [
-                  AppWindowCaption(
-                    enabled: widget.enableWindowControls,
-                    sidebarWidth: sidebarWidth,
-                  ),
-                  Expanded(
-                    child: Row(
-                      children: [
-                        AppSidebar(
-                          compact: compactSidebar,
-                          selectedIndex: selectedIndex,
-                          onChanged: (index) {
-                            setState(() {
-                              selectedIndex = index;
-                              detailTitle = null;
-                              detailPlaylist = null;
-                              detailCatalogItem = null;
-                              detailIdentity = null;
-                              detailStorageKeyPrefix = null;
-                              detailSelectedTab = 0;
-                              detailHistory.clear();
-                              showNowPlayingPage = false;
-                            });
-                          },
-                          loginLabel:
-                              authController?.session.displayName ?? '演示模式',
-                          isLoggedIn: authController?.isLoggedIn ?? false,
-                          vipTooltip: _vipTooltip,
-                          onLogin: _handleAccountEntry,
-                          isDark: widget.themeController.isDark,
-                          onToggleTheme: widget.themeController.toggle,
-                        ),
-                        Expanded(
-                          child: ColoredBox(
-                            color: AppColors.page,
-                            child: _selectedPage(),
-                          ),
-                        ),
-                      ],
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.page,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.sidebar,
+                  AppColors.page,
+                  Color.alphaBlend(
+                    AppColors.accent.withValues(
+                      alpha: AppColors.isDark ? 0.055 : 0.035,
                     ),
-                  ),
-                  PlayerBar(
-                    controller: playerController,
-                    playbackQualityController: playbackQualityController,
-                    onNowPlayingPressed: playerController.currentSong == null
-                        ? null
-                        : () => setState(() => showNowPlayingPage = true),
-                    onOpenAlbum: _openAlbumFromSong,
-                    onOpenArtist: _openArtistFromSong,
-                    onLike: _toggleFavorite,
-                    onAddToPlaylist: _showAddToPlaylist,
-                    onQueuePressed: () {
-                      setState(() => showQueuePanel = !showQueuePanel);
-                    },
+                    AppColors.page,
                   ),
                 ],
+                stops: const [0, 0.42, 1],
               ),
-              if (showQueuePanel)
+            ),
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    AppWindowCaption(
+                      enabled: widget.enableWindowControls,
+                      backgroundColor: Colors.transparent,
+                    ),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          AppSidebar(
+                            compact: compactSidebar,
+                            selectedIndex: selectedIndex,
+                            onChanged: (index) {
+                              setState(() {
+                                selectedIndex = index;
+                                detailTitle = null;
+                                detailPlaylist = null;
+                                detailCatalogItem = null;
+                                detailIdentity = null;
+                                detailStorageKeyPrefix = null;
+                                detailSelectedTab = 0;
+                                detailHistory.clear();
+                                showNowPlayingPage = false;
+                              });
+                            },
+                            loginLabel:
+                                authController?.session.displayName ?? '演示模式',
+                            avatarUrl: authController?.session.avatarUrl ?? '',
+                            isLoggedIn: authController?.isLoggedIn ?? false,
+                            vipTooltip: _vipTooltip,
+                            onLogin: _handleAccountEntry,
+                            isDark: widget.themeController.isDark,
+                            onToggleTheme: widget.themeController.toggle,
+                          ),
+                          Expanded(child: _selectedPage()),
+                        ],
+                      ),
+                    ),
+                    PlayerBar(
+                      controller: playerController,
+                      playbackQualityController: playbackQualityController,
+                      onNowPlayingPressed: playerController.currentSong == null
+                          ? null
+                          : () => setState(() => showNowPlayingPage = true),
+                      onOpenAlbum: _openAlbumFromSong,
+                      onOpenArtist: _openArtistFromSong,
+                      onLike: _toggleFavorite,
+                      onAddToPlaylist: _showAddToPlaylist,
+                      onQueuePressed: () {
+                        setState(() => showQueuePanel = !showQueuePanel);
+                      },
+                    ),
+                  ],
+                ),
                 Positioned.fill(
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => setState(() => showQueuePanel = false),
-                    child: ColoredBox(
-                      color: Colors.black.withValues(alpha: 0.18),
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () {},
-                          child: PlayQueuePanel(
-                            controller: playerController,
-                            onClose: () =>
-                                setState(() => showQueuePanel = false),
+                  child: IgnorePointer(
+                    ignoring: !showQueuePanel,
+                    child: AnimatedOpacity(
+                      opacity: showQueuePanel ? 1 : 0,
+                      duration: AppMotion.normal,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () => setState(() => showQueuePanel = false),
+                        child: ColoredBox(
+                          color: AppColors.scrim,
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: AnimatedSwitcher(
+                              duration: AppMotion.slow,
+                              reverseDuration: AppMotion.normal,
+                              switchInCurve: AppMotion.curve,
+                              switchOutCurve: Curves.easeInCubic,
+                              transitionBuilder: (child, animation) =>
+                                  FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0.08, 0),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  ),
+                              child: showQueuePanel
+                                  ? GestureDetector(
+                                      key: const ValueKey('queue-panel'),
+                                      onTap: () {},
+                                      child: PlayQueuePanel(
+                                        controller: playerController,
+                                        onClose: () => setState(
+                                          () => showQueuePanel = false,
+                                        ),
+                                      ),
+                                    )
+                                  : const SizedBox(
+                                      key: ValueKey('queue-panel-hidden'),
+                                    ),
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              Positioned(
-                left: 0,
-                top: 0,
-                right: 0,
-                bottom: 0,
-                child: IgnorePointer(
-                  ignoring: !showNowPlayingPage,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 320),
-                    reverseDuration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    transitionBuilder: (child, animation) {
-                      final curved = CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOutCubic,
-                        reverseCurve: Curves.easeInCubic,
-                      );
-                      return FadeTransition(
-                        opacity: curved,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.032),
-                            end: Offset.zero,
-                          ).animate(curved),
-                          child: child,
-                        ),
-                      );
-                    },
-                    child: showNowPlayingPage
-                        ? RepaintBoundary(
-                            key: const ValueKey('now-playing-page'),
-                            child: NowPlayingPage(
-                              controller: playerController,
-                              playbackQualityController:
-                                  playbackQualityController,
-                              onClose: () =>
-                                  setState(() => showNowPlayingPage = false),
-                              loadLyrics: _loadLyricsCached,
-                              onLike: _toggleFavorite,
-                              onAddToPlaylist: _showAddToPlaylist,
-                              onOpenAlbum: _openAlbumFromNowPlaying,
-                              onOpenArtist: _openArtistFromNowPlaying,
-                            ),
-                          )
-                        : const SizedBox.shrink(
-                            key: ValueKey('now-playing-empty'),
-                          ),
-                  ),
-                ),
-              ),
-              if (showNowPlayingPage)
                 Positioned(
                   left: 0,
                   top: 0,
                   right: 0,
+                  bottom: 0,
                   child: IgnorePointer(
-                    ignoring: !widget.enableWindowControls,
-                    child: AppWindowCaption(
-                      enabled: widget.enableWindowControls,
-                      backgroundColor: Colors.transparent,
+                    ignoring: !showNowPlayingPage,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 320),
+                      reverseDuration: const Duration(milliseconds: 220),
+                      switchInCurve: Curves.easeOutCubic,
+                      switchOutCurve: Curves.easeInCubic,
+                      transitionBuilder: (child, animation) {
+                        final curved = CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOutCubic,
+                          reverseCurve: Curves.easeInCubic,
+                        );
+                        return FadeTransition(
+                          opacity: curved,
+                          child: SlideTransition(
+                            position: Tween<Offset>(
+                              begin: const Offset(0, 0.032),
+                              end: Offset.zero,
+                            ).animate(curved),
+                            child: child,
+                          ),
+                        );
+                      },
+                      child: showNowPlayingPage
+                          ? RepaintBoundary(
+                              key: const ValueKey('now-playing-page'),
+                              child: NowPlayingPage(
+                                controller: playerController,
+                                playbackQualityController:
+                                    playbackQualityController,
+                                onClose: () =>
+                                    setState(() => showNowPlayingPage = false),
+                                loadLyrics: _loadLyricsCached,
+                                onLike: _toggleFavorite,
+                                onAddToPlaylist: _showAddToPlaylist,
+                                onOpenAlbum: _openAlbumFromNowPlaying,
+                                onOpenArtist: _openArtistFromNowPlaying,
+                              ),
+                            )
+                          : const SizedBox.shrink(
+                              key: ValueKey('now-playing-empty'),
+                            ),
                     ),
                   ),
                 ),
-            ],
+                if (showNowPlayingPage)
+                  Positioned(
+                    left: 0,
+                    top: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      ignoring: !widget.enableWindowControls,
+                      child: AppWindowCaption(
+                        enabled: widget.enableWindowControls,
+                        backgroundColor: Colors.transparent,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           );
         },
       ),
@@ -1246,6 +1299,7 @@ class _MusicShellState extends State<MusicShell>
         onOpenDaily: _openDailyRecommendations,
       ),
       _ => SettingsPage(
+        themeController: widget.themeController,
         updateController: updateController,
         playbackQualityController: playbackQualityController,
         onCheckUpdates: () => _checkForUpdates(),

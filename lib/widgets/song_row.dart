@@ -121,7 +121,7 @@ class _SongRowState extends State<SongRow> {
                       ),
                     ),
                     SizedBox(height: 3),
-                    _ArtistLine(
+                    SongArtistLine(
                       song: widget.song,
                       onArtist: widget.onArtist,
                       onArtistLink: widget.onArtistLink,
@@ -171,7 +171,7 @@ class _SongRowState extends State<SongRow> {
                           ? Icons.favorite_rounded
                           : Icons.favorite_border_rounded,
                       color: widget.song.liked
-                          ? AppColors.primary
+                          ? AppColors.favorite
                           : AppColors.faint,
                       size: 19,
                     ),
@@ -231,12 +231,19 @@ class _SongRowState extends State<SongRow> {
   }
 }
 
-class _ArtistLine extends StatelessWidget {
-  const _ArtistLine({required this.song, this.onArtist, this.onArtistLink});
+class SongArtistLine extends StatelessWidget {
+  const SongArtistLine({
+    super.key,
+    required this.song,
+    this.onArtist,
+    this.onArtistLink,
+    this.fontSize = 12,
+  });
 
   final Song song;
   final VoidCallback? onArtist;
   final ValueChanged<SongArtist>? onArtistLink;
+  final double fontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -247,7 +254,7 @@ class _ArtistLine extends StatelessWidget {
         fallbackArtist,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: AppColors.muted, fontSize: 12),
+        style: TextStyle(color: AppColors.muted, fontSize: fontSize),
       );
     }
     if (artists.length == 1) {
@@ -265,7 +272,7 @@ class _ArtistLine extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: onTap == null ? AppColors.muted : AppColors.primaryPressed,
-              fontSize: 12,
+              fontSize: fontSize,
             ),
           ),
         ),
@@ -276,7 +283,7 @@ class _ArtistLine extends StatelessWidget {
         _artistJoin(artists),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: AppColors.muted, fontSize: 12),
+        style: TextStyle(color: AppColors.muted, fontSize: fontSize),
       );
     }
 
@@ -299,7 +306,7 @@ class _ArtistLine extends StatelessWidget {
                     maxLines: 1,
                     style: TextStyle(
                       color: AppColors.primaryPressed,
-                      fontSize: 12,
+                      fontSize: fontSize,
                     ),
                   ),
                 ),
@@ -307,7 +314,7 @@ class _ArtistLine extends StatelessWidget {
               if (index != artists.length - 1)
                 Text(
                   ' / ',
-                  style: TextStyle(color: AppColors.muted, fontSize: 12),
+                  style: TextStyle(color: AppColors.muted, fontSize: fontSize),
                 ),
             ],
           ],

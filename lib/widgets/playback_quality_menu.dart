@@ -34,7 +34,7 @@ class PlaybackQualityMenu extends StatelessWidget {
                 (quality) => MenuItemButton(
                   onPressed: () => controller.select(quality),
                   child: SizedBox(
-                    width: 126,
+                    width: 174,
                     child: Row(
                       children: [
                         Icon(
@@ -47,10 +47,21 @@ class PlaybackQualityMenu extends StatelessWidget {
                               : AppColors.muted,
                         ),
                         const SizedBox(width: 10),
-                        Text(
-                          quality == PlaybackQuality.standard
-                              ? '标准音质'
-                              : '${quality.label} 音质',
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(_qualityTitle(quality)),
+                              const SizedBox(height: 2),
+                              Text(
+                                _qualityDescription(quality),
+                                style: TextStyle(
+                                  color: AppColors.faint,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -63,31 +74,52 @@ class PlaybackQualityMenu extends StatelessWidget {
               message: '播放音质：${controller.quality.label}',
               child: Material(
                 color: Colors.transparent,
-                shape: const StadiumBorder(),
+                shape: const CircleBorder(),
                 child: InkWell(
                   onTap: () => menuController.isOpen
                       ? menuController.close()
                       : menuController.open(),
                   mouseCursor: SystemMouseCursors.click,
-                  borderRadius: BorderRadius.circular(999),
+                  customBorder: const CircleBorder(),
                   hoverColor: AppColors.primary.withValues(alpha: 0.08),
                   child: Container(
-                    height: compact ? 32 : 36,
-                    padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10),
+                    width: compact ? 38 : 42,
+                    height: compact ? 38 : 42,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
-                      color: AppColors.surfaceMuted.withValues(
-                        alpha: AppColors.isDark ? 0.42 : 0.76,
-                      ),
-                      borderRadius: BorderRadius.circular(999),
+                      color: controller.quality == PlaybackQuality.standard
+                          ? Colors.transparent
+                          : AppColors.selected,
+                      shape: BoxShape.circle,
                     ),
-                    child: Text(
-                      controller.quality.label,
-                      style: TextStyle(
-                        color: AppColors.muted,
-                        fontSize: compact ? 11 : 12,
-                        fontWeight: FontWeight.w800,
-                      ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        Icon(
+                          Icons.graphic_eq_rounded,
+                          size: 20,
+                          color: controller.quality == PlaybackQuality.standard
+                              ? AppColors.muted
+                              : AppColors.primary,
+                        ),
+                        if (controller.quality != PlaybackQuality.standard)
+                          Positioned(
+                            right: 5,
+                            bottom: 5,
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.playerSurface,
+                                  width: 1.2,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -98,4 +130,16 @@ class PlaybackQualityMenu extends StatelessWidget {
       },
     );
   }
+
+  String _qualityTitle(PlaybackQuality quality) => switch (quality) {
+    PlaybackQuality.standard => '标准音质',
+    PlaybackQuality.high => 'HQ 高品质',
+    PlaybackQuality.lossless => '无损音质',
+  };
+
+  String _qualityDescription(PlaybackQuality quality) => switch (quality) {
+    PlaybackQuality.standard => '流量更省，播放更稳定',
+    PlaybackQuality.high => '更丰富的声音细节',
+    PlaybackQuality.lossless => '优先播放 FLAC 无损资源',
+  };
 }

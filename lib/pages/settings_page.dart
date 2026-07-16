@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../controllers/playback_quality_controller.dart';
+import '../controllers/theme_controller.dart';
 import '../controllers/update_controller.dart';
 import '../models/app_update.dart';
 import '../services/api_endpoint_service.dart';
@@ -22,6 +23,7 @@ class SettingsPage extends StatefulWidget {
     required this.closeToTray,
     required this.onCloseToTrayChanged,
     required this.playbackQualityController,
+    required this.themeController,
     this.onEndpointChanged,
     this.onDeveloperModeChanged,
   });
@@ -31,6 +33,7 @@ class SettingsPage extends StatefulWidget {
   final bool closeToTray;
   final ValueChanged<bool> onCloseToTrayChanged;
   final PlaybackQualityController playbackQualityController;
+  final ThemeController themeController;
   final VoidCallback? onEndpointChanged;
   final ValueChanged<bool>? onDeveloperModeChanged;
 
@@ -449,6 +452,94 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _showAccentPicker() async {
+    var color = HSVColor.fromColor(widget.themeController.accentColor);
+    final selected = await showDialog<Color>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.surface,
+          title: Text(
+            '自定义主题色',
+            style: TextStyle(
+              color: AppColors.text,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          content: SizedBox(
+            width: 380,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedContainer(
+                  duration: AppMotion.fast,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    color: color.toColor(),
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                  ),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    '晴听音乐',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _ColorSlider(
+                  label: '色相',
+                  value: color.hue,
+                  max: 360,
+                  gradient: const LinearGradient(
+                    colors: [
+                      Colors.red,
+                      Colors.yellow,
+                      Colors.green,
+                      Colors.cyan,
+                      Colors.blue,
+                      Colors.purple,
+                      Colors.red,
+                    ],
+                  ),
+                  onChanged: (value) =>
+                      setDialogState(() => color = color.withHue(value)),
+                ),
+                _ColorSlider(
+                  label: '浓度',
+                  value: color.saturation,
+                  max: 1,
+                  onChanged: (value) =>
+                      setDialogState(() => color = color.withSaturation(value)),
+                ),
+                _ColorSlider(
+                  label: '明度',
+                  value: color.value,
+                  max: 1,
+                  onChanged: (value) =>
+                      setDialogState(() => color = color.withValue(value)),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(color.toColor()),
+              child: const Text('应用'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected != null) await widget.themeController.setAccentColor(selected);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -472,6 +563,14 @@ class _SettingsPageState extends State<SettingsPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _AppearanceSection(
+                      controller: widget.themeController,
+                      onCustomColor: _showAccentPicker,
+                    ),
+                    Divider(
+                      height: 30,
+                      color: AppColors.divider.withValues(alpha: 0.72),
+                    ),
                     _CacheSection(
                       sizeText: _formatBytes(_cacheSizeBytes),
                       selectedLimit: _cacheLimitBytes,
@@ -546,6 +645,179 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
   }
+}
+
+class _AppearanceSection extends StatelessWidget {
+  const _AppearanceSection({
+    required this.controller,
+    required this.onCustomColor,
+  });
+
+  static const colors = [
+    Color(0xFF2788F5),
+    Color(0xFF7C5CF5),
+    Color(0xFFEC6A8F),
+    Color(0xFFF0783E),
+    Color(0xFF20A37A),
+  ];
+
+  final ThemeController controller;
+  final VoidCallback onCustomColor;
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: controller,
+    builder: (context, _) => Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.palette_outlined, color: AppColors.primary, size: 21),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '外观',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                '主题色会影响选中状态、按钮和页面氛围，品牌图标仍保持原色。',
+                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  SegmentedButton<bool>(
+                    segments: const [
+                      ButtonSegment(
+                        value: false,
+                        icon: Icon(Icons.light_mode_rounded, size: 17),
+                        label: Text('浅色'),
+                      ),
+                      ButtonSegment(
+                        value: true,
+                        icon: Icon(Icons.dark_mode_rounded, size: 17),
+                        label: Text('深色'),
+                      ),
+                    ],
+                    selected: {controller.isDark},
+                    onSelectionChanged: (value) =>
+                        controller.setDarkMode(value.first),
+                    showSelectedIcon: false,
+                    style: const ButtonStyle(
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  for (final color in colors) ...[
+                    _ThemeSwatch(
+                      color: color,
+                      selected:
+                          controller.accentColor.toARGB32() == color.toARGB32(),
+                      onTap: () => controller.setAccentColor(color),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  OutlinedButton.icon(
+                    onPressed: onCustomColor,
+                    icon: const Icon(Icons.colorize_rounded, size: 17),
+                    label: const Text('自定义'),
+                  ),
+                  const SizedBox(width: 8),
+                  TextButton(
+                    onPressed: controller.resetAccentColor,
+                    child: const Text('恢复默认'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ThemeSwatch extends StatelessWidget {
+  const _ThemeSwatch({
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: '使用此主题色',
+    child: InkWell(
+      onTap: onTap,
+      customBorder: const CircleBorder(),
+      child: AnimatedContainer(
+        duration: AppMotion.fast,
+        width: 32,
+        height: 32,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: selected ? AppColors.text : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: selected
+            ? const Icon(Icons.check_rounded, size: 17, color: Colors.white)
+            : null,
+      ),
+    ),
+  );
+}
+
+class _ColorSlider extends StatelessWidget {
+  const _ColorSlider({
+    required this.label,
+    required this.value,
+    required this.max,
+    required this.onChanged,
+    this.gradient,
+  });
+
+  final String label;
+  final double value;
+  final double max;
+  final ValueChanged<double> onChanged;
+  final Gradient? gradient;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      SizedBox(
+        width: 42,
+        child: Text(label, style: TextStyle(color: AppColors.muted)),
+      ),
+      Expanded(
+        child: Container(
+          decoration: gradient == null
+              ? null
+              : BoxDecoration(
+                  gradient: gradient,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+          child: Slider(
+            value: value.clamp(0, max),
+            max: max,
+            onChanged: onChanged,
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 class _DeveloperSection extends StatelessWidget {
