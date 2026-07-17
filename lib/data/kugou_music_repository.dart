@@ -132,4 +132,9 @@ class KugouMusicRepository implements MusicRepository {
   Future<List<LyricLine>> getLyrics(Song song) {
     return apiClient.getLyrics(song);
   }
+
+  @override
+  Future<List<String>> getArtistPortraits(Song song) {
+    return apiClient.getArtistPortraits(song);
+  }
 }

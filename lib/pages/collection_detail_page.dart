@@ -97,7 +97,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 30, 18),
+      padding: const EdgeInsets.fromLTRB(14, 12, 18, 12),
       child: Column(
         children: [
           Row(
@@ -149,33 +149,21 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       spacing: 10,
                       runSpacing: 8,
                       children: [
-                        FilledButton.icon(
-                          onPressed: widget.songs.isEmpty
-                              ? null
-                              : () => widget.onPlay(
-                                  widget.songs.first,
-                                  widget.songs,
-                                ),
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 11,
-                            ),
-                          ),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 19),
-                          label: const Text('播放'),
-                        ),
                         if (widget.collectionItem != null)
-                          OutlinedButton.icon(
+                          IconButton(
+                            tooltip: widget.isCollected ? '取消收藏' : '收藏',
                             onPressed: widget.onToggleCollection,
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 14,
-                                vertical: 11,
-                              ),
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(40, 40),
+                              fixedSize: const Size(40, 40),
                               foregroundColor: widget.isCollected
                                   ? AppColors.favorite
                                   : AppColors.muted,
+                              backgroundColor: AppColors.surfaceMuted
+                                  .withValues(alpha: 0.42),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                             icon: Icon(
                               widget.isCollected
@@ -183,7 +171,6 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                   : Icons.favorite_border_rounded,
                               size: 18,
                             ),
-                            label: Text(widget.isCollected ? '已收藏' : '收藏'),
                           ),
                       ],
                     ),

@@ -5,6 +5,7 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'list_scroll_actions.dart';
 import 'song_row.dart';
+import 'smooth_mouse_scroll.dart';
 
 typedef SongPlayRequest = void Function(Song song, List<Song> queue);
 
@@ -90,7 +91,9 @@ class _SongPanelState extends State<SongPanel> {
     return Container(
       padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surface.withValues(
+          alpha: AppColors.isDark ? 0.78 : 0.86,
+        ),
         borderRadius: BorderRadius.circular(AppRadius.xl),
         border: Border.all(color: AppColors.border),
         boxShadow: AppColors.isDark ? null : AppShadows.soft,
@@ -100,16 +103,35 @@ class _SongPanelState extends State<SongPanel> {
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w800,
-                  ),
+              Text(
+                widget.title,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
+              if (widget.songs.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: '播放全部',
+                  onPressed: visibleSongs.isEmpty
+                      ? null
+                      : () => widget.onPlay(visibleSongs.first, visibleSongs),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(34, 34),
+                    fixedSize: const Size(34, 34),
+                    iconSize: 19,
+                    foregroundColor: AppColors.primary,
+                    backgroundColor: AppColors.selected,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                  ),
+                ),
+              ],
+              const Spacer(),
               if (widget.songs.isNotEmpty)
                 Row(
                   mainAxisSize: MainAxisSize.min,
@@ -167,63 +189,88 @@ class _SongPanelState extends State<SongPanel> {
                   )
                 : Stack(
                     children: [
-                      ListView.builder(
-                        key: widget.key is PageStorageKey ? widget.key : null,
-                        controller: _scrollController,
-                        padding: const EdgeInsets.only(bottom: 18),
-                        itemCount: visibleSongs.length,
-                        itemExtent: itemExtent,
-                        scrollCacheExtent: ScrollCacheExtent.pixels(
-                          itemExtent * 14,
+                      ShaderMask(
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (bounds) => const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.white,
+                            Colors.white,
+                            Colors.transparent,
+                          ],
+                          stops: [0, 0.025, 0.955, 1],
+                        ).createShader(bounds),
+                        child: SmoothMouseScroll(
+                          controller: _scrollController,
+                          child: ListView.builder(
+                            key: widget.key is PageStorageKey
+                                ? widget.key
+                                : null,
+                            controller: _scrollController,
+                            physics: const ClampingScrollPhysics(),
+                            padding: const EdgeInsets.fromLTRB(0, 8, 0, 20),
+                            itemCount: visibleSongs.length,
+                            itemExtent: itemExtent,
+                            scrollCacheExtent: ScrollCacheExtent.pixels(
+                              itemExtent * 14,
+                            ),
+                            itemBuilder: (context, index) {
+                              final song = visibleSongs[index];
+                              return Column(
+                                children: [
+                                  SongRow(
+                                    song: song,
+                                    index: index,
+                                    compact: widget.compactRows,
+                                    isCurrent:
+                                        widget.currentSong?.id == song.id,
+                                    isPlaying: widget.isPlaying,
+                                    onPlay: () =>
+                                        widget.onPlay(song, visibleSongs),
+                                    onLike: widget.onLike == null
+                                        ? null
+                                        : () => widget.onLike!(song),
+                                    onArtist: widget.onArtist == null
+                                        ? null
+                                        : () => widget.onArtist!(song),
+                                    onArtistLink: widget.onArtist == null
+                                        ? null
+                                        : (artist) => widget.onArtist!(
+                                            song.copyWith(
+                                              artist: artist.name,
+                                              artistId: artist.id,
+                                              artists: [artist],
+                                            ),
+                                          ),
+                                    onAlbum: widget.onAlbum == null
+                                        ? null
+                                        : () => widget.onAlbum!(song),
+                                    onAddToPlaylist:
+                                        widget.onAddToPlaylist == null
+                                        ? null
+                                        : () => widget.onAddToPlaylist!(song),
+                                    onRemoveFromPlaylist:
+                                        widget.onRemoveFromPlaylist == null
+                                        ? null
+                                        : () => widget.onRemoveFromPlaylist!(
+                                            song,
+                                          ),
+                                    showAlbum: widget.showAlbum,
+                                  ),
+                                  Divider(
+                                    height: 1,
+                                    thickness: 0.5,
+                                    color: AppColors.divider.withValues(
+                                      alpha: AppColors.isDark ? 0.72 : 0.8,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
                         ),
-                        itemBuilder: (context, index) {
-                          final song = visibleSongs[index];
-                          return Column(
-                            children: [
-                              SongRow(
-                                song: song,
-                                index: index,
-                                compact: widget.compactRows,
-                                isCurrent: widget.currentSong?.id == song.id,
-                                isPlaying: widget.isPlaying,
-                                onPlay: () => widget.onPlay(song, visibleSongs),
-                                onLike: widget.onLike == null
-                                    ? null
-                                    : () => widget.onLike!(song),
-                                onArtist: widget.onArtist == null
-                                    ? null
-                                    : () => widget.onArtist!(song),
-                                onArtistLink: widget.onArtist == null
-                                    ? null
-                                    : (artist) => widget.onArtist!(
-                                        song.copyWith(
-                                          artist: artist.name,
-                                          artistId: artist.id,
-                                          artists: [artist],
-                                        ),
-                                      ),
-                                onAlbum: widget.onAlbum == null
-                                    ? null
-                                    : () => widget.onAlbum!(song),
-                                onAddToPlaylist: widget.onAddToPlaylist == null
-                                    ? null
-                                    : () => widget.onAddToPlaylist!(song),
-                                onRemoveFromPlaylist:
-                                    widget.onRemoveFromPlaylist == null
-                                    ? null
-                                    : () => widget.onRemoveFromPlaylist!(song),
-                                showAlbum: widget.showAlbum,
-                              ),
-                              Divider(
-                                height: 1,
-                                thickness: 0.5,
-                                color: AppColors.divider.withValues(
-                                  alpha: AppColors.isDark ? 0.72 : 0.8,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
                       ),
                       ListScrollActions(
                         controller: _scrollController,

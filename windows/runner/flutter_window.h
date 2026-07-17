@@ -3,8 +3,11 @@
 
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
 
 #include <memory>
+#include <shobjidl.h>
 
 #include "win32_window.h"
 
@@ -28,6 +31,22 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>>
+      media_channel_;
+  ITaskbarList3* taskbar_ = nullptr;
+  HICON previous_icon_ = nullptr;
+  HICON play_icon_ = nullptr;
+  HICON pause_icon_ = nullptr;
+  HICON next_icon_ = nullptr;
+  bool is_playing_ = false;
+  bool thumbar_added_ = false;
+  UINT taskbar_button_created_message_ = 0;
+
+  void SetupMediaChannel();
+  void SetupThumbar();
+  void UpdateThumbar();
+  void SendMediaAction(const char* action);
+  void DisposeWindowsMedia();
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

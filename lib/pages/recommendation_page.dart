@@ -28,7 +28,7 @@ class RecommendationPage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
     builder: (context, _) => SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(26, 8, 30, 26),
+      padding: const EdgeInsets.fromLTRB(14, 8, 18, 12),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1120),
@@ -248,6 +248,13 @@ class _DailyHero extends StatelessWidget {
                           const SizedBox(width: 8),
                           TextButton(
                             onPressed: loading ? null : onOpen,
+                            style: TextButton.styleFrom(
+                              foregroundColor: AppColors.primaryPressed,
+                              textStyle: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                             child: const Text('查看歌单'),
                           ),
                         ],
@@ -341,7 +348,7 @@ class _FmHero extends StatelessWidget {
                   clipBehavior: Clip.none,
                   children: [
                     AlbumArt(
-                      size: 66,
+                      size: 78,
                       emphasized: song != null,
                       imageUrl: song?.coverUrl,
                     ),
@@ -377,7 +384,7 @@ class _FmHero extends StatelessWidget {
                         '私人 FM',
                         style: TextStyle(
                           color: AppColors.text,
-                          fontSize: 17,
+                          fontSize: 19,
                           fontWeight: FontWeight.w900,
                         ),
                       ),

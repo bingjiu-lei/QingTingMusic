@@ -5,7 +5,8 @@ import '../services/app_preferences_service.dart';
 enum PlaybackQuality {
   standard('标准', 128),
   high('HQ', 320),
-  lossless('无损', 'flac');
+  lossless('无损', 'flac'),
+  hiRes('Hi-Res', 'high');
 
   const PlaybackQuality(this.label, this.requestValue);
 
@@ -26,13 +27,17 @@ class PlaybackQualityController extends ChangeNotifier {
 
   /// Keeps playback available when a preferred stream is not available.
   List<Object> get requestCandidates {
-    final values = <Object>[_quality.requestValue];
-    for (final candidate in PlaybackQuality.values) {
-      if (!values.contains(candidate.requestValue)) {
-        values.add(candidate.requestValue);
-      }
-    }
-    return values;
+    const fallbackOrder = <PlaybackQuality>[
+      PlaybackQuality.hiRes,
+      PlaybackQuality.lossless,
+      PlaybackQuality.high,
+      PlaybackQuality.standard,
+    ];
+    final selectedIndex = fallbackOrder.indexOf(_quality);
+    return fallbackOrder
+        .skip(selectedIndex < 0 ? fallbackOrder.length - 1 : selectedIndex)
+        .map((candidate) => candidate.requestValue)
+        .toList(growable: false);
   }
 
   Future<void> initialize() async {

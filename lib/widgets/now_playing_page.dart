@@ -12,7 +12,7 @@ import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
 import 'song_row.dart';
 
-class NowPlayingPage extends StatelessWidget {
+class NowPlayingPage extends StatefulWidget {
   const NowPlayingPage({
     super.key,
     required this.controller,
@@ -23,6 +23,11 @@ class NowPlayingPage extends StatelessWidget {
     this.onAddToPlaylist,
     this.onOpenAlbum,
     this.onOpenArtist,
+    required this.showTranslation,
+    required this.showTransliteration,
+    required this.onTranslationChanged,
+    required this.onTransliterationChanged,
+    required this.loadArtistPortraits,
   });
 
   final PlayerController controller;
@@ -33,16 +38,95 @@ class NowPlayingPage extends StatelessWidget {
   final ValueChanged<Song>? onAddToPlaylist;
   final ValueChanged<Song>? onOpenAlbum;
   final ValueChanged<Song>? onOpenArtist;
+  final bool showTranslation;
+  final bool showTransliteration;
+  final ValueChanged<bool> onTranslationChanged;
+  final ValueChanged<bool> onTransliterationChanged;
+  final Future<List<String>> Function(Song song) loadArtistPortraits;
+
+  @override
+  State<NowPlayingPage> createState() => _NowPlayingPageState();
+}
+
+class _NowPlayingPageState extends State<NowPlayingPage> {
+  List<String> _portraits = const [];
+  bool _portraitMode = false;
+  bool _portraitLoading = false;
+  String? _portraitSongKey;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_handleSongChanged);
+    _handleSongChanged();
+  }
+
+  @override
+  void didUpdateWidget(covariant NowPlayingPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_handleSongChanged);
+      widget.controller.addListener(_handleSongChanged);
+      _portraitSongKey = null;
+      _handleSongChanged();
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_handleSongChanged);
+    super.dispose();
+  }
+
+  void _handleSongChanged() {
+    final song = widget.controller.currentSong;
+    final key = song == null ? null : '${song.id}|${song.hash ?? ''}';
+    if (key == _portraitSongKey) return;
+    _portraitSongKey = key;
+    setState(() {
+      _portraitMode = false;
+      _portraits = const [];
+    });
+    if (song != null) _loadPortraits(song);
+  }
+
+  Future<void> _loadPortraits(Song song) async {
+    setState(() => _portraitLoading = true);
+    try {
+      final portraits = await widget.loadArtistPortraits(song);
+      if (!mounted || widget.controller.currentSong?.id != song.id) return;
+      setState(() {
+        _portraits = portraits;
+        _portraitLoading = false;
+      });
+    } catch (_) {
+      if (mounted && widget.controller.currentSong?.id == song.id) {
+        setState(() => _portraitLoading = false);
+      }
+    }
+  }
+
+  void _togglePortraitMode() {
+    setState(() => _portraitMode = !_portraitMode);
+    if (_portraitMode && _portraits.isEmpty && !_portraitLoading) {
+      final song = widget.controller.currentSong;
+      if (song != null) _loadPortraits(song);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final song = controller.currentSong;
+    final song = widget.controller.currentSong;
     final compact = MediaQuery.sizeOf(context).width < 980;
     return Material(
       color: Colors.transparent,
       child: Stack(
         children: [
-          _BlurredCoverBackground(song: song),
+          _BlurredCoverBackground(
+            song: song,
+            portraitUrl: _portraits.firstOrNull,
+            portraitMode: _portraitMode,
+          ),
           SafeArea(
             child: Padding(
               padding: EdgeInsets.fromLTRB(
@@ -60,27 +144,37 @@ class NowPlayingPage extends StatelessWidget {
                         : compact
                         ? _CompactContent(
                             song: song,
-                            controller: controller,
-                            loadLyrics: loadLyrics,
-                            onOpenArtist: onOpenArtist,
+                            controller: widget.controller,
+                            loadLyrics: widget.loadLyrics,
+                            onOpenArtist: widget.onOpenArtist,
+                            showTranslation: widget.showTranslation,
+                            showTransliteration: widget.showTransliteration,
+                            onTranslationChanged: widget.onTranslationChanged,
+                            onTransliterationChanged:
+                                widget.onTransliterationChanged,
                           )
                         : _WideContent(
                             song: song,
-                            controller: controller,
-                            loadLyrics: loadLyrics,
-                            onOpenArtist: onOpenArtist,
+                            controller: widget.controller,
+                            loadLyrics: widget.loadLyrics,
+                            onOpenArtist: widget.onOpenArtist,
+                            showTranslation: widget.showTranslation,
+                            showTransliteration: widget.showTransliteration,
+                            onTranslationChanged: widget.onTranslationChanged,
+                            onTransliterationChanged:
+                                widget.onTransliterationChanged,
                           ),
                   ),
                   if (song != null) ...[
                     const SizedBox(height: 12),
                     _PlaybackControls(
-                      controller: controller,
-                      playbackQualityController: playbackQualityController,
-                      compact: compact,
+                      controller: widget.controller,
+                      playbackQualityController:
+                          widget.playbackQualityController,
                       song: song,
-                      onLike: onLike,
-                      onAddToPlaylist: onAddToPlaylist,
-                      onOpenAlbum: onOpenAlbum,
+                      onLike: widget.onLike,
+                      onAddToPlaylist: widget.onAddToPlaylist,
+                      onOpenAlbum: widget.onOpenAlbum,
                     ),
                   ],
                 ],
@@ -90,7 +184,17 @@ class NowPlayingPage extends StatelessWidget {
           Positioned(
             left: compact ? 12 : 22,
             bottom: 17,
-            child: _SubtleCollapseButton(onClose: onClose),
+            child: Row(
+              children: [
+                _SubtleCollapseButton(onClose: widget.onClose),
+                const SizedBox(width: 8),
+                _PortraitModeButton(
+                  loading: _portraitLoading,
+                  selected: _portraitMode,
+                  onPressed: _togglePortraitMode,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -99,13 +203,21 @@ class NowPlayingPage extends StatelessWidget {
 }
 
 class _BlurredCoverBackground extends StatelessWidget {
-  const _BlurredCoverBackground({required this.song});
+  const _BlurredCoverBackground({
+    required this.song,
+    required this.portraitUrl,
+    required this.portraitMode,
+  });
 
   final Song? song;
+  final String? portraitUrl;
+  final bool portraitMode;
 
   @override
   Widget build(BuildContext context) {
     final coverUrl = (song?.coverUrl ?? '').trim();
+    final portrait = (portraitUrl ?? '').trim();
+    final showPortrait = portraitMode && portrait.isNotEmpty;
     final hasCover = coverUrl.isNotEmpty;
     final dark = AppColors.isDark;
     final overlay = dark ? Colors.black : Colors.white;
@@ -122,41 +234,55 @@ class _BlurredCoverBackground extends StatelessWidget {
                 duration: const Duration(milliseconds: 420),
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
-                child: Opacity(
-                  key: ValueKey(hasCover ? coverUrl : 'album-placeholder-bg'),
-                  opacity: hasCover ? 0.92 : 0.42,
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
-                    child: Transform.scale(
-                      scale: 1.76,
-                      child: SizedBox.expand(
-                        child: hasCover
-                            ? Image.network(
-                                coverUrl,
-                                fit: BoxFit.cover,
-                                gaplessPlayback: true,
-                                filterQuality: FilterQuality.low,
-                                cacheWidth: 720,
-                                errorBuilder: (_, _, _) => Image.asset(
-                                  'assets/images/album_placeholder.png',
-                                  fit: BoxFit.cover,
-                                  filterQuality: FilterQuality.low,
-                                ),
-                              )
-                            : Image.asset(
-                                'assets/images/album_placeholder.png',
-                                fit: BoxFit.cover,
-                                filterQuality: FilterQuality.low,
-                              ),
+                child: showPortrait
+                    ? Image.network(
+                        portrait,
+                        key: ValueKey('portrait-$portrait'),
+                        fit: BoxFit.cover,
+                        alignment: Alignment.topCenter,
+                        gaplessPlayback: true,
+                        filterQuality: FilterQuality.medium,
+                        cacheWidth: 1600,
+                      )
+                    : Opacity(
+                        key: ValueKey(
+                          hasCover ? coverUrl : 'album-placeholder-bg',
+                        ),
+                        opacity: hasCover ? 0.92 : 0.42,
+                        child: ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
+                          child: Transform.scale(
+                            scale: 1.76,
+                            child: SizedBox.expand(
+                              child: hasCover
+                                  ? Image.network(
+                                      coverUrl,
+                                      fit: BoxFit.cover,
+                                      gaplessPlayback: true,
+                                      filterQuality: FilterQuality.low,
+                                      cacheWidth: 720,
+                                      errorBuilder: (_, _, _) => Image.asset(
+                                        'assets/images/album_placeholder.png',
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : Image.asset(
+                                      'assets/images/album_placeholder.png',
+                                      fit: BoxFit.cover,
+                                    ),
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ),
               ),
             ),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: overlay.withValues(alpha: dark ? 0.54 : 0.68),
+                color: overlay.withValues(
+                  alpha: showPortrait
+                      ? (dark ? 0.32 : 0.48)
+                      : (dark ? 0.54 : 0.68),
+                ),
               ),
             ),
             DecoratedBox(
@@ -269,6 +395,53 @@ class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
             icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 24),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PortraitModeButton extends StatelessWidget {
+  const _PortraitModeButton({
+    required this.loading,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  final bool loading;
+  final bool selected;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 58,
+      height: 58,
+      child: IconButton(
+        tooltip: selected ? '切换到专辑封面' : '切换到歌手写真',
+        onPressed: onPressed,
+        mouseCursor: SystemMouseCursors.click,
+        style: IconButton.styleFrom(
+          foregroundColor: selected ? AppColors.primary : AppColors.muted,
+          backgroundColor: selected
+              ? AppColors.selected.withValues(alpha: 0.78)
+              : AppColors.surfaceMuted.withValues(
+                  alpha: AppColors.isDark ? 0.22 : 0.28,
+                ),
+          hoverColor: AppColors.primary.withValues(alpha: 0.10),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(13),
+          ),
+        ),
+        icon: loading && selected
+            ? const SizedBox(
+                width: 17,
+                height: 17,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : Icon(
+                selected ? Icons.person_rounded : Icons.person_outline_rounded,
+                size: 22,
+              ),
       ),
     );
   }
@@ -413,12 +586,20 @@ class _WideContent extends StatelessWidget {
     required this.controller,
     required this.loadLyrics,
     this.onOpenArtist,
+    required this.showTranslation,
+    required this.showTransliteration,
+    required this.onTranslationChanged,
+    required this.onTransliterationChanged,
   });
 
   final Song song;
   final PlayerController controller;
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
   final ValueChanged<Song>? onOpenArtist;
+  final bool showTranslation;
+  final bool showTransliteration;
+  final ValueChanged<bool> onTranslationChanged;
+  final ValueChanged<bool> onTransliterationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -440,6 +621,10 @@ class _WideContent extends StatelessWidget {
               song: song,
               controller: controller,
               loadLyrics: loadLyrics,
+              showTranslation: showTranslation,
+              showTransliteration: showTransliteration,
+              onTranslationChanged: onTranslationChanged,
+              onTransliterationChanged: onTransliterationChanged,
             ),
           ),
         ),
@@ -454,12 +639,20 @@ class _CompactContent extends StatelessWidget {
     required this.controller,
     required this.loadLyrics,
     this.onOpenArtist,
+    required this.showTranslation,
+    required this.showTransliteration,
+    required this.onTranslationChanged,
+    required this.onTransliterationChanged,
   });
 
   final Song song;
   final PlayerController controller;
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
   final ValueChanged<Song>? onOpenArtist;
+  final bool showTranslation;
+  final bool showTransliteration;
+  final ValueChanged<bool> onTranslationChanged;
+  final ValueChanged<bool> onTransliterationChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -472,6 +665,10 @@ class _CompactContent extends StatelessWidget {
             song: song,
             controller: controller,
             loadLyrics: loadLyrics,
+            showTranslation: showTranslation,
+            showTransliteration: showTransliteration,
+            onTranslationChanged: onTranslationChanged,
+            onTransliterationChanged: onTransliterationChanged,
           ),
         ],
       ),
@@ -543,19 +740,27 @@ class _LyricsPanel extends StatefulWidget {
     required this.song,
     required this.controller,
     required this.loadLyrics,
+    required this.showTranslation,
+    required this.showTransliteration,
+    required this.onTranslationChanged,
+    required this.onTransliterationChanged,
   });
 
   final Song song;
   final PlayerController controller;
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
+  final bool showTranslation;
+  final bool showTransliteration;
+  final ValueChanged<bool> onTranslationChanged;
+  final ValueChanged<bool> onTransliterationChanged;
 
   @override
   State<_LyricsPanel> createState() => _LyricsPanelState();
 }
 
 class _LyricsPanelState extends State<_LyricsPanel> {
-  static const double _lyricViewportHeight = 310;
-  static const double _lyricRowExtent = 62;
+  static const double _lyricViewportHeight = 304;
+  static const double _lyricRowExtent = 72;
 
   final _scrollController = ScrollController();
   List<LyricLine> _lines = const [];
@@ -636,7 +841,12 @@ class _LyricsPanelState extends State<_LyricsPanel> {
         break;
       }
     }
-    if (nextIndex == _activeIndex && !forceScroll) return;
+    if (nextIndex == _activeIndex && !forceScroll) {
+      if (nextIndex >= 0 && _lines[nextIndex].hasExactTiming && mounted) {
+        setState(() {});
+      }
+      return;
+    }
     setState(() => _activeIndex = nextIndex);
     _scrollToActiveLine(nextIndex, forceScroll: forceScroll);
   }
@@ -660,12 +870,44 @@ class _LyricsPanelState extends State<_LyricsPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final hasTranslation = _lines.any(
+      (line) => (line.translation ?? '').trim().isNotEmpty,
+    );
+    final hasTransliteration = _lines.any(
+      (line) => (line.transliteration ?? '').trim().isNotEmpty,
+    );
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 430),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (hasTranslation || hasTransliteration) ...[
+            Row(
+              children: [
+                if (hasTranslation)
+                  _LyricLayerToggle(
+                    label: '译',
+                    tooltip: '外语翻译',
+                    selected: widget.showTranslation,
+                    onTap: () =>
+                        widget.onTranslationChanged(!widget.showTranslation),
+                  ),
+                if (hasTranslation && hasTransliteration)
+                  const SizedBox(width: 6),
+                if (hasTransliteration)
+                  _LyricLayerToggle(
+                    label: '音',
+                    tooltip: '音译',
+                    selected: widget.showTransliteration,
+                    onTap: () => widget.onTransliterationChanged(
+                      !widget.showTransliteration,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
           SizedBox(height: _lyricViewportHeight, child: _lyricsContent()),
         ],
       ),
@@ -699,6 +941,14 @@ class _LyricsPanelState extends State<_LyricsPanel> {
       itemBuilder: (context, index) {
         final line = _lines[index];
         final active = index == _activeIndex;
+        final secondary = <String>[
+          if (widget.showTranslation &&
+              (line.translation ?? '').trim().isNotEmpty)
+            line.translation!.trim(),
+          if (widget.showTransliteration &&
+              (line.transliteration ?? '').trim().isNotEmpty)
+            line.transliteration!.trim(),
+        ].join('  ·  ');
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onDoubleTap: () async {
@@ -706,30 +956,39 @@ class _LyricsPanelState extends State<_LyricsPanel> {
             if (!mounted) return;
             _syncActiveLine(forceScroll: true);
           },
-          child: AnimatedDefaultTextStyle(
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOutCubic,
-            style: TextStyle(
-              fontFamily: 'NotoSansSC',
-              color: active
-                  ? AppColors.text
-                  : AppColors.muted.withValues(alpha: 0.82),
-              fontSize: active ? 22 : 17,
-              fontWeight: active ? FontWeight.w800 : FontWeight.w500,
-              height: 1.48,
-              letterSpacing: 0,
-            ),
-            child: Padding(
-              padding: EdgeInsets.zero,
-              child: SizedBox(
-                height: _lyricRowExtent,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    line.text,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+          child: SizedBox(
+            height: _lyricRowExtent,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AnimatedScale(
+                scale: active ? 1 : 0.97,
+                alignment: Alignment.centerLeft,
+                duration: AppMotion.fast,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _KaraokeLine(
+                      line: line,
+                      position: widget.controller.position,
+                      active: active,
+                    ),
+                    if (secondary.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        secondary,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: active
+                              ? AppColors.primary.withValues(alpha: 0.82)
+                              : AppColors.faint,
+                          fontSize: active ? 12 : 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -742,6 +1001,137 @@ class _LyricsPanelState extends State<_LyricsPanel> {
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: listView,
     );
+  }
+}
+
+class _LyricLayerToggle extends StatelessWidget {
+  const _LyricLayerToggle({
+    required this.label,
+    required this.tooltip,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final String tooltip;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: tooltip,
+    child: Material(
+      color: selected
+          ? AppColors.selected
+          : AppColors.surfaceMuted.withValues(alpha: 0.36),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        mouseCursor: SystemMouseCursors.click,
+        borderRadius: BorderRadius.circular(999),
+        child: SizedBox(
+          width: 30,
+          height: 24,
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: selected ? AppColors.primary : AppColors.muted,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _KaraokeLine extends StatelessWidget {
+  const _KaraokeLine({
+    required this.line,
+    required this.position,
+    required this.active,
+  });
+
+  final LyricLine line;
+  final Duration position;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(
+      fontFamily: 'NotoSansSC',
+      color: active ? AppColors.text : AppColors.muted.withValues(alpha: 0.82),
+      fontSize: active ? 22 : 17,
+      fontWeight: active ? FontWeight.w800 : FontWeight.w500,
+      height: 1.24,
+    );
+    if (!active || !line.hasExactTiming) {
+      return Text(
+        line.text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: style,
+      );
+    }
+    final progress = _wordProgress(line, position);
+    return LayoutBuilder(
+      builder: (context, constraints) => Stack(
+        children: [
+          Text(
+            line.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: style.copyWith(
+              color: AppColors.muted.withValues(alpha: 0.5),
+            ),
+          ),
+          ClipRect(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: progress,
+              child: SizedBox(
+                width: constraints.maxWidth,
+                child: Text(
+                  line.text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: style.copyWith(color: AppColors.text),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  double _wordProgress(LyricLine line, Duration position) {
+    final elapsed = position - line.time;
+    if (elapsed <= Duration.zero) return 0;
+    var completedCharacters = 0.0;
+    final totalCharacters = line.words.fold<int>(
+      0,
+      (total, word) => total + word.text.runes.length,
+    );
+    if (totalCharacters == 0) return 0;
+    for (final word in line.words) {
+      final count = word.text.runes.length;
+      if (elapsed >= word.offset + word.duration) {
+        completedCharacters += count;
+        continue;
+      }
+      if (elapsed > word.offset && word.duration > Duration.zero) {
+        final local =
+            (elapsed - word.offset).inMicroseconds /
+            word.duration.inMicroseconds;
+        completedCharacters += count * local.clamp(0.0, 1.0);
+      }
+      break;
+    }
+    return (completedCharacters / totalCharacters).clamp(0.0, 1.0);
   }
 }
 
@@ -770,7 +1160,6 @@ class _PlaybackControls extends StatelessWidget {
   const _PlaybackControls({
     required this.controller,
     required this.playbackQualityController,
-    required this.compact,
     required this.song,
     this.onLike,
     this.onAddToPlaylist,
@@ -779,7 +1168,6 @@ class _PlaybackControls extends StatelessWidget {
 
   final PlayerController controller;
   final PlaybackQualityController playbackQualityController;
-  final bool compact;
   final Song song;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
@@ -797,73 +1185,81 @@ class _PlaybackControls extends StatelessWidget {
         ? currentSong.duration
         : controller.duration;
     return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 760),
+      constraints: const BoxConstraints(maxWidth: 680),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppColors.surface.withValues(
-                    alpha: AppColors.isDark ? 0.62 : 0.70,
-                  ),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(
-                    color: AppColors.border.withValues(alpha: 0.36),
-                  ),
+          SizedBox(
+            width: 384,
+            height: 48,
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(
+                  alpha: AppColors.isDark ? 0.42 : 0.54,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 11,
-                    vertical: 3,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _NowPlayingActions(
-                        song: song,
-                        onLike: onLike,
-                        onAddToPlaylist: onAddToPlaylist,
-                        onOpenAlbum: onOpenAlbum,
-                        compact: compact,
-                      ),
-                      SizedBox(width: compact ? 8 : 12),
-                      PlaybackQualityMenu(
-                        controller: playbackQualityController,
-                        compact: true,
-                      ),
-                      SizedBox(width: compact ? 6 : 8),
-                      _GlassControlButton(
-                        tooltip: controller.playbackMode.label,
-                        icon: _modeIcon(controller.playbackMode),
-                        onPressed: controller.cyclePlaybackMode,
-                      ),
-                      _GlassControlButton(
-                        tooltip: '上一首',
-                        icon: Icons.skip_previous_rounded,
-                        onPressed: controller.playPrevious,
-                      ),
-                      _PlayControlButton(
-                        isPlaying: controller.isPlaying,
-                        disabled: controller.isPreparing,
-                        onPressed: controller.togglePlay,
-                      ),
-                      _GlassControlButton(
-                        tooltip: '下一首',
-                        icon: Icons.skip_next_rounded,
-                        onPressed: () => controller.playNext(),
-                      ),
-                    ],
-                  ),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.34),
                 ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Positioned(
+                    right: 220,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _NowPlayingActions(
+                          song: song,
+                          onLike: onLike,
+                          onAddToPlaylist: onAddToPlaylist,
+                          onOpenAlbum: onOpenAlbum,
+                          compact: true,
+                        ),
+                        const SizedBox(width: 4),
+                        _GlassControlButton(
+                          tooltip: '上一首',
+                          icon: Icons.skip_previous_rounded,
+                          onPressed: controller.playPrevious,
+                        ),
+                      ],
+                    ),
+                  ),
+                  _PlayControlButton(
+                    isPlaying: controller.isPlaying,
+                    disabled: controller.isPreparing,
+                    onPressed: controller.togglePlay,
+                  ),
+                  Positioned(
+                    left: 220,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _GlassControlButton(
+                          tooltip: '下一首',
+                          icon: Icons.skip_next_rounded,
+                          onPressed: () => controller.playNext(),
+                        ),
+                        const SizedBox(width: 16),
+                        PlaybackQualityMenu(
+                          controller: playbackQualityController,
+                          compact: true,
+                        ),
+                        const SizedBox(width: 16),
+                        _GlassControlButton(
+                          tooltip: controller.playbackMode.label,
+                          icon: _modeIcon(controller.playbackMode),
+                          onPressed: controller.cyclePlaybackMode,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 13),
+          const SizedBox(height: 10),
           PlaybackProgress(
             position: controller.position,
             duration: duration,

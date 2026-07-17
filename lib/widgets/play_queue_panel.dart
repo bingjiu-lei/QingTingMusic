@@ -4,6 +4,7 @@ import '../controllers/player_controller.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'smooth_mouse_scroll.dart';
 import 'song_row.dart';
 
 class PlayQueuePanel extends StatefulWidget {
@@ -164,25 +165,30 @@ class _PlayQueuePanelState extends State<PlayQueuePanel> {
                           style: TextStyle(color: AppColors.faint),
                         ),
                       )
-                    : ListView.builder(
+                    : SmoothMouseScroll(
                         controller: _scrollController,
-                        itemExtent: _itemExtent,
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
-                        itemCount: queue.length,
-                        itemBuilder: (context, index) {
-                          final song = queue[index];
-                          final current =
-                              widget.controller.currentSong?.id == song.id;
-                          return _QueueTile(
-                            song: song,
-                            index: index,
-                            current: current,
-                            playing: current && widget.controller.isPlaying,
-                            onPlay: () => widget.controller.playQueueSong(song),
-                            onRemove: () =>
-                                widget.controller.removeFromQueue(song),
-                          );
-                        },
+                        child: ListView.builder(
+                          controller: _scrollController,
+                          physics: const ClampingScrollPhysics(),
+                          itemExtent: _itemExtent,
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+                          itemCount: queue.length,
+                          itemBuilder: (context, index) {
+                            final song = queue[index];
+                            final current =
+                                widget.controller.currentSong?.id == song.id;
+                            return _QueueTile(
+                              song: song,
+                              index: index,
+                              current: current,
+                              playing: current && widget.controller.isPlaying,
+                              onPlay: () =>
+                                  widget.controller.playQueueSong(song),
+                              onRemove: () =>
+                                  widget.controller.removeFromQueue(song),
+                            );
+                          },
+                        ),
                       ),
               ),
             ],

@@ -522,13 +522,13 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
     }
     _overlayEntry = OverlayEntry(
       builder: (context) => Positioned(
-        width: 210,
-        height: 54,
+        width: 64,
+        height: 168,
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
-          targetAnchor: Alignment.topRight,
-          followerAnchor: Alignment.bottomRight,
+          targetAnchor: Alignment.topCenter,
+          followerAnchor: Alignment.bottomCenter,
           offset: const Offset(0, -8),
           child: Material(
             type: MaterialType.transparency,
@@ -601,8 +601,9 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
         _anchorHovered = false;
         _scheduleHide();
       },
-      child: Tooltip(
-        message: widget.volume <= 0.01 ? '恢复音量' : '静音',
+      child: Semantics(
+        button: true,
+        label: widget.volume <= 0.01 ? '恢复音量' : '静音',
         child: IconButton(
           onPressed: _toggleMute,
           icon: Icon(
@@ -635,35 +636,41 @@ class _VolumePopover extends StatelessWidget {
   Widget build(BuildContext context) {
     final percent = (volume.clamp(0.0, 1.0) * 100).round();
     return Container(
-      width: 210,
-      height: 54,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      width: 64,
+      height: 168,
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: AppColors.surfaceElevated,
         borderRadius: BorderRadius.circular(AppRadius.xl),
         border: Border.all(color: AppColors.border),
         boxShadow: AppShadows.popover,
       ),
-      child: Row(
+      child: Column(
         children: [
-          Icon(
-            volume <= 0.01 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-            color: AppColors.muted,
-            size: 19,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Slider(value: volume.clamp(0.0, 1.0), onChanged: onChanged),
-          ),
-          const SizedBox(width: 6),
           Text(
-            '$percent%',
+            '$percent',
             style: TextStyle(
               color: AppColors.text,
               fontSize: 11,
               fontWeight: FontWeight.w800,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
+          ),
+          const SizedBox(height: 4),
+          Expanded(
+            child: RotatedBox(
+              quarterTurns: 3,
+              child: Slider(
+                value: volume.clamp(0.0, 1.0),
+                onChanged: onChanged,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          Icon(
+            volume <= 0.01 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+            color: AppColors.muted,
+            size: 19,
           ),
         ],
       ),

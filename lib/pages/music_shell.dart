@@ -24,12 +24,14 @@ import '../models/app_update.dart';
 import '../services/audio_player_service.dart';
 import '../services/app_preferences_service.dart';
 import '../services/cache_management_service.dart';
+import '../services/cover_palette_service.dart';
 import '../services/developer_mode_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/search_history_service.dart';
 import '../services/recent_songs_service.dart';
 import '../services/playback_state_service.dart';
 import '../services/session_expired_service.dart';
+import '../services/windows_media_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
 import '../widgets/add_to_playlist_dialog.dart';
@@ -78,6 +80,7 @@ class _MusicShellState extends State<MusicShell>
   final cacheManagementService = CacheManagementService();
   final _developerModeService = DeveloperModeService();
   final _preferences = AppPreferencesService();
+  final _windowsMediaBridge = WindowsMediaBridge();
 
   int selectedIndex = 0;
   int librarySelectedTab = 0;
@@ -97,6 +100,9 @@ class _MusicShellState extends State<MusicShell>
   final List<_DetailSnapshot> detailHistory = [];
   bool showQueuePanel = false;
   bool showNowPlayingPage = false;
+  bool _showLyricTranslation = true;
+  bool _showLyricTransliteration = false;
+  String? _lastCoverAccentSongId;
   bool _isFmSession = false;
   String? _lastFmSyncSongId;
   PlaybackMode? _playbackModeBeforeFm;
@@ -121,6 +127,7 @@ class _MusicShellState extends State<MusicShell>
   @override
   void initState() {
     super.initState();
+    widget.themeController.addListener(_handleThemeChanged);
     playbackQualityController = PlaybackQualityController()
       ..addListener(_refresh);
     if (widget.useDemoData) {
@@ -139,6 +146,15 @@ class _MusicShellState extends State<MusicShell>
       recentSongsService: RecentSongsService(),
       playbackStateService: PlaybackStateService(),
     )..addListener(_handlePlayerChanged);
+    if (Platform.isWindows && widget.enableWindowControls) {
+      unawaited(
+        _windowsMediaBridge.initialize(
+          onPrevious: playerController.playPrevious,
+          onTogglePlay: playerController.togglePlay,
+          onNext: playerController.playNext,
+        ),
+      );
+    }
     searchController = MusicSearchController(
       repository: repository,
       historyService: SearchHistoryService(),
@@ -191,6 +207,35 @@ class _MusicShellState extends State<MusicShell>
     final closeToTray = value is bool ? value : false;
     setState(() => _closeToTray = closeToTray);
     await _applyCloseBehavior(closeToTray);
+  }
+
+  void _handleThemeChanged() {
+    if (widget.themeController.coverAccentEnabled) {
+      unawaited(_syncCoverAccent(force: true));
+    } else {
+      _lastCoverAccentSongId = null;
+    }
+    _refresh();
+  }
+
+  Future<void> _syncCoverAccent({bool force = false}) async {
+    final theme = widget.themeController;
+    if (!theme.coverAccentEnabled) return;
+    final song = playerController.currentSong;
+    final cover = song?.coverUrl?.trim() ?? '';
+    final identity = song == null ? null : '${song.id}|$cover';
+    if (!force && identity == _lastCoverAccentSongId) return;
+    _lastCoverAccentSongId = identity;
+    if (cover.isEmpty) {
+      theme.applyCoverAccent(null);
+      return;
+    }
+    final color = await CoverPaletteService.colorFor(cover);
+    if (playerController.currentSong?.id != song?.id ||
+        !theme.coverAccentEnabled) {
+      return;
+    }
+    theme.applyCoverAccent(color);
   }
 
   Future<void> _setCloseToTray(bool value) async {
@@ -390,6 +435,16 @@ class _MusicShellState extends State<MusicShell>
         _lastShellPlaying != playerController.isPlaying;
     _lastShellSongId = song?.id;
     _lastShellPlaying = playerController.isPlaying;
+    if (shouldRefreshShell) {
+      unawaited(
+        _windowsMediaBridge.updatePlayback(
+          isPlaying: playerController.isPlaying,
+          title: song?.title ?? '',
+          artist: song?.artist ?? '',
+        ),
+      );
+      unawaited(_syncCoverAccent());
+    }
     final key = song == null ? null : _lyricCacheKey(song);
     if (song != null && key != null && key != _lastPreloadedLyricKey) {
       _lastPreloadedLyricKey = key;
@@ -977,6 +1032,7 @@ class _MusicShellState extends State<MusicShell>
   @override
   void dispose() {
     _sessionExpiredSubscription?.cancel();
+    widget.themeController.removeListener(_handleThemeChanged);
     if (Platform.isWindows && widget.enableWindowControls) {
       windowManager.removeListener(this);
       trayManager.removeListener(this);
@@ -1002,6 +1058,7 @@ class _MusicShellState extends State<MusicShell>
     authController
       ?..removeListener(_handleAuthChanged)
       ..dispose();
+    unawaited(_windowsMediaBridge.dispose());
     super.dispose();
   }
 
@@ -1180,6 +1237,18 @@ class _MusicShellState extends State<MusicShell>
                                 onAddToPlaylist: _showAddToPlaylist,
                                 onOpenAlbum: _openAlbumFromNowPlaying,
                                 onOpenArtist: _openArtistFromNowPlaying,
+                                showTranslation: _showLyricTranslation,
+                                showTransliteration: _showLyricTransliteration,
+                                onTranslationChanged: (value) {
+                                  setState(() => _showLyricTranslation = value);
+                                },
+                                onTransliterationChanged: (value) {
+                                  setState(
+                                    () => _showLyricTransliteration = value,
+                                  );
+                                },
+                                loadArtistPortraits:
+                                    repository.getArtistPortraits,
                               ),
                             )
                           : const SizedBox.shrink(

@@ -12,6 +12,7 @@ import '../models/song.dart';
 import '../controllers/playback_quality_controller.dart';
 import 'api_endpoint_service.dart';
 import 'kugou_official_client.dart';
+import 'krc_lyric_parser.dart';
 import 'secure_session_storage.dart';
 import 'session_expired_service.dart';
 
@@ -97,6 +98,9 @@ class KugouApiClient {
   final ApiEndpointService _endpointService;
   final PlaybackQualityController? playbackQualityController;
   final KugouOfficialClient _officialClient;
+  final Map<String, ({DateTime expiresAt, List<String> urls})> _portraitCache =
+      {};
+  final Map<String, Future<List<String>>> _portraitRequests = {};
 
   KugouSession session = const KugouSession();
 
@@ -1163,13 +1167,71 @@ class KugouApiClient {
         'id': candidate.id,
         'accesskey': candidate.accessKey,
         'decode': 'true',
-        'fmt': 'lrc',
+        'fmt': 'krc',
       },
       bypassCache: true,
     );
     final content = _lyricContent(lyricResponse.data);
     if (content.isEmpty) return const [];
-    return _parseLrc(content);
+    final parsed = const KrcLyricParser().parse(content);
+    if (parsed.isNotEmpty) return parsed;
+    final fallbackResponse = await _get(
+      '/lyric',
+      queryParameters: {
+        'id': candidate.id,
+        'accesskey': candidate.accessKey,
+        'decode': 'true',
+        'fmt': 'lrc',
+      },
+      bypassCache: true,
+    );
+    final fallback = _lyricContent(fallbackResponse.data);
+    return fallback.isEmpty ? const [] : const KrcLyricParser().parse(fallback);
+  }
+
+  Future<List<String>> getArtistPortraits(Song song) async {
+    final hash = song.hash?.trim() ?? '';
+    if (hash.isEmpty) return const [];
+    final cached = _portraitCache[hash];
+    if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
+      return cached.urls;
+    }
+    final pending = _portraitRequests[hash];
+    if (pending != null) return pending;
+    final request = _loadArtistPortraits(song);
+    _portraitRequests[hash] = request;
+    try {
+      return await request;
+    } finally {
+      _portraitRequests.remove(hash);
+    }
+  }
+
+  Future<List<String>> _loadArtistPortraits(Song song) async {
+    final response = await _get(
+      '/images/audio',
+      queryParameters: {
+        'hash': song.hash ?? '',
+        'audio_id': song.fileId ?? 0,
+        'album_audio_id': song.albumAudioId ?? 0,
+        'filename': song.title,
+        'count': 5,
+      },
+      bypassCache: true,
+    );
+    final urls = _findPortraitUrls(
+      response.data,
+    ).take(5).toList(growable: false);
+    _portraitCache[song.hash!] = (
+      expiresAt: DateTime.now().add(
+        urls.isEmpty ? const Duration(minutes: 5) : const Duration(minutes: 30),
+      ),
+      urls: urls,
+    );
+    while (_portraitCache.length > 50) {
+      _portraitCache.remove(_portraitCache.keys.first);
+    }
+    return urls;
   }
 
   Future<String?> _resolveSongUrl(
@@ -1220,7 +1282,19 @@ class KugouApiClient {
         authenticated: true,
         queryParameters: {'hash': hash, 'album_id': song.albumId ?? 0},
       );
-      return _findRelateGoods(response.data);
+      final goods = _findRelateGoods(response.data);
+      final preferred =
+          playbackQualityController?.requestCandidates ?? const <Object>[128];
+      final ranks = <String, int>{
+        for (var index = 0; index < preferred.length; index++)
+          _normalizedQuality(preferred[index]): index,
+      };
+      goods.sort((left, right) {
+        final leftRank = ranks[_normalizedQuality(left.quality)] ?? 999;
+        final rightRank = ranks[_normalizedQuality(right.quality)] ?? 999;
+        return leftRank.compareTo(rightRank);
+      });
+      return goods;
     } catch (_) {
       return const [];
     }
@@ -1813,41 +1887,14 @@ class KugouApiClient {
     ], fallback: _read(data, ['content']));
     if (encoded.isEmpty) return '';
     try {
-      return _cleanLyricText(utf8.decode(base64Decode(encoded)));
+      final bytes = base64Decode(encoded);
+      final contentType = _toInt(body['contenttype'] ?? data['contenttype']);
+      return _cleanLyricText(
+        contentType == 0 ? decodeKrcBytes(bytes) : utf8.decode(bytes),
+      );
     } catch (_) {
       return '';
     }
-  }
-
-  List<LyricLine> _parseLrc(String content) {
-    final lines = <LyricLine>[];
-    final timeTag = RegExp(r'\[(\d{1,2}):(\d{1,2})(?:\.(\d{1,3}))?\]');
-    for (final rawLine in content.split(RegExp(r'\r?\n'))) {
-      final matches = timeTag.allMatches(rawLine).toList();
-      if (matches.isEmpty) continue;
-      final text = rawLine.replaceAll(timeTag, '').trim();
-      if (text.isEmpty) continue;
-      for (final match in matches) {
-        final minutes = int.tryParse(match.group(1) ?? '') ?? 0;
-        final seconds = int.tryParse(match.group(2) ?? '') ?? 0;
-        final fraction = match.group(3) ?? '0';
-        final milliseconds = int.parse(
-          fraction.padRight(3, '0').substring(0, 3),
-        );
-        lines.add(
-          LyricLine(
-            time: Duration(
-              minutes: minutes,
-              seconds: seconds,
-              milliseconds: milliseconds,
-            ),
-            text: text,
-          ),
-        );
-      }
-    }
-    lines.sort((left, right) => left.time.compareTo(right.time));
-    return lines;
   }
 
   KugouSession _mergeCookies(KugouSession current, List<String> setCookies) {
@@ -2174,7 +2221,7 @@ List<_PlaybackCandidate> _findRelateGoods(Object? value) {
       goods.add(
         _PlaybackCandidate(
           hash: hash,
-          quality: json['quality'] ?? json['level'],
+          quality: _normalizedQuality(json['quality'] ?? json['level']),
         ),
       );
     }
@@ -2185,6 +2232,54 @@ List<_PlaybackCandidate> _findRelateGoods(Object? value) {
   visit(value);
   final seen = <String>{};
   return goods.where((item) => seen.add(item.hash.toLowerCase())).toList();
+}
+
+List<String> _findPortraitUrls(Object? value) {
+  final body = _map(value);
+  final groups = _list(body['data']);
+  const priorities = ['3', '4', '2'];
+  for (final priority in priorities) {
+    final urls = <String>{};
+    void visit(Object? node) {
+      if (node is List) {
+        for (final child in node) {
+          visit(child);
+        }
+        return;
+      }
+      if (node is! Map) return;
+      final json = _map(node);
+      final imgs = _map(json['imgs']);
+      final portraits = _list(imgs[priority]);
+      for (final portrait in portraits) {
+        final url = _read(_map(portrait), [
+          'sizable_portrait',
+          'portrait',
+          'url',
+        ]).replaceFirst('http://', 'https://');
+        if (url.isNotEmpty) urls.add(url);
+      }
+      for (final child in json.values) {
+        visit(child);
+      }
+    }
+
+    visit(groups);
+    if (urls.isNotEmpty) return urls.toList(growable: false);
+  }
+  return const [];
+}
+
+String _normalizedQuality(Object? value) {
+  final raw = value?.toString().trim().toLowerCase() ?? '';
+  return switch (raw) {
+    '0' || '1' || '128' || 'standard' => '128',
+    '2' || '320' || 'highquality' => '320',
+    '3' || 'flac' || 'lossless' || 'sq' => 'flac',
+    '6' || 'hires' || 'hi-res' || 'high' || 'hr' => 'high',
+    '7' || 'super' || 'dsd' || 'premium' => 'super',
+    _ => raw,
+  };
 }
 
 bool _isSameSong(Song source, Song target) {

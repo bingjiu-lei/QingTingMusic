@@ -58,4 +58,6 @@ abstract interface class MusicRepository {
   Future<Song> resolvePlayback(Song song);
 
   Future<List<LyricLine>> getLyrics(Song song);
+
+  Future<List<String>> getArtistPortraits(Song song);
 }

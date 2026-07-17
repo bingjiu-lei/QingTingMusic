@@ -220,6 +220,28 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         cookie,
         baseUrl: 'https://lyrics.kugou.com',
       ),
+      '/images/audio' => _android(
+        '/v2/author_image/audio',
+        {
+          'appid': liteAppid,
+          'clientver': liteClientver,
+          'count': params['count'] ?? 5,
+          'data': jsonEncode([
+            {
+              'audio_id': params['audio_id'] ?? 0,
+              'hash': params['hash'] ?? '',
+              'album_audio_id': params['album_audio_id'] ?? 0,
+              'filename': params['filename'] ?? '',
+            },
+          ]),
+          'isCdn': 1,
+          'publish_time': 1,
+          'show_authors': 1,
+        },
+        cookie,
+        baseUrl: 'https://expendablekmr.kugou.com',
+        clearDefaultParams: true,
+      ),
       '/song/url' => _songUrl(params, cookie),
       '/privilege/lite' => _privilegeLite(params, cookie),
       '/playlist/tracks/add' => _playlistTracksAdd(params, cookie),

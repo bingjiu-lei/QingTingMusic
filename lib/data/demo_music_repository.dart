@@ -141,4 +141,7 @@ class DemoMusicRepository implements MusicRepository {
 
   @override
   Future<List<LyricLine>> getLyrics(Song song) async => const [];
+
+  @override
+  Future<List<String>> getArtistPortraits(Song song) async => const [];
 }

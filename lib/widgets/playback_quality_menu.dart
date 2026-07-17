@@ -135,11 +135,13 @@ class PlaybackQualityMenu extends StatelessWidget {
     PlaybackQuality.standard => '标准音质',
     PlaybackQuality.high => 'HQ 高品质',
     PlaybackQuality.lossless => '无损音质',
+    PlaybackQuality.hiRes => 'Hi-Res 高解析',
   };
 
   String _qualityDescription(PlaybackQuality quality) => switch (quality) {
     PlaybackQuality.standard => '流量更省，播放更稳定',
     PlaybackQuality.high => '更丰富的声音细节',
     PlaybackQuality.lossless => '优先播放 FLAC 无损资源',
+    PlaybackQuality.hiRes => '资源与账号支持时可用',
   };
 }

@@ -37,13 +37,8 @@ class AppSidebar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: compact ? 76 : 204,
-      padding: EdgeInsets.fromLTRB(
-        compact ? 10 : 14,
-        14,
-        compact ? 10 : 14,
-        12,
-      ),
+      width: compact ? 70 : 176,
+      padding: EdgeInsets.fromLTRB(compact ? 8 : 9, 14, compact ? 8 : 9, 12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -105,13 +100,11 @@ class _Brand extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.only(left: compact ? 0 : 8),
+    padding: EdgeInsets.zero,
     child: SizedBox(
       height: 48,
       child: Row(
-        mainAxisAlignment: compact
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Tooltip(
             message: isDark ? '切换到浅色模式' : '切换到深色模式',
@@ -146,7 +139,7 @@ class _Brand extends StatelessWidget {
           ),
           if (!compact) ...[
             const SizedBox(width: 9),
-            Expanded(
+            Flexible(
               child: Text(
                 '晴听音乐',
                 maxLines: 1,

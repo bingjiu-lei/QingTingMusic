@@ -537,96 +537,116 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
     );
-    if (selected != null) await widget.themeController.setAccentColor(selected);
+    if (selected != null) {
+      await widget.themeController.setCoverAccentEnabled(false);
+      await widget.themeController.setAccentColor(selected);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 14, 30, 24),
+      padding: const EdgeInsets.fromLTRB(14, 14, 18, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(title: '设置', subtitle: '调整晴听音乐的使用偏好'),
           const SizedBox(height: 22),
           Expanded(
-            child: SingleChildScrollView(
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(22),
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.xl),
-                  border: Border.all(color: AppColors.border),
-                  boxShadow: AppColors.isDark ? null : AppShadows.soft,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 22),
+              decoration: BoxDecoration(
+                color: AppColors.surface.withValues(
+                  alpha: AppColors.isDark ? 0.78 : 0.86,
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _AppearanceSection(
-                      controller: widget.themeController,
-                      onCustomColor: _showAccentPicker,
-                    ),
-                    Divider(
-                      height: 30,
-                      color: AppColors.divider.withValues(alpha: 0.72),
-                    ),
-                    _CacheSection(
-                      sizeText: _formatBytes(_cacheSizeBytes),
-                      selectedLimit: _cacheLimitBytes,
-                      busy: _cacheBusy,
-                      onLimitChanged: _changeCacheLimit,
-                      onClear: _clearCache,
-                    ),
-                    Divider(
-                      height: 30,
-                      color: AppColors.divider.withValues(alpha: 0.72),
-                    ),
-                    _PlaybackQualitySection(
-                      controller: widget.playbackQualityController,
-                    ),
-                    Divider(
-                      height: 30,
-                      color: AppColors.divider.withValues(alpha: 0.72),
-                    ),
-                    _SettingSwitchRow(
-                      icon: Icons.web_asset_rounded,
-                      title: '关闭后隐藏到托盘',
-                      subtitle: '关闭窗口时继续后台播放，可在托盘退出应用',
-                      value: widget.closeToTray,
-                      onChanged: widget.onCloseToTrayChanged,
-                    ),
-                    Divider(
-                      height: 30,
-                      color: AppColors.divider.withValues(alpha: 0.72),
-                    ),
-                    _UpdateSection(
-                      controller: widget.updateController,
-                      onCheckUpdates: widget.onCheckUpdates,
-                      onVersionTap: _handleVersionTap,
-                      onProjectTap: _openProjectHome,
-                      onLegalTap: _showLegalDialog,
-                    ),
-                    if (_developerEnabled) ...[
-                      const Divider(height: 30),
-                      _DeveloperSection(
-                        apiController: _controller,
-                        githubProxyController: _githubProxyController,
-                        activeEndpoint: _activeEndpoint,
-                        endpointErrorText: _errorText,
-                        proxyErrorText: _proxyErrorText,
-                        endpointSaved: _saved,
-                        proxySaved: _proxySaved,
-                        savingEndpoint: _saving,
-                        savingProxy: _savingProxy,
-                        onSaveEndpoint: _save,
-                        onSaveGithubProxy: _saveGithubProxy,
-                        onCopyDiagnostics: _copyDiagnosticInfo,
-                        onShowPlaybackLog: _showPlaybackLog,
-                        onDisable: _disableDeveloperMode,
-                      ),
-                    ],
+                borderRadius: BorderRadius.circular(AppRadius.xl),
+                border: Border.all(color: AppColors.border),
+                boxShadow: AppColors.isDark ? null : AppShadows.soft,
+              ),
+              child: ShaderMask(
+                blendMode: BlendMode.dstIn,
+                shaderCallback: (bounds) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.white,
+                    Colors.white,
+                    Colors.transparent,
                   ],
+                  stops: [0, 0.018, 0.97, 1],
+                ).createShader(bounds),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 22),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AppearanceSection(
+                        controller: widget.themeController,
+                        onCustomColor: _showAccentPicker,
+                      ),
+                      Divider(
+                        height: 30,
+                        color: AppColors.divider.withValues(alpha: 0.72),
+                      ),
+                      _CacheSection(
+                        sizeText: _formatBytes(_cacheSizeBytes),
+                        selectedLimit: _cacheLimitBytes,
+                        busy: _cacheBusy,
+                        onLimitChanged: _changeCacheLimit,
+                        onClear: _clearCache,
+                      ),
+                      Divider(
+                        height: 30,
+                        color: AppColors.divider.withValues(alpha: 0.72),
+                      ),
+                      _PlaybackQualitySection(
+                        controller: widget.playbackQualityController,
+                      ),
+                      Divider(
+                        height: 30,
+                        color: AppColors.divider.withValues(alpha: 0.72),
+                      ),
+                      _SettingSwitchRow(
+                        icon: Icons.web_asset_rounded,
+                        title: '关闭后隐藏到托盘',
+                        subtitle: '关闭窗口时继续后台播放，可在托盘退出应用',
+                        value: widget.closeToTray,
+                        onChanged: widget.onCloseToTrayChanged,
+                      ),
+                      Divider(
+                        height: 30,
+                        color: AppColors.divider.withValues(alpha: 0.72),
+                      ),
+                      _UpdateSection(
+                        controller: widget.updateController,
+                        onCheckUpdates: widget.onCheckUpdates,
+                        onVersionTap: _handleVersionTap,
+                        onProjectTap: _openProjectHome,
+                        onLegalTap: _showLegalDialog,
+                      ),
+                      if (_developerEnabled) ...[
+                        const Divider(height: 30),
+                        _DeveloperSection(
+                          apiController: _controller,
+                          githubProxyController: _githubProxyController,
+                          activeEndpoint: _activeEndpoint,
+                          endpointErrorText: _errorText,
+                          proxyErrorText: _proxyErrorText,
+                          endpointSaved: _saved,
+                          proxySaved: _proxySaved,
+                          savingEndpoint: _saving,
+                          savingProxy: _savingProxy,
+                          onSaveEndpoint: _save,
+                          onSaveGithubProxy: _saveGithubProxy,
+                          onCopyDiagnostics: _copyDiagnosticInfo,
+                          onShowPlaybackLog: _showPlaybackLog,
+                          onDisable: _disableDeveloperMode,
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -717,11 +737,43 @@ class _AppearanceSection extends StatelessWidget {
                     _ThemeSwatch(
                       color: color,
                       selected:
+                          !controller.coverAccentEnabled &&
                           controller.accentColor.toARGB32() == color.toARGB32(),
-                      onTap: () => controller.setAccentColor(color),
+                      onTap: () async {
+                        await controller.setCoverAccentEnabled(false);
+                        await controller.setAccentColor(color);
+                      },
                     ),
                     const SizedBox(width: 8),
                   ],
+                  Tooltip(
+                    message: controller.coverAccentEnabled
+                        ? '关闭随封面取色'
+                        : '主题色跟随当前歌曲封面',
+                    child: IconButton(
+                      onPressed: () => controller.setCoverAccentEnabled(
+                        !controller.coverAccentEnabled,
+                      ),
+                      icon: Icon(
+                        controller.coverAccentEnabled
+                            ? Icons.album_rounded
+                            : Icons.album_outlined,
+                      ),
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size(34, 34),
+                        fixedSize: const Size(34, 34),
+                        iconSize: 18,
+                        foregroundColor: controller.coverAccentEnabled
+                            ? AppColors.primary
+                            : AppColors.muted,
+                        backgroundColor: controller.coverAccentEnabled
+                            ? AppColors.selected
+                            : Colors.transparent,
+                        side: BorderSide(color: AppColors.divider),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   OutlinedButton.icon(
                     onPressed: onCustomColor,
                     icon: const Icon(Icons.colorize_rounded, size: 17),
@@ -729,7 +781,10 @@ class _AppearanceSection extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   TextButton(
-                    onPressed: controller.resetAccentColor,
+                    onPressed: () async {
+                      await controller.setCoverAccentEnabled(false);
+                      await controller.resetAccentColor();
+                    },
                     child: const Text('恢复默认'),
                   ),
                 ],

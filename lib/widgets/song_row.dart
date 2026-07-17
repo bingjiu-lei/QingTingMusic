@@ -72,31 +72,44 @@ class _SongRowState extends State<SongRow> {
             children: [
               SizedBox(
                 width: 42,
-                child: _hovered
-                    ? IconButton(
-                        tooltip: active && widget.isPlaying ? '暂停' : '播放',
-                        padding: EdgeInsets.zero,
-                        onPressed: widget.onPlay,
-                        icon: Icon(
-                          active && widget.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: active ? AppColors.primary : AppColors.muted,
-                          size: 21,
-                        ),
-                      )
-                    : Center(
-                        child: Text(
-                          '${widget.index + 1}'.padLeft(2, '0'),
-                          style: TextStyle(
-                            color: active ? AppColors.primary : AppColors.faint,
-                            fontSize: 11,
-                            fontWeight: active
-                                ? FontWeight.w700
-                                : FontWeight.w400,
+                child: Center(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 120),
+                    child: _hovered
+                        ? IconButton(
+                            key: const ValueKey('row-play'),
+                            tooltip: active && widget.isPlaying
+                                ? '暂停'
+                                : '播放这首歌',
+                            onPressed: widget.onPlay,
+                            constraints: const BoxConstraints.tightFor(
+                              width: 34,
+                              height: 34,
+                            ),
+                            padding: EdgeInsets.zero,
+                            icon: Icon(
+                              active && widget.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
+                          )
+                        : Text(
+                            '${widget.index + 1}'.padLeft(2, '0'),
+                            key: const ValueKey('row-index'),
+                            style: TextStyle(
+                              color: active
+                                  ? AppColors.primary
+                                  : AppColors.faint,
+                              fontSize: 11,
+                              fontWeight: active
+                                  ? FontWeight.w700
+                                  : FontWeight.w400,
+                            ),
                           ),
-                        ),
-                      ),
+                  ),
+                ),
               ),
               AlbumArt(
                 size: widget.compact ? 38 : 44,

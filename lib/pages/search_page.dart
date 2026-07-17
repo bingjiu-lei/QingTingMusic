@@ -10,6 +10,7 @@ import '../widgets/list_scroll_actions.dart';
 import '../widgets/search_catalog_list.dart';
 import '../widgets/song_panel.dart';
 import '../widgets/song_row.dart';
+import '../widgets/smooth_mouse_scroll.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({
@@ -82,7 +83,7 @@ class _SearchPageState extends State<SearchPage> {
         animation: widget.controller,
         builder: (context, _) {
           return Padding(
-            padding: const EdgeInsets.fromLTRB(24, 26, 30, 20),
+            padding: const EdgeInsets.fromLTRB(14, 26, 18, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -419,9 +420,11 @@ class _SearchResultsState extends State<_SearchResults> {
   Widget build(BuildContext context) {
     final controller = widget.controller;
     return Container(
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.surface.withValues(
+          alpha: AppColors.isDark ? 0.78 : 0.86,
+        ),
         borderRadius: BorderRadius.circular(AppRadius.xl),
         border: Border.all(color: AppColors.border),
         boxShadow: AppColors.isDark ? null : AppShadows.soft,
@@ -466,7 +469,23 @@ class _SearchResultsState extends State<_SearchResults> {
           Expanded(
             child: Stack(
               children: [
-                _body(),
+                _hasVisibleData()
+                    ? ShaderMask(
+                        blendMode: BlendMode.dstIn,
+                        shaderCallback: (bounds) => const LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.white,
+                            Colors.white,
+                            Colors.transparent,
+                          ],
+                          stops: [0, 0.022, 0.965, 1],
+                        ).createShader(bounds),
+                        child: _body(),
+                      )
+                    : _body(),
                 if (controller.isLoading && _hasVisibleData())
                   const Positioned(
                     left: 0,
@@ -510,42 +529,46 @@ class _SearchResultsState extends State<_SearchResults> {
           ),
         );
       }
-      return ListView.separated(
-        key: PageStorageKey(
-          'search-song-${controller.keyword.trim().toLowerCase()}',
-        ),
+      return SmoothMouseScroll(
         controller: _scrollController,
-        padding: const EdgeInsets.only(top: 6, bottom: 20),
-        scrollCacheExtent: const ScrollCacheExtent.pixels(900),
-        itemCount: controller.results.length,
-        separatorBuilder: (_, _) => Divider(
-          height: 1,
-          thickness: 0.5,
-          color: AppColors.divider.withValues(
-            alpha: AppColors.isDark ? 0.72 : 0.8,
+        child: ListView.separated(
+          key: PageStorageKey(
+            'search-song-${controller.keyword.trim().toLowerCase()}',
           ),
-        ),
-        itemBuilder: (context, index) {
-          final song = controller.results[index];
-          return SongRow(
-            song: song,
-            index: index,
-            isCurrent: widget.currentSong?.id == song.id,
-            isPlaying: widget.isPlaying,
-            onPlay: () => widget.onPlay(song, controller.results),
-            onLike: () => widget.onLike(song),
-            onAddToPlaylist: () => widget.onAddToPlaylist(song),
-            onArtist: () => widget.onOpenArtist(song),
-            onArtistLink: (artist) => widget.onOpenArtist(
-              song.copyWith(
-                artist: artist.name,
-                artistId: artist.id,
-                artists: [artist],
-              ),
+          controller: _scrollController,
+          physics: const ClampingScrollPhysics(),
+          padding: const EdgeInsets.only(top: 6, bottom: 20),
+          scrollCacheExtent: const ScrollCacheExtent.pixels(900),
+          itemCount: controller.results.length,
+          separatorBuilder: (_, _) => Divider(
+            height: 1,
+            thickness: 0.5,
+            color: AppColors.divider.withValues(
+              alpha: AppColors.isDark ? 0.72 : 0.8,
             ),
-            onAlbum: () => widget.onOpenAlbum(song),
-          );
-        },
+          ),
+          itemBuilder: (context, index) {
+            final song = controller.results[index];
+            return SongRow(
+              song: song,
+              index: index,
+              isCurrent: widget.currentSong?.id == song.id,
+              isPlaying: widget.isPlaying,
+              onPlay: () => widget.onPlay(song, controller.results),
+              onLike: () => widget.onLike(song),
+              onAddToPlaylist: () => widget.onAddToPlaylist(song),
+              onArtist: () => widget.onOpenArtist(song),
+              onArtistLink: (artist) => widget.onOpenArtist(
+                song.copyWith(
+                  artist: artist.name,
+                  artistId: artist.id,
+                  artists: [artist],
+                ),
+              ),
+              onAlbum: () => widget.onOpenAlbum(song),
+            );
+          },
+        ),
       );
     }
     return SearchCatalogList(
