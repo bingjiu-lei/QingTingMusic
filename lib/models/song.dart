@@ -59,6 +59,7 @@ class Song {
     int? artistId,
     List<SongArtist>? artists,
     int? fileId,
+    Duration? duration,
     bool? liked,
     String? playbackNotice,
   }) {
@@ -67,7 +68,7 @@ class Song {
       title: title,
       artist: artist ?? this.artist,
       album: album,
-      duration: duration,
+      duration: duration ?? this.duration,
       audioUrl: audioUrl ?? this.audioUrl,
       hash: hash,
       albumId: albumId,

@@ -1112,13 +1112,9 @@ class KugouApiClient {
       throw const KugouApiException('歌曲缺少播放信息');
     }
 
-    final directUrl = await _resolvePreferredSongUrl(song);
-    if (directUrl != null) return song.copyWith(audioUrl: directUrl);
-
     if (!song.isCloud) {
       final candidates = await _resolvePrivilegeCandidates(song);
       for (final candidate in candidates) {
-        if (candidate.hash.toLowerCase() == song.hash!.toLowerCase()) continue;
         final candidateUrl = await _resolveSongUrl(
           song,
           hash: candidate.hash,
@@ -1128,7 +1124,12 @@ class KugouApiClient {
           return song.copyWith(audioUrl: candidateUrl);
         }
       }
+    }
 
+    final directUrl = await _resolvePreferredSongUrl(song);
+    if (directUrl != null) return song.copyWith(audioUrl: directUrl);
+
+    if (!song.isCloud) {
       final cloudMatch = await _findMatchingCloudSong(song);
       if (cloudMatch != null) {
         final cloudUrl = await _resolvePreferredSongUrl(cloudMatch);
@@ -1620,6 +1621,7 @@ class KugouApiClient {
     final relateGoods = relateGoodsList.isEmpty
         ? const <String, Object?>{}
         : _map(relateGoodsList.first);
+    final relateInfo = _map(relateGoods['info']);
     final transParam = _map(json['trans_param']);
     final singerInfoValue = json['singerinfo'];
     final singerInfo = singerInfoValue is List && singerInfoValue.isNotEmpty
@@ -1688,11 +1690,18 @@ class KugouApiClient {
     );
     var duration = _toInt(
       json['timelen'] ??
+          json['timelength'] ??
           json['time_length'] ??
           json['timelength_320'] ??
+          json['duration_320'] ??
           json['duration'] ??
           audio['duration'] ??
-          audio['duration_128'],
+          audio['duration_128'] ??
+          audio['duration_320'] ??
+          relateGoods['duration'] ??
+          relateGoods['timelength'] ??
+          relateInfo['duration'] ??
+          relateInfo['timelength'],
     );
     if (duration > 10000) duration ~/= 1000;
 
@@ -2170,7 +2179,7 @@ String _coverFromTransParam(Object? value) {
   return match?.group(1) ?? '';
 }
 
-String? _findAudioUrl(Object? value) {
+String? _findAudioUrl(Object? value, {bool allowString = false}) {
   if (value is Map) {
     const preferredKeys = [
       'play_url',
@@ -2180,7 +2189,7 @@ String? _findAudioUrl(Object? value) {
       'backupUrl',
     ];
     for (final key in preferredKeys) {
-      final found = _findAudioUrl(value[key]);
+      final found = _findAudioUrl(value[key], allowString: true);
       if (found != null) return found;
     }
     for (final entry in value.entries) {
@@ -2190,10 +2199,11 @@ String? _findAudioUrl(Object? value) {
     }
   } else if (value is List) {
     for (final item in value) {
-      final found = _findAudioUrl(item);
+      final found = _findAudioUrl(item, allowString: allowString);
       if (found != null) return found;
     }
-  } else if (value is String &&
+  } else if (allowString &&
+      value is String &&
       value.startsWith('http') &&
       !RegExp(
         r'\.(jpg|jpeg|png|webp)(\?|$)',

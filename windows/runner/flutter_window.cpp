@@ -6,6 +6,7 @@
 #include <optional>
 #include <shobjidl.h>
 #include <string>
+#include <windowsx.h>
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -13,17 +14,44 @@ namespace {
 constexpr UINT kPreviousButton = 4101;
 constexpr UINT kPlayButton = 4102;
 constexpr UINT kNextButton = 4103;
+constexpr UINT kDesktopLyricsCloseButton = 4104;
 constexpr wchar_t kDesktopLyricClass[] = L"QingTingDesktopLyric";
 constexpr COLORREF kLyricTransparentColor = RGB(1, 2, 3);
 
 struct DesktopLyricState {
   HWND window = nullptr;
+  HWND owner = nullptr;
   std::wstring text;
   std::wstring secondary;
   double progress = 0.0;
   bool dark = false;
+  bool playing = false;
+  bool hovered = false;
+  bool tracking_mouse = false;
   COLORREF accent = RGB(47, 139, 255);
+  HFONT title_font = nullptr;
+  HFONT secondary_font = nullptr;
+  HFONT control_font = nullptr;
 } g_lyric;
+
+RECT LyricControlRect(const RECT& client, int index) {
+  constexpr int button = 30;
+  constexpr int gap = 8;
+  constexpr int count = 4;
+  const int total = button * count + gap * (count - 1);
+  const int left = (client.right - total) / 2 + index * (button + gap);
+  return {left, client.bottom - 34, left + button, client.bottom - 4};
+}
+
+int HitLyricControl(HWND hwnd, POINT point) {
+  RECT client;
+  GetClientRect(hwnd, &client);
+  for (int index = 0; index < 4; ++index) {
+    RECT target = LyricControlRect(client, index);
+    if (PtInRect(&target, point)) return index;
+  }
+  return -1;
+}
 
 std::wstring Utf8ToWide(const std::string& value) {
   if (value.empty()) return L"";
@@ -79,8 +107,55 @@ HICON CreateMediaIcon(int type) {
 LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
                                   LPARAM lparam) {
   switch (message) {
-    case WM_NCHITTEST:
+    case WM_NCHITTEST: {
+      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+      ScreenToClient(hwnd, &point);
+      if (HitLyricControl(hwnd, point) >= 0) return HTCLIENT;
       return HTCAPTION;
+    }
+    case WM_MOUSEMOVE: {
+      if (!g_lyric.tracking_mouse) {
+        TRACKMOUSEEVENT tracking = {sizeof(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0};
+        TrackMouseEvent(&tracking);
+        g_lyric.tracking_mouse = true;
+      }
+      if (!g_lyric.hovered) {
+        g_lyric.hovered = true;
+        InvalidateRect(hwnd, nullptr, FALSE);
+      }
+      return 0;
+    }
+    case WM_MOUSELEAVE:
+      g_lyric.tracking_mouse = false;
+      g_lyric.hovered = false;
+      InvalidateRect(hwnd, nullptr, FALSE);
+      return 0;
+    case WM_SETCURSOR: {
+      POINT point;
+      GetCursorPos(&point);
+      ScreenToClient(hwnd, &point);
+      if (HitLyricControl(hwnd, point) >= 0) {
+        SetCursor(LoadCursor(nullptr, IDC_HAND));
+        return TRUE;
+      }
+      break;
+    }
+    case WM_LBUTTONUP: {
+      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+      const int action = HitLyricControl(hwnd, point);
+      if (action == 0 && g_lyric.owner)
+        PostMessage(g_lyric.owner, WM_COMMAND, kPreviousButton, 0);
+      if (action == 1 && g_lyric.owner)
+        PostMessage(g_lyric.owner, WM_COMMAND, kPlayButton, 0);
+      if (action == 2 && g_lyric.owner)
+        PostMessage(g_lyric.owner, WM_COMMAND, kNextButton, 0);
+      if (action == 3) {
+        ShowWindow(hwnd, SW_HIDE);
+        if (g_lyric.owner)
+          PostMessage(g_lyric.owner, WM_COMMAND, kDesktopLyricsCloseButton, 0);
+      }
+      return 0;
+    }
     case WM_PAINT: {
       PAINTSTRUCT ps;
       HDC dc = BeginPaint(hwnd, &ps);
@@ -90,43 +165,59 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
       FillRect(dc, &rect, background);
       DeleteObject(background);
       SetBkMode(dc, TRANSPARENT);
-      HFONT title_font = CreateFontW(-30, 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE,
-                                    FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                                    CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                    DEFAULT_PITCH, L"Microsoft YaHei UI");
-      HFONT secondary_font = CreateFontW(-17, 0, 0, 0, FW_NORMAL, FALSE, FALSE,
-                                        FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS,
-                                        CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY,
-                                        DEFAULT_PITCH, L"Microsoft YaHei UI");
-      HFONT old = static_cast<HFONT>(SelectObject(dc, title_font));
-      RECT title = {28, 18, rect.right - 28,
-                    g_lyric.secondary.empty() ? rect.bottom - 18 : 66};
+      HFONT old = static_cast<HFONT>(SelectObject(dc, g_lyric.title_font));
+      RECT title = {28, 6, rect.right - 28, 52};
       RECT shadow = title;
-      OffsetRect(&shadow, 1, 2);
-      SetTextColor(dc, RGB(24, 28, 34));
+      OffsetRect(&shadow, 1, 1);
+      SetTextColor(dc, g_lyric.dark ? RGB(10, 12, 16) : RGB(255, 255, 255));
       DrawTextW(dc, g_lyric.text.c_str(), -1, &shadow,
                 DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-      SetTextColor(dc, g_lyric.dark ? RGB(196, 204, 216) : RGB(245, 247, 250));
+      SetTextColor(dc, g_lyric.dark ? RGB(210, 216, 226) : RGB(82, 91, 105));
       DrawTextW(dc, g_lyric.text.c_str(), -1, &title,
                 DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+      SIZE title_size = {};
+      GetTextExtentPoint32W(dc, g_lyric.text.c_str(),
+                            static_cast<int>(g_lyric.text.size()), &title_size);
       int saved = SaveDC(dc);
-      const int clip_right = title.left + static_cast<int>(
-          (title.right - title.left) * std::clamp(g_lyric.progress, 0.0, 1.0));
-      IntersectClipRect(dc, title.left, title.top, clip_right, title.bottom);
+      const int text_left = std::max(
+          title.left, (title.left + title.right - title_size.cx) / 2);
+      const int clip_right = text_left + static_cast<int>(
+          title_size.cx * std::clamp(g_lyric.progress, 0.0, 1.0));
+      IntersectClipRect(dc, text_left, title.top, clip_right, title.bottom);
       SetTextColor(dc, g_lyric.accent);
       DrawTextW(dc, g_lyric.text.c_str(), -1, &title,
                 DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
       RestoreDC(dc, saved);
       if (!g_lyric.secondary.empty()) {
-        SelectObject(dc, secondary_font);
-        RECT sub = {28, 66, rect.right - 28, rect.bottom - 12};
-        SetTextColor(dc, g_lyric.dark ? RGB(190, 197, 209) : RGB(89, 99, 113));
+        SelectObject(dc, g_lyric.secondary_font);
+        RECT sub = {28, 48, rect.right - 28, 84};
+        SetTextColor(dc, g_lyric.dark ? RGB(158, 168, 182) : RGB(112, 122, 137));
         DrawTextW(dc, g_lyric.secondary.c_str(), -1, &sub,
                   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
       }
+      if (g_lyric.hovered) {
+        SelectObject(dc, g_lyric.control_font);
+        const wchar_t* glyphs[4] = {L"\xE892", g_lyric.playing ? L"\xE769" : L"\xE768",
+                                    L"\xE893", L"\xE8BB"};
+        for (int index = 0; index < 4; ++index) {
+          RECT button = LyricControlRect(rect, index);
+          HBRUSH fill = CreateSolidBrush(g_lyric.dark ? RGB(35, 39, 47)
+                                                       : RGB(244, 247, 251));
+          HPEN pen = CreatePen(PS_SOLID, 1, g_lyric.dark ? RGB(69, 76, 88)
+                                                         : RGB(218, 224, 233));
+          HGDIOBJ old_brush = SelectObject(dc, fill);
+          HGDIOBJ old_pen = SelectObject(dc, pen);
+          RoundRect(dc, button.left, button.top, button.right, button.bottom, 10, 10);
+          SelectObject(dc, old_brush);
+          SelectObject(dc, old_pen);
+          DeleteObject(fill);
+          DeleteObject(pen);
+          SetTextColor(dc, g_lyric.dark ? RGB(218, 224, 234) : RGB(91, 101, 116));
+          DrawTextW(dc, glyphs[index], -1, &button,
+                    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        }
+      }
       SelectObject(dc, old);
-      DeleteObject(title_font);
-      DeleteObject(secondary_font);
       EndPaint(hwnd, &ps);
       return 0;
     }
@@ -135,7 +226,7 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
 }
 
 HWND EnsureDesktopLyricWindow(HWND owner) {
-  (void)owner;
+  g_lyric.owner = owner;
   if (g_lyric.window) return g_lyric.window;
   WNDCLASSW window_class = {};
   window_class.lpfnWndProc = DesktopLyricProc;
@@ -143,8 +234,8 @@ HWND EnsureDesktopLyricWindow(HWND owner) {
   window_class.hCursor = LoadCursor(nullptr, IDC_SIZEALL);
   window_class.lpszClassName = kDesktopLyricClass;
   RegisterClassW(&window_class);
-  const int width = 900;
-  const int height = 96;
+  const int width = 820;
+  const int height = 124;
   const int x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
   const int y = GetSystemMetrics(SM_CYSCREEN) - height - 110;
   g_lyric.window = CreateWindowExW(
@@ -153,6 +244,18 @@ HWND EnsureDesktopLyricWindow(HWND owner) {
       height, nullptr,
       nullptr, GetModuleHandle(nullptr), nullptr);
   if (g_lyric.window) {
+    g_lyric.title_font = CreateFontW(
+        -25, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+        DEFAULT_PITCH, L"Microsoft YaHei UI");
+    g_lyric.secondary_font = CreateFontW(
+        -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+        DEFAULT_PITCH, L"Microsoft YaHei UI");
+    g_lyric.control_font = CreateFontW(
+        -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
+        DEFAULT_PITCH, L"Segoe MDL2 Assets");
     SetLayeredWindowAttributes(g_lyric.window, kLyricTransparentColor, 255,
                                LWA_COLORKEY);
   }
@@ -231,6 +334,8 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       if (LOWORD(wparam) == kPreviousButton) SendMediaAction("previous");
       if (LOWORD(wparam) == kPlayButton) SendMediaAction("togglePlay");
       if (LOWORD(wparam) == kNextButton) SendMediaAction("next");
+      if (LOWORD(wparam) == kDesktopLyricsCloseButton)
+        SendMediaAction("desktopLyricsClosed");
       break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
@@ -254,9 +359,13 @@ void FlutterWindow::SetupMediaChannel() {
         if (call.method_name() == "updatePlayback") {
           if (const auto* args = std::get_if<flutter::EncodableMap>(call.arguments())) {
             const auto it = args->find(flutter::EncodableValue("isPlaying"));
-            if (it != args->end()) is_playing_ = std::get<bool>(it->second);
+            if (it != args->end()) {
+              is_playing_ = std::get<bool>(it->second);
+              g_lyric.playing = is_playing_;
+            }
           }
           UpdateThumbar();
+          if (g_lyric.window) InvalidateRect(g_lyric.window, nullptr, FALSE);
           result->Success();
           return;
         }
@@ -276,13 +385,42 @@ void FlutterWindow::SetupMediaChannel() {
             g_lyric.text = Utf8ToWide(string_value("text"));
             g_lyric.secondary = Utf8ToWide(string_value("secondary"));
             const auto progress = args->find(flutter::EncodableValue("progress"));
-            if (progress != args->end()) g_lyric.progress = std::get<double>(progress->second);
+            if (progress != args->end()) {
+              if (const auto* progress_double =
+                      std::get_if<double>(&progress->second)) {
+                g_lyric.progress = *progress_double;
+              } else if (const auto* progress_32 =
+                             std::get_if<int32_t>(&progress->second)) {
+                g_lyric.progress = static_cast<double>(*progress_32);
+              } else if (const auto* progress_64 =
+                             std::get_if<int64_t>(&progress->second)) {
+                g_lyric.progress = static_cast<double>(*progress_64);
+              }
+            }
             const auto dark = args->find(flutter::EncodableValue("dark"));
-            if (dark != args->end()) g_lyric.dark = std::get<bool>(dark->second);
+            if (dark != args->end()) {
+              if (const auto* value = std::get_if<bool>(&dark->second)) {
+                g_lyric.dark = *value;
+              }
+            }
             const auto accent = args->find(flutter::EncodableValue("accent"));
             if (accent != args->end()) {
-              const auto value = static_cast<unsigned int>(std::get<int>(accent->second));
-              g_lyric.accent = RGB((value >> 16) & 0xFF, (value >> 8) & 0xFF, value & 0xFF);
+              unsigned int value = 0;
+              bool valid = false;
+              if (const auto* accent_32 =
+                      std::get_if<int32_t>(&accent->second)) {
+                value = static_cast<unsigned int>(*accent_32);
+                valid = true;
+              } else if (const auto* accent_64 =
+                             std::get_if<int64_t>(&accent->second)) {
+                value = static_cast<unsigned int>(*accent_64);
+                valid = true;
+              }
+              if (valid) {
+                g_lyric.accent =
+                    RGB((value >> 16) & 0xFF, (value >> 8) & 0xFF,
+                        value & 0xFF);
+              }
             }
           }
           if (g_lyric.window) InvalidateRect(g_lyric.window, nullptr, FALSE);
@@ -343,6 +481,13 @@ void FlutterWindow::DisposeWindowsMedia() {
     DestroyWindow(g_lyric.window);
     g_lyric.window = nullptr;
   }
+  for (HFONT font : {g_lyric.title_font, g_lyric.secondary_font,
+                     g_lyric.control_font})
+    if (font) DeleteObject(font);
+  g_lyric.title_font = nullptr;
+  g_lyric.secondary_font = nullptr;
+  g_lyric.control_font = nullptr;
+  g_lyric.owner = nullptr;
   if (taskbar_) { taskbar_->Release(); taskbar_ = nullptr; }
   thumbar_added_ = false;
   for (HICON icon : {previous_icon_, play_icon_, pause_icon_, next_icon_})

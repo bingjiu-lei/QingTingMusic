@@ -30,6 +30,7 @@ class AudioPlayerService {
       StreamController.broadcast();
   final Map<String, DateTime> _localPlaybackSkips = {};
   int _openGeneration = 0;
+  Duration? _openedDuration;
 
   Stream<bool> get playingStream =>
       _player?.playingStream ?? const Stream<bool>.empty();
@@ -55,6 +56,10 @@ class AudioPlayerService {
 
   bool get isEnabled => _player != null;
 
+  Duration? get currentDuration => _openedDuration ?? _player?.duration;
+
+  bool get isCompleted => _player?.processingState == ProcessingState.completed;
+
   Future<void> open(Song song) async {
     final player = _player;
     if (player == null) return;
@@ -65,6 +70,7 @@ class AudioPlayerService {
     // Each open() bumps the generation so a stale local-playback guard from a
     // previous song knows to cancel itself instead of clobbering the new one.
     _openGeneration++;
+    _openedDuration = null;
     final generation = _openGeneration;
 
     final cacheFile = await _readableCachedFile(song, uri);
@@ -91,7 +97,9 @@ class AudioPlayerService {
   /// critical path so the caller resumes immediately.
   Future<bool> _playLocal(AudioPlayer player, File file) async {
     try {
-      await player.setAudioSource(AudioSource.uri(Uri.file(file.path)));
+      _openedDuration = await player.setAudioSource(
+        AudioSource.uri(Uri.file(file.path)),
+      );
       unawaited(player.play());
       unawaited(
         Future<void>.delayed(const Duration(milliseconds: 200)).then((_) {
@@ -159,7 +167,9 @@ class AudioPlayerService {
     Map<String, String>? headers,
   }) async {
     await player.stop();
-    await player.setAudioSource(AudioSource.uri(uri, headers: headers));
+    _openedDuration = await player.setAudioSource(
+      AudioSource.uri(uri, headers: headers),
+    );
     unawaited(player.play());
     await Future<void>.delayed(const Duration(milliseconds: 350));
     if (!player.playing) {

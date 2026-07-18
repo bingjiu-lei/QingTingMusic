@@ -9,6 +9,7 @@ class AppWindowCaption extends StatelessWidget {
     required this.enabled,
     this.backgroundColor,
     this.sidebarWidth,
+    this.transparentOverlay = false,
   });
 
   static const height = 30.0;
@@ -16,6 +17,7 @@ class AppWindowCaption extends StatelessWidget {
   final bool enabled;
   final Color? backgroundColor;
   final double? sidebarWidth;
+  final bool transparentOverlay;
 
   @override
   Widget build(BuildContext context) {
@@ -24,6 +26,36 @@ class AppWindowCaption extends StatelessWidget {
     }
 
     final dark = Theme.of(context).brightness == Brightness.dark;
+    if (transparentOverlay) {
+      return SizedBox(
+        height: height,
+        child: Row(
+          children: [
+            const Expanded(child: DragToMoveArea(child: SizedBox.expand())),
+            WindowCaptionButton.minimize(
+              brightness: dark ? Brightness.dark : Brightness.light,
+              onPressed: windowManager.minimize,
+            ),
+            FutureBuilder<bool>(
+              future: windowManager.isMaximized(),
+              builder: (context, snapshot) => snapshot.data == true
+                  ? WindowCaptionButton.unmaximize(
+                      brightness: dark ? Brightness.dark : Brightness.light,
+                      onPressed: windowManager.unmaximize,
+                    )
+                  : WindowCaptionButton.maximize(
+                      brightness: dark ? Brightness.dark : Brightness.light,
+                      onPressed: windowManager.maximize,
+                    ),
+            ),
+            WindowCaptionButton.close(
+              brightness: dark ? Brightness.dark : Brightness.light,
+              onPressed: windowManager.close,
+            ),
+          ],
+        ),
+      );
+    }
     final caption = WindowCaption(
       backgroundColor: Colors.transparent,
       brightness: dark ? Brightness.dark : Brightness.light,

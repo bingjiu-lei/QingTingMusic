@@ -228,34 +228,31 @@ class _DailyHero extends StatelessWidget {
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          FilledButton.icon(
-                            onPressed: loading ? null : onPlay,
-                            icon: loading
-                                ? const SizedBox(
-                                    width: 15,
-                                    height: 15,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : const Icon(
-                                    Icons.play_arrow_rounded,
-                                    size: 20,
-                                  ),
-                            label: const Text('播放'),
+                          _LightPlayButton(
+                            loading: loading,
+                            tooltip: '播放每日推荐',
+                            onPressed: onPlay,
                           ),
-                          const SizedBox(width: 8),
-                          TextButton(
+                          const SizedBox(width: 6),
+                          IconButton(
+                            tooltip: '查看歌单',
                             onPressed: loading ? null : onOpen,
-                            style: TextButton.styleFrom(
-                              foregroundColor: AppColors.primaryPressed,
-                              textStyle: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                            mouseCursor: loading
+                                ? SystemMouseCursors.basic
+                                : SystemMouseCursors.click,
+                            icon: const Icon(Icons.arrow_forward_rounded),
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(36, 36),
+                              fixedSize: const Size(36, 36),
+                              iconSize: 18,
+                              foregroundColor: AppColors.primary,
+                              hoverColor: AppColors.primary.withValues(
+                                alpha: 0.10,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child: const Text('查看歌单'),
                           ),
                         ],
                       ),
@@ -418,8 +415,9 @@ class _FmHero extends StatelessWidget {
                     ],
                   ),
                 ),
-                _FmPlayButton(
+                _LightPlayButton(
                   loading: controller.loadingFm,
+                  tooltip: '重新获取并播放私人 FM',
                   onPressed: () => unawaited(_play()),
                 ),
               ],
@@ -473,31 +471,39 @@ class _FmHero extends StatelessWidget {
   }
 }
 
-class _FmPlayButton extends StatelessWidget {
-  const _FmPlayButton({required this.loading, required this.onPressed});
+class _LightPlayButton extends StatelessWidget {
+  const _LightPlayButton({
+    required this.loading,
+    required this.tooltip,
+    required this.onPressed,
+  });
   final bool loading;
+  final String tooltip;
   final VoidCallback onPressed;
   @override
   Widget build(BuildContext context) => IconButton(
-    tooltip: '重新获取并播放私人 FM',
+    tooltip: tooltip,
     onPressed: loading ? null : onPressed,
+    mouseCursor: loading ? SystemMouseCursors.basic : SystemMouseCursors.click,
     icon: loading
         ? const SizedBox(
-            width: 17,
-            height: 17,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: Colors.white,
-            ),
+            width: 15,
+            height: 15,
+            child: CircularProgressIndicator(strokeWidth: 2),
           )
-        : const Icon(Icons.play_arrow_rounded, size: 23),
+        : const Icon(Icons.play_arrow_rounded),
     style: IconButton.styleFrom(
-      minimumSize: const Size(44, 44),
-      fixedSize: const Size(44, 44),
-      backgroundColor: AppColors.primary,
-      foregroundColor: Colors.white,
-      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.46),
-      shape: const CircleBorder(),
+      minimumSize: const Size(38, 38),
+      fixedSize: const Size(38, 38),
+      iconSize: 20,
+      foregroundColor: AppColors.primary,
+      disabledForegroundColor: AppColors.faint,
+      backgroundColor: AppColors.primary.withValues(
+        alpha: AppColors.isDark ? 0.18 : 0.11,
+      ),
+      hoverColor: AppColors.primary.withValues(alpha: 0.18),
+      highlightColor: AppColors.primary.withValues(alpha: 0.14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
     ),
   );
 }

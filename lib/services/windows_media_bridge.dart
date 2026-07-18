@@ -11,6 +11,7 @@ class WindowsMediaBridge {
     required Future<void> Function() onPrevious,
     required Future<void> Function() onTogglePlay,
     required Future<void> Function() onNext,
+    required Future<void> Function() onDesktopLyricsClosed,
   }) async {
     if (!Platform.isWindows) return;
     _channel.setMethodCallHandler((call) async {
@@ -21,6 +22,8 @@ class WindowsMediaBridge {
           await onTogglePlay();
         case 'next':
           await onNext();
+        case 'desktopLyricsClosed':
+          await onDesktopLyricsClosed();
       }
     });
     await _channel.invokeMethod<void>('initialize');

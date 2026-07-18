@@ -47,6 +47,64 @@ void main() {
     },
   );
 
+  test('advances on completion when metadata duration is zero', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final songs = [
+      _song('unknown-duration').copyWith(duration: Duration.zero),
+      _song('next'),
+    ];
+
+    await controller.playSong(songs.first, fromQueue: songs);
+    await Future<void>.delayed(const Duration(milliseconds: 750));
+    audio.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+
+    expect(controller.currentSong?.id, 'next');
+    expect(audio.opened.map((song) => song.id), ['unknown-duration', 'next']);
+
+    controller.dispose();
+  });
+
+  test('automatic advance skips an unplayable queue item', () async {
+    final audio = _FakeAudioPlayerService();
+    final songs = [_song('one'), _song('blocked'), _song('three')];
+    final controller = PlayerController(
+      audioService: audio,
+      resolveSong: (song) async {
+        if (song.id == 'blocked') {
+          throw const KugouApiException('该歌曲无版权或需付费');
+        }
+        return song;
+      },
+    );
+
+    await controller.playSong(songs.first, fromQueue: songs);
+    await Future<void>.delayed(const Duration(milliseconds: 750));
+    audio.complete();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    expect(controller.currentSong?.id, 'three');
+    expect(audio.opened.map((song) => song.id), ['one', 'three']);
+
+    controller.dispose();
+  });
+
+  test('seeking after completion reopens and resumes the song', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final song = _song('one');
+
+    await controller.playSong(song);
+    audio.markCompleted();
+    await controller.seek(const Duration(minutes: 1));
+
+    expect(audio.opened.map((item) => item.id), ['one', 'one']);
+    expect(audio.seekRequests, contains(const Duration(minutes: 1)));
+
+    controller.dispose();
+  });
+
   test(
     'advances when playback stalls near the end without completion',
     () async {
@@ -312,9 +370,14 @@ class _FakeAudioPlayerService extends AudioPlayerService {
   final _position = StreamController<Duration>.broadcast();
   final _technicalNotices = StreamController<String>.broadcast();
   final List<Song> opened = [];
+  final List<Duration> seekRequests = [];
+  bool _completedState = false;
 
   @override
   bool get isEnabled => true;
+
+  @override
+  bool get isCompleted => _completedState;
 
   @override
   Stream<bool> get playingStream => _playing.stream;
@@ -330,11 +393,27 @@ class _FakeAudioPlayerService extends AudioPlayerService {
 
   @override
   Future<void> open(Song song) async {
+    _completedState = false;
     opened.add(song);
     _playing.add(true);
   }
 
-  void complete() => _completed.add(null);
+  void complete() {
+    _completedState = true;
+    _playing.add(false);
+    _completed.add(null);
+  }
+
+  void markCompleted() {
+    _completedState = true;
+    _playing.add(false);
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    seekRequests.add(position);
+    _position.add(position);
+  }
 
   void finish(Duration duration) => _position.add(duration);
 

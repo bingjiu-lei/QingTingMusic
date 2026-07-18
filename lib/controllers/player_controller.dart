@@ -47,7 +47,10 @@ class PlayerController extends ChangeNotifier {
         notifyListeners();
       }),
       audioService.durationStream.listen((value) {
-        if (value != null && value != Duration.zero) duration = value;
+        if (value != null && value != Duration.zero) {
+          duration = value;
+          _applyDetectedDuration(value);
+        }
         _watchNearEnd();
         notifyListeners();
       }),
@@ -56,6 +59,7 @@ class PlayerController extends ChangeNotifier {
       }),
       audioService.errorStream.listen((message) {
         isPlaying = false;
+        _hasOpenSource = false;
         errorText = message.isEmpty ? '播放失败，请稍后重试。' : message;
         notifyListeners();
       }),
@@ -105,7 +109,7 @@ class PlayerController extends ChangeNotifier {
   Future<void> _handleCompletion() async {
     if (_handlingCompletion || isPreparing || currentSong == null) return;
     await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (isPreparing || duration <= Duration.zero) return;
+    if (isPreparing) return;
     final playedLongEnough =
         DateTime.now().difference(_songStartedAt ?? DateTime.now()) >
         const Duration(milliseconds: 700);
@@ -145,7 +149,7 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> playSong(
+  Future<bool> playSong(
     Song song, {
     List<Song>? fromQueue,
     Duration startPosition = Duration.zero,
@@ -200,13 +204,22 @@ class PlayerController extends ChangeNotifier {
         unawaited(_saveRecentSongs());
         _schedulePlaybackStateSave(immediate: true);
         notifyListeners();
-        return;
+        return true;
       }
 
       notifyListeners();
       try {
         await audioService.open(playableSong);
         _hasOpenSource = true;
+        final detectedDuration = audioService.currentDuration;
+        if (detectedDuration != null && detectedDuration > Duration.zero) {
+          playableSong = playableSong.copyWith(duration: detectedDuration);
+          currentSong = playableSong;
+          duration = detectedDuration;
+          _replaceSongInQueue(playableSong);
+          recentSongs.removeWhere((item) => item.id == playableSong.id);
+          recentSongs.insert(0, playableSong);
+        }
         if (position > Duration.zero) {
           await audioService.seek(position);
         }
@@ -219,6 +232,7 @@ class PlayerController extends ChangeNotifier {
       _schedulePlaybackStateSave(immediate: true);
       isPreparing = false;
       notifyListeners();
+      return true;
     } on AuthenticationRequiredException {
       _handlePlaybackFailure(
         attemptedSong: song,
@@ -229,6 +243,7 @@ class PlayerController extends ChangeNotifier {
         previousWasPlaying: previousWasPlaying,
         message: '登录后即可播放在线歌曲',
       );
+      return false;
     } on KugouApiException catch (error) {
       _handlePlaybackFailure(
         attemptedSong: song,
@@ -239,6 +254,7 @@ class PlayerController extends ChangeNotifier {
         previousWasPlaying: previousWasPlaying,
         message: error.message,
       );
+      return false;
     } catch (error) {
       _handlePlaybackFailure(
         attemptedSong: song,
@@ -249,7 +265,23 @@ class PlayerController extends ChangeNotifier {
         previousWasPlaying: previousWasPlaying,
         message: '播放失败：$error',
       );
+      return false;
     }
+  }
+
+  void _applyDetectedDuration(Duration value) {
+    final song = currentSong;
+    if (song == null || song.duration == value) return;
+    final updated = song.copyWith(duration: value);
+    currentSong = updated;
+    _replaceSongInQueue(updated);
+  }
+
+  void _replaceSongInQueue(Song song) {
+    final index = queue.indexWhere((item) => item.id == song.id);
+    if (index < 0) return;
+    final updated = List<Song>.of(queue)..[index] = song;
+    queue = List.unmodifiable(updated);
   }
 
   void _handlePlaybackFailure({
@@ -473,6 +505,15 @@ class PlayerController extends ChangeNotifier {
       return;
     }
 
+    if (audioService.isCompleted) {
+      await playSong(
+        song,
+        fromQueue: queue.isEmpty ? [song] : queue,
+        preserveShufflePath: playbackMode == PlaybackMode.shuffle,
+      );
+      return;
+    }
+
     if (song.audioUrl.isNotEmpty && _hasOpenSource) {
       unawaited(audioService.play());
       return;
@@ -516,18 +557,28 @@ class PlayerController extends ChangeNotifier {
     if (song == null || queue.isEmpty) return;
     final currentIndex = queue.indexWhere((item) => item.id == song.id);
     if (currentIndex < 0) return;
-    final targetIndex = _targetIndex(currentIndex, offset, autoAdvance);
-    if (targetIndex == null) {
-      await audioService.pause();
-      _nearEndTimer?.cancel();
-      isPlaying = false;
-      position = duration;
-      _hasOpenSource = false;
-      _schedulePlaybackStateSave(immediate: true);
-      notifyListeners();
-      return;
+    var sourceIndex = currentIndex;
+    for (var attempt = 0; attempt < queue.length; attempt++) {
+      final targetIndex = _targetIndex(sourceIndex, offset, autoAdvance);
+      if (targetIndex == null) {
+        await _stopAtQueueEnd();
+        return;
+      }
+      final played = await playSong(queue[targetIndex], fromQueue: queue);
+      if (played) return;
+      sourceIndex = targetIndex;
     }
-    await playSong(queue[targetIndex], fromQueue: queue);
+    await _stopAtQueueEnd();
+  }
+
+  Future<void> _stopAtQueueEnd() async {
+    await audioService.pause();
+    _nearEndTimer?.cancel();
+    isPlaying = false;
+    position = duration;
+    _hasOpenSource = false;
+    _schedulePlaybackStateSave(immediate: true);
+    notifyListeners();
   }
 
   Future<void> _playShuffleNext() async {
@@ -538,15 +589,20 @@ class PlayerController extends ChangeNotifier {
       _refillShuffleUpcoming(excluding: current.id);
     }
     if (_shuffleUpcoming.isEmpty) return;
-    final targetId = _shuffleUpcoming.removeAt(0);
-    final target = _songForId(targetId);
-    if (target == null) {
-      _sanitizeShufflePath();
-      await _playShuffleNext();
+    while (_shuffleUpcoming.isNotEmpty) {
+      final targetId = _shuffleUpcoming.removeAt(0);
+      final target = _songForId(targetId);
+      if (target == null) continue;
+      final played = await playSong(
+        target,
+        fromQueue: queue,
+        preserveShufflePath: true,
+      );
+      if (!played) continue;
+      _shuffleHistory.add(current.id);
       return;
     }
-    _shuffleHistory.add(current.id);
-    await playSong(target, fromQueue: queue, preserveShufflePath: true);
+    await _stopAtQueueEnd();
   }
 
   Future<void> _playShufflePrevious() async {
@@ -595,6 +651,15 @@ class PlayerController extends ChangeNotifier {
     position = safeTarget < Duration.zero ? Duration.zero : safeTarget;
     _schedulePlaybackStateSave();
     notifyListeners();
+    if (audioService.isCompleted && currentSong != null) {
+      await playSong(
+        currentSong!,
+        fromQueue: queue.isEmpty ? [currentSong!] : queue,
+        startPosition: position,
+        preserveShufflePath: playbackMode == PlaybackMode.shuffle,
+      );
+      return;
+    }
     await audioService.seek(position);
   }
 

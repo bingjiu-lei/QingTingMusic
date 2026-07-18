@@ -103,34 +103,41 @@ class _SongPanelState extends State<SongPanel> {
         children: [
           Row(
             children: [
-              Text(
-                widget.title,
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
+              SizedBox(
+                width: 58,
+                height: 34,
+                child: widget.songs.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '播放全部',
+                        onPressed: visibleSongs.isEmpty
+                            ? null
+                            : () => widget.onPlay(
+                                visibleSongs.first,
+                                visibleSongs,
+                              ),
+                        mouseCursor: visibleSongs.isEmpty
+                            ? SystemMouseCursors.basic
+                            : SystemMouseCursors.click,
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(34, 34),
+                          fixedSize: const Size(34, 34),
+                          iconSize: 19,
+                          foregroundColor: AppColors.primary,
+                          backgroundColor: AppColors.primary.withValues(
+                            alpha: AppColors.isDark ? 0.18 : 0.11,
+                          ),
+                          hoverColor: AppColors.primary.withValues(alpha: 0.18),
+                          highlightColor: AppColors.primary.withValues(
+                            alpha: 0.14,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                        ),
+                      ),
               ),
-              if (widget.songs.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                IconButton(
-                  tooltip: '播放全部',
-                  onPressed: visibleSongs.isEmpty
-                      ? null
-                      : () => widget.onPlay(visibleSongs.first, visibleSongs),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(34, 34),
-                    fixedSize: const Size(34, 34),
-                    iconSize: 19,
-                    foregroundColor: AppColors.primary,
-                    backgroundColor: AppColors.selected,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(9),
-                    ),
-                  ),
-                ),
-              ],
               const Spacer(),
               if (widget.songs.isNotEmpty)
                 Row(
