@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <gdiplus.h>
 #include <optional>
 #include <shobjidl.h>
 #include <string>
@@ -16,7 +17,8 @@ constexpr UINT kPlayButton = 4102;
 constexpr UINT kNextButton = 4103;
 constexpr UINT kDesktopLyricsCloseButton = 4104;
 constexpr wchar_t kDesktopLyricClass[] = L"QingTingDesktopLyric";
-constexpr COLORREF kLyricTransparentColor = RGB(1, 2, 3);
+constexpr UINT_PTR kDesktopLyricTimer = 1;
+constexpr UINT kDesktopLyricFrameMs = 25;
 
 struct DesktopLyricState {
   HWND window = nullptr;
@@ -28,29 +30,261 @@ struct DesktopLyricState {
   bool playing = false;
   bool hovered = false;
   bool tracking_mouse = false;
+  int hot_control = -1;
+  int pressed_control = -1;
+  bool drag_pending = false;
+  bool dragging = false;
+  POINT drag_start = {};
+  RECT drag_window = {};
+  double hover_amount = 0.0;
+  double progress_velocity = 0.0;
+  ULONGLONG progress_tick = 0;
   COLORREF accent = RGB(47, 139, 255);
-  HFONT title_font = nullptr;
-  HFONT secondary_font = nullptr;
-  HFONT control_font = nullptr;
+  ULONG_PTR gdiplus_token = 0;
+  HDC buffer_dc = nullptr;
+  HBITMAP buffer_bitmap = nullptr;
+  HGDIOBJ buffer_old_bitmap = nullptr;
+  void* buffer_bits = nullptr;
+  int buffer_width = 0;
+  int buffer_height = 0;
 } g_lyric;
 
-RECT LyricControlRect(const RECT& client, int index) {
-  constexpr int button = 30;
-  constexpr int gap = 8;
+float LyricScale(HWND hwnd) {
+  const UINT dpi = hwnd ? GetDpiForWindow(hwnd) : GetDpiForSystem();
+  return std::max(1.0f, static_cast<float>(dpi) / 96.0f);
+}
+
+RECT LyricControlRect(HWND hwnd, const RECT& client, int index) {
+  const float scale = LyricScale(hwnd);
+  const int button = static_cast<int>(32 * scale);
+  const int gap = static_cast<int>(8 * scale);
   constexpr int count = 4;
   const int total = button * count + gap * (count - 1);
   const int left = (client.right - total) / 2 + index * (button + gap);
-  return {left, client.bottom - 34, left + button, client.bottom - 4};
+  const int top = static_cast<int>(7 * scale);
+  return {left, top, left + button, top + button};
 }
 
 int HitLyricControl(HWND hwnd, POINT point) {
   RECT client;
   GetClientRect(hwnd, &client);
   for (int index = 0; index < 4; ++index) {
-    RECT target = LyricControlRect(client, index);
+    RECT target = LyricControlRect(hwnd, client, index);
     if (PtInRect(&target, point)) return index;
   }
   return -1;
+}
+
+void ReleaseLyricBuffer() {
+  if (g_lyric.buffer_dc) {
+    if (g_lyric.buffer_old_bitmap)
+      SelectObject(g_lyric.buffer_dc, g_lyric.buffer_old_bitmap);
+    DeleteDC(g_lyric.buffer_dc);
+  }
+  if (g_lyric.buffer_bitmap) DeleteObject(g_lyric.buffer_bitmap);
+  g_lyric.buffer_dc = nullptr;
+  g_lyric.buffer_bitmap = nullptr;
+  g_lyric.buffer_old_bitmap = nullptr;
+  g_lyric.buffer_bits = nullptr;
+  g_lyric.buffer_width = 0;
+  g_lyric.buffer_height = 0;
+}
+
+bool EnsureLyricBuffer(HWND hwnd, int width, int height) {
+  if (g_lyric.buffer_dc && g_lyric.buffer_width == width &&
+      g_lyric.buffer_height == height)
+    return true;
+  ReleaseLyricBuffer();
+  BITMAPINFO info = {};
+  info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  info.bmiHeader.biWidth = width;
+  info.bmiHeader.biHeight = -height;
+  info.bmiHeader.biPlanes = 1;
+  info.bmiHeader.biBitCount = 32;
+  info.bmiHeader.biCompression = BI_RGB;
+  HDC screen = GetDC(hwnd);
+  g_lyric.buffer_dc = CreateCompatibleDC(screen);
+  g_lyric.buffer_bitmap = CreateDIBSection(
+      screen, &info, DIB_RGB_COLORS, &g_lyric.buffer_bits, nullptr, 0);
+  ReleaseDC(hwnd, screen);
+  if (!g_lyric.buffer_dc || !g_lyric.buffer_bitmap || !g_lyric.buffer_bits) {
+    ReleaseLyricBuffer();
+    return false;
+  }
+  g_lyric.buffer_old_bitmap =
+      SelectObject(g_lyric.buffer_dc, g_lyric.buffer_bitmap);
+  g_lyric.buffer_width = width;
+  g_lyric.buffer_height = height;
+  return true;
+}
+
+void AddRoundedRectPath(Gdiplus::GraphicsPath& path,
+                        const Gdiplus::RectF& rect, float radius) {
+  const float diameter = radius * 2.0f;
+  path.AddArc(rect.X, rect.Y, diameter, diameter, 180, 90);
+  path.AddArc(rect.GetRight() - diameter, rect.Y, diameter, diameter, 270, 90);
+  path.AddArc(rect.GetRight() - diameter, rect.GetBottom() - diameter,
+              diameter, diameter, 0, 90);
+  path.AddArc(rect.X, rect.GetBottom() - diameter, diameter, diameter, 90, 90);
+  path.CloseFigure();
+}
+
+Gdiplus::Color LyricAccent(BYTE alpha = 255) {
+  return Gdiplus::Color(alpha, GetRValue(g_lyric.accent),
+                        GetGValue(g_lyric.accent), GetBValue(g_lyric.accent));
+}
+
+double RenderedLyricProgress() {
+  if (!g_lyric.playing || g_lyric.progress_tick == 0)
+    return std::clamp(g_lyric.progress, 0.0, 1.0);
+  const double elapsed = static_cast<double>(std::min<ULONGLONG>(
+                             GetTickCount64() - g_lyric.progress_tick, 260)) /
+                         1000.0;
+  return std::clamp(g_lyric.progress + g_lyric.progress_velocity * elapsed,
+                    0.0, 1.0);
+}
+
+void RenderDesktopLyricWindow(HWND hwnd) {
+  if (!hwnd || !IsWindowVisible(hwnd)) return;
+  RECT client = {};
+  GetClientRect(hwnd, &client);
+  const int width = client.right - client.left;
+  const int height = client.bottom - client.top;
+  if (width <= 0 || height <= 0 || !EnsureLyricBuffer(hwnd, width, height))
+    return;
+  memset(g_lyric.buffer_bits, 0, static_cast<size_t>(width) * height * 4);
+  Gdiplus::Bitmap bitmap(width, height, width * 4,
+                         PixelFormat32bppPARGB,
+                         static_cast<BYTE*>(g_lyric.buffer_bits));
+  Gdiplus::Graphics graphics(&bitmap);
+  graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
+  graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+  graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
+  const float scale = LyricScale(hwnd);
+
+  if (g_lyric.hover_amount > 0.01) {
+    const BYTE panel_alpha = static_cast<BYTE>(
+        (g_lyric.dark ? 142 : 172) * g_lyric.hover_amount);
+    Gdiplus::GraphicsPath panel;
+    AddRoundedRectPath(
+        panel,
+        Gdiplus::RectF(1.0f * scale, 1.0f * scale, width - 2.0f * scale,
+                       height - 2.0f * scale),
+        14.0f * scale);
+    Gdiplus::SolidBrush panel_brush(
+        g_lyric.dark ? Gdiplus::Color(panel_alpha, 20, 24, 31)
+                     : Gdiplus::Color(panel_alpha, 245, 247, 251));
+    graphics.FillPath(&panel_brush, &panel);
+    Gdiplus::Pen panel_border(
+        g_lyric.dark ? Gdiplus::Color(static_cast<BYTE>(72 * g_lyric.hover_amount), 255, 255, 255)
+                     : Gdiplus::Color(static_cast<BYTE>(52 * g_lyric.hover_amount), 73, 87, 107),
+        1.0f * scale);
+    graphics.DrawPath(&panel_border, &panel);
+  }
+
+  Gdiplus::FontFamily lyric_family(L"Microsoft YaHei UI");
+  Gdiplus::Font title_font(&lyric_family, 25.0f * scale,
+                           Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+  Gdiplus::Font secondary_font(&lyric_family, 15.0f * scale,
+                               Gdiplus::FontStyleRegular,
+                               Gdiplus::UnitPixel);
+  Gdiplus::StringFormat format;
+  format.SetAlignment(Gdiplus::StringAlignmentCenter);
+  format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+  format.SetTrimming(Gdiplus::StringTrimmingEllipsisCharacter);
+  format.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
+  const float toolbar_height = 43.0f * scale;
+  Gdiplus::RectF title_rect(26.0f * scale, toolbar_height,
+                            width - 52.0f * scale, 46.0f * scale);
+  Gdiplus::RectF secondary_rect(28.0f * scale, toolbar_height + 43.0f * scale,
+                                width - 56.0f * scale, 30.0f * scale);
+  Gdiplus::RectF title_shadow = title_rect;
+  title_shadow.X += scale;
+  title_shadow.Y += scale;
+  Gdiplus::SolidBrush title_shadow_brush(
+      g_lyric.dark ? Gdiplus::Color(170, 0, 0, 0)
+                   : Gdiplus::Color(120, 255, 255, 255));
+  Gdiplus::SolidBrush title_brush(
+      g_lyric.dark ? Gdiplus::Color(245, 244, 247, 251)
+                   : Gdiplus::Color(245, 61, 70, 84));
+  graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_shadow,
+                      &format, &title_shadow_brush);
+  graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_rect,
+                      &format, &title_brush);
+  Gdiplus::RectF measured;
+  graphics.MeasureString(g_lyric.text.c_str(), -1, &title_font, title_rect,
+                         &format, &measured);
+  const float highlight_width = static_cast<float>(
+      measured.Width * RenderedLyricProgress());
+  graphics.SetClip(Gdiplus::RectF(measured.X, measured.Y, highlight_width,
+                                  measured.Height));
+  Gdiplus::SolidBrush accent_brush(LyricAccent());
+  graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_rect,
+                      &format, &accent_brush);
+  graphics.ResetClip();
+  if (!g_lyric.secondary.empty()) {
+    Gdiplus::SolidBrush secondary_shadow(
+        g_lyric.dark ? Gdiplus::Color(145, 0, 0, 0)
+                     : Gdiplus::Color(95, 255, 255, 255));
+    Gdiplus::SolidBrush secondary_brush(
+        g_lyric.dark ? Gdiplus::Color(220, 188, 197, 211)
+                     : Gdiplus::Color(220, 104, 116, 134));
+    Gdiplus::RectF shadow_rect = secondary_rect;
+    shadow_rect.X += scale;
+    shadow_rect.Y += scale;
+    graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
+                        shadow_rect, &format, &secondary_shadow);
+    graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
+                        secondary_rect, &format, &secondary_brush);
+  }
+
+  if (g_lyric.hover_amount > 0.02) {
+    Gdiplus::FontFamily icon_family(L"Segoe MDL2 Assets");
+    Gdiplus::Font icon_font(&icon_family, 16.0f * scale,
+                            Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+    const wchar_t* glyphs[4] = {
+        L"\xE892", g_lyric.playing ? L"\xE769" : L"\xE768", L"\xE893",
+        L"\xE8BB"};
+    for (int index = 0; index < 4; ++index) {
+      const RECT source = LyricControlRect(hwnd, client, index);
+      Gdiplus::RectF button(static_cast<float>(source.left),
+                            static_cast<float>(source.top),
+                            static_cast<float>(source.right - source.left),
+                            static_cast<float>(source.bottom - source.top));
+      if (g_lyric.hot_control == index || g_lyric.pressed_control == index) {
+        Gdiplus::GraphicsPath button_path;
+        AddRoundedRectPath(button_path, button, 9.0f * scale);
+        Gdiplus::SolidBrush button_fill(
+            index == 1
+                ? Gdiplus::Color(static_cast<BYTE>(150 * g_lyric.hover_amount),
+                                 GetRValue(g_lyric.accent),
+                                 GetGValue(g_lyric.accent),
+                                 GetBValue(g_lyric.accent))
+                : (g_lyric.dark
+                       ? Gdiplus::Color(static_cast<BYTE>(76 * g_lyric.hover_amount), 255, 255, 255)
+                       : Gdiplus::Color(static_cast<BYTE>(62 * g_lyric.hover_amount), 36, 48, 65)));
+        graphics.FillPath(&button_fill, &button_path);
+      }
+      Gdiplus::SolidBrush icon_brush(
+          index == 1 && g_lyric.hot_control == 1
+              ? Gdiplus::Color(245, 255, 255, 255)
+              : (g_lyric.dark ? Gdiplus::Color(240, 229, 234, 242)
+                              : Gdiplus::Color(235, 71, 82, 99)));
+      graphics.DrawString(glyphs[index], -1, &icon_font, button, &format,
+                          &icon_brush);
+    }
+  }
+
+  RECT window_rect = {};
+  GetWindowRect(hwnd, &window_rect);
+  POINT destination = {window_rect.left, window_rect.top};
+  SIZE size = {width, height};
+  POINT source = {0, 0};
+  BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
+  HDC screen = GetDC(nullptr);
+  UpdateLayeredWindow(hwnd, screen, &destination, &size, g_lyric.buffer_dc,
+                      &source, 0, &blend, ULW_ALPHA);
+  ReleaseDC(nullptr, screen);
 }
 
 std::wstring Utf8ToWide(const std::string& value) {
@@ -107,28 +341,43 @@ HICON CreateMediaIcon(int type) {
 LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
                                   LPARAM lparam) {
   switch (message) {
-    case WM_NCHITTEST: {
-      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
-      ScreenToClient(hwnd, &point);
-      if (HitLyricControl(hwnd, point) >= 0) return HTCLIENT;
-      return HTCAPTION;
-    }
+    case WM_NCHITTEST:
+      return HTCLIENT;
     case WM_MOUSEMOVE: {
+      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
       if (!g_lyric.tracking_mouse) {
         TRACKMOUSEEVENT tracking = {sizeof(TRACKMOUSEEVENT), TME_LEAVE, hwnd, 0};
         TrackMouseEvent(&tracking);
         g_lyric.tracking_mouse = true;
       }
-      if (!g_lyric.hovered) {
-        g_lyric.hovered = true;
-        InvalidateRect(hwnd, nullptr, FALSE);
+      g_lyric.hovered = true;
+      const int hot_control = HitLyricControl(hwnd, point);
+      if (hot_control != g_lyric.hot_control) {
+        g_lyric.hot_control = hot_control;
+        RenderDesktopLyricWindow(hwnd);
+      }
+      if (g_lyric.drag_pending || g_lyric.dragging) {
+        POINT cursor;
+        GetCursorPos(&cursor);
+        const int dx = cursor.x - g_lyric.drag_start.x;
+        const int dy = cursor.y - g_lyric.drag_start.y;
+        const int threshold = static_cast<int>(3 * LyricScale(hwnd));
+        if (!g_lyric.dragging &&
+            (std::abs(dx) >= threshold || std::abs(dy) >= threshold)) {
+          g_lyric.dragging = true;
+        }
+        if (g_lyric.dragging) {
+          SetWindowPos(hwnd, HWND_TOPMOST, g_lyric.drag_window.left + dx,
+                       g_lyric.drag_window.top + dy, 0, 0,
+                       SWP_NOSIZE | SWP_NOACTIVATE);
+        }
       }
       return 0;
     }
     case WM_MOUSELEAVE:
       g_lyric.tracking_mouse = false;
       g_lyric.hovered = false;
-      InvalidateRect(hwnd, nullptr, FALSE);
+      g_lyric.hot_control = -1;
       return 0;
     case WM_SETCURSOR: {
       POINT point;
@@ -140,87 +389,78 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
       }
       break;
     }
+    case WM_LBUTTONDOWN: {
+      SetCapture(hwnd);
+      POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
+      g_lyric.pressed_control = HitLyricControl(hwnd, point);
+      if (g_lyric.pressed_control < 0) {
+        g_lyric.drag_pending = true;
+        g_lyric.dragging = false;
+        GetCursorPos(&g_lyric.drag_start);
+        GetWindowRect(hwnd, &g_lyric.drag_window);
+      }
+      RenderDesktopLyricWindow(hwnd);
+      return 0;
+    }
     case WM_LBUTTONUP: {
       POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
       const int action = HitLyricControl(hwnd, point);
-      if (action == 0 && g_lyric.owner)
+      const bool activate = !g_lyric.dragging && action >= 0 &&
+                            action == g_lyric.pressed_control;
+      ReleaseCapture();
+      g_lyric.drag_pending = false;
+      g_lyric.dragging = false;
+      g_lyric.pressed_control = -1;
+      if (activate && action == 0 && g_lyric.owner)
         PostMessage(g_lyric.owner, WM_COMMAND, kPreviousButton, 0);
-      if (action == 1 && g_lyric.owner)
+      if (activate && action == 1 && g_lyric.owner)
         PostMessage(g_lyric.owner, WM_COMMAND, kPlayButton, 0);
-      if (action == 2 && g_lyric.owner)
+      if (activate && action == 2 && g_lyric.owner)
         PostMessage(g_lyric.owner, WM_COMMAND, kNextButton, 0);
-      if (action == 3) {
+      if (activate && action == 3) {
         ShowWindow(hwnd, SW_HIDE);
+        KillTimer(hwnd, kDesktopLyricTimer);
         if (g_lyric.owner)
           PostMessage(g_lyric.owner, WM_COMMAND, kDesktopLyricsCloseButton, 0);
       }
+      RenderDesktopLyricWindow(hwnd);
       return 0;
     }
+    case WM_TIMER: {
+      const double target = g_lyric.hovered ? 1.0 : 0.0;
+      const double step = g_lyric.hovered ? 0.16 : 0.20;
+      const double previous_hover = g_lyric.hover_amount;
+      if (g_lyric.hover_amount < target)
+        g_lyric.hover_amount = std::min(target, g_lyric.hover_amount + step);
+      else if (g_lyric.hover_amount > target)
+        g_lyric.hover_amount = std::max(target, g_lyric.hover_amount - step);
+      if (g_lyric.playing || previous_hover != g_lyric.hover_amount)
+        RenderDesktopLyricWindow(hwnd);
+      return 0;
+    }
+    case WM_ERASEBKGND:
+      return 1;
     case WM_PAINT: {
-      PAINTSTRUCT ps;
-      HDC dc = BeginPaint(hwnd, &ps);
-      RECT rect;
-      GetClientRect(hwnd, &rect);
-      HBRUSH background = CreateSolidBrush(kLyricTransparentColor);
-      FillRect(dc, &rect, background);
-      DeleteObject(background);
-      SetBkMode(dc, TRANSPARENT);
-      HFONT old = static_cast<HFONT>(SelectObject(dc, g_lyric.title_font));
-      RECT title = {28, 6, rect.right - 28, 52};
-      RECT shadow = title;
-      OffsetRect(&shadow, 1, 1);
-      SetTextColor(dc, g_lyric.dark ? RGB(10, 12, 16) : RGB(255, 255, 255));
-      DrawTextW(dc, g_lyric.text.c_str(), -1, &shadow,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-      SetTextColor(dc, g_lyric.dark ? RGB(210, 216, 226) : RGB(82, 91, 105));
-      DrawTextW(dc, g_lyric.text.c_str(), -1, &title,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-      SIZE title_size = {};
-      GetTextExtentPoint32W(dc, g_lyric.text.c_str(),
-                            static_cast<int>(g_lyric.text.size()), &title_size);
-      int saved = SaveDC(dc);
-      const int text_left = std::max(
-          title.left, (title.left + title.right - title_size.cx) / 2);
-      const int clip_right = text_left + static_cast<int>(
-          title_size.cx * std::clamp(g_lyric.progress, 0.0, 1.0));
-      IntersectClipRect(dc, text_left, title.top, clip_right, title.bottom);
-      SetTextColor(dc, g_lyric.accent);
-      DrawTextW(dc, g_lyric.text.c_str(), -1, &title,
-                DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-      RestoreDC(dc, saved);
-      if (!g_lyric.secondary.empty()) {
-        SelectObject(dc, g_lyric.secondary_font);
-        RECT sub = {28, 48, rect.right - 28, 84};
-        SetTextColor(dc, g_lyric.dark ? RGB(158, 168, 182) : RGB(112, 122, 137));
-        DrawTextW(dc, g_lyric.secondary.c_str(), -1, &sub,
-                  DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-      }
-      if (g_lyric.hovered) {
-        SelectObject(dc, g_lyric.control_font);
-        const wchar_t* glyphs[4] = {L"\xE892", g_lyric.playing ? L"\xE769" : L"\xE768",
-                                    L"\xE893", L"\xE8BB"};
-        for (int index = 0; index < 4; ++index) {
-          RECT button = LyricControlRect(rect, index);
-          HBRUSH fill = CreateSolidBrush(g_lyric.dark ? RGB(35, 39, 47)
-                                                       : RGB(244, 247, 251));
-          HPEN pen = CreatePen(PS_SOLID, 1, g_lyric.dark ? RGB(69, 76, 88)
-                                                         : RGB(218, 224, 233));
-          HGDIOBJ old_brush = SelectObject(dc, fill);
-          HGDIOBJ old_pen = SelectObject(dc, pen);
-          RoundRect(dc, button.left, button.top, button.right, button.bottom, 10, 10);
-          SelectObject(dc, old_brush);
-          SelectObject(dc, old_pen);
-          DeleteObject(fill);
-          DeleteObject(pen);
-          SetTextColor(dc, g_lyric.dark ? RGB(218, 224, 234) : RGB(91, 101, 116));
-          DrawTextW(dc, glyphs[index], -1, &button,
-                    DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-        }
-      }
-      SelectObject(dc, old);
-      EndPaint(hwnd, &ps);
+      PAINTSTRUCT paint;
+      BeginPaint(hwnd, &paint);
+      EndPaint(hwnd, &paint);
+      RenderDesktopLyricWindow(hwnd);
       return 0;
     }
+    case WM_DPICHANGED: {
+      const RECT* suggested = reinterpret_cast<RECT*>(lparam);
+      SetWindowPos(hwnd, HWND_TOPMOST, suggested->left, suggested->top,
+                   suggested->right - suggested->left,
+                   suggested->bottom - suggested->top,
+                   SWP_NOACTIVATE);
+      ReleaseLyricBuffer();
+      RenderDesktopLyricWindow(hwnd);
+      return 0;
+    }
+    case WM_DESTROY:
+      KillTimer(hwnd, kDesktopLyricTimer);
+      ReleaseLyricBuffer();
+      return 0;
   }
   return DefWindowProc(hwnd, message, wparam, lparam);
 }
@@ -234,31 +474,22 @@ HWND EnsureDesktopLyricWindow(HWND owner) {
   window_class.hCursor = LoadCursor(nullptr, IDC_SIZEALL);
   window_class.lpszClassName = kDesktopLyricClass;
   RegisterClassW(&window_class);
-  const int width = 820;
-  const int height = 124;
-  const int x = (GetSystemMetrics(SM_CXSCREEN) - width) / 2;
-  const int y = GetSystemMetrics(SM_CYSCREEN) - height - 110;
+  if (!g_lyric.gdiplus_token) {
+    Gdiplus::GdiplusStartupInput input;
+    Gdiplus::GdiplusStartup(&g_lyric.gdiplus_token, &input, nullptr);
+  }
+  const float scale = static_cast<float>(GetDpiForSystem()) / 96.0f;
+  const int width = static_cast<int>(820 * scale);
+  const int height = static_cast<int>(132 * scale);
+  RECT work_area = {};
+  SystemParametersInfoW(SPI_GETWORKAREA, 0, &work_area, 0);
+  const int x = work_area.left + (work_area.right - work_area.left - width) / 2;
+  const int y = work_area.bottom - height - static_cast<int>(54 * scale);
   g_lyric.window = CreateWindowExW(
       WS_EX_TOOLWINDOW | WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE,
       kDesktopLyricClass, L"QingTing Desktop Lyrics", WS_POPUP, x, y, width,
       height, nullptr,
       nullptr, GetModuleHandle(nullptr), nullptr);
-  if (g_lyric.window) {
-    g_lyric.title_font = CreateFontW(
-        -25, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-        DEFAULT_PITCH, L"Microsoft YaHei UI");
-    g_lyric.secondary_font = CreateFontW(
-        -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-        DEFAULT_PITCH, L"Microsoft YaHei UI");
-    g_lyric.control_font = CreateFontW(
-        -16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, ANTIALIASED_QUALITY,
-        DEFAULT_PITCH, L"Segoe MDL2 Assets");
-    SetLayeredWindowAttributes(g_lyric.window, kLyricTransparentColor, 255,
-                               LWA_COLORKEY);
-  }
   return g_lyric.window;
 }
 }  // namespace
@@ -365,14 +596,22 @@ void FlutterWindow::SetupMediaChannel() {
             }
           }
           UpdateThumbar();
-          if (g_lyric.window) InvalidateRect(g_lyric.window, nullptr, FALSE);
+          if (g_lyric.window) RenderDesktopLyricWindow(g_lyric.window);
           result->Success();
           return;
         }
         if (call.method_name() == "showDesktopLyrics") {
           const bool visible = call.arguments() && std::get<bool>(*call.arguments());
           HWND lyric = EnsureDesktopLyricWindow(GetHandle());
-          if (lyric) ShowWindow(lyric, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
+          if (lyric) {
+            ShowWindow(lyric, visible ? SW_SHOWNOACTIVATE : SW_HIDE);
+            if (visible) {
+              SetTimer(lyric, kDesktopLyricTimer, kDesktopLyricFrameMs, nullptr);
+              RenderDesktopLyricWindow(lyric);
+            } else {
+              KillTimer(lyric, kDesktopLyricTimer);
+            }
+          }
           result->Success();
           return;
         }
@@ -382,20 +621,38 @@ void FlutterWindow::SetupMediaChannel() {
               const auto it = args->find(flutter::EncodableValue(key));
               return it == args->end() ? std::string() : std::get<std::string>(it->second);
             };
-            g_lyric.text = Utf8ToWide(string_value("text"));
+            const std::wstring next_text = Utf8ToWide(string_value("text"));
+            const bool line_changed = next_text != g_lyric.text;
+            g_lyric.text = next_text;
             g_lyric.secondary = Utf8ToWide(string_value("secondary"));
             const auto progress = args->find(flutter::EncodableValue("progress"));
             if (progress != args->end()) {
+              double next_progress = g_lyric.progress;
               if (const auto* progress_double =
                       std::get_if<double>(&progress->second)) {
-                g_lyric.progress = *progress_double;
+                next_progress = *progress_double;
               } else if (const auto* progress_32 =
                              std::get_if<int32_t>(&progress->second)) {
-                g_lyric.progress = static_cast<double>(*progress_32);
+                next_progress = static_cast<double>(*progress_32);
               } else if (const auto* progress_64 =
                              std::get_if<int64_t>(&progress->second)) {
-                g_lyric.progress = static_cast<double>(*progress_64);
+                next_progress = static_cast<double>(*progress_64);
               }
+              const ULONGLONG now = GetTickCount64();
+              const double seconds = g_lyric.progress_tick == 0
+                                         ? 0.0
+                                         : static_cast<double>(
+                                               now - g_lyric.progress_tick) /
+                                               1000.0;
+              if (!line_changed && seconds > 0.015 &&
+                  next_progress >= g_lyric.progress) {
+                g_lyric.progress_velocity = std::clamp(
+                    (next_progress - g_lyric.progress) / seconds, 0.0, 1.8);
+              } else {
+                g_lyric.progress_velocity = 0.0;
+              }
+              g_lyric.progress = std::clamp(next_progress, 0.0, 1.0);
+              g_lyric.progress_tick = now;
             }
             const auto dark = args->find(flutter::EncodableValue("dark"));
             if (dark != args->end()) {
@@ -423,7 +680,7 @@ void FlutterWindow::SetupMediaChannel() {
               }
             }
           }
-          if (g_lyric.window) InvalidateRect(g_lyric.window, nullptr, FALSE);
+          if (g_lyric.window) RenderDesktopLyricWindow(g_lyric.window);
           result->Success();
           return;
         }
@@ -481,12 +738,11 @@ void FlutterWindow::DisposeWindowsMedia() {
     DestroyWindow(g_lyric.window);
     g_lyric.window = nullptr;
   }
-  for (HFONT font : {g_lyric.title_font, g_lyric.secondary_font,
-                     g_lyric.control_font})
-    if (font) DeleteObject(font);
-  g_lyric.title_font = nullptr;
-  g_lyric.secondary_font = nullptr;
-  g_lyric.control_font = nullptr;
+  ReleaseLyricBuffer();
+  if (g_lyric.gdiplus_token) {
+    Gdiplus::GdiplusShutdown(g_lyric.gdiplus_token);
+    g_lyric.gdiplus_token = 0;
+  }
   g_lyric.owner = nullptr;
   if (taskbar_) { taskbar_->Release(); taskbar_ = nullptr; }
   thumbar_added_ = false;

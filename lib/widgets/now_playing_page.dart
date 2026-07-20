@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -52,11 +53,13 @@ class NowPlayingPage extends StatefulWidget {
 
 class _NowPlayingPageState extends State<NowPlayingPage> {
   static bool _portraitModePreference = false;
+  static final Map<String, List<String>> _portraitCache =
+      <String, List<String>>{};
 
   List<String> _portraits = const [];
   bool _portraitMode = _portraitModePreference;
-  bool _portraitLoading = false;
   String? _portraitSongKey;
+  int _portraitRequestToken = 0;
 
   @override
   void initState() {
@@ -87,24 +90,39 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     final key = song == null ? null : '${song.id}|${song.hash ?? ''}';
     if (key == _portraitSongKey) return;
     _portraitSongKey = key;
-    setState(() {
-      _portraits = const [];
-    });
-    if (song != null) _loadPortraits(song);
+    final token = ++_portraitRequestToken;
+    if (song == null) {
+      setState(() {
+        _portraits = const [];
+      });
+      return;
+    }
+    final cached = _portraitCache[key];
+    if (cached != null) {
+      setState(() => _portraits = cached);
+      return;
+    }
+    _loadPortraits(song, key!, token);
   }
 
-  Future<void> _loadPortraits(Song song) async {
-    setState(() => _portraitLoading = true);
+  Future<void> _loadPortraits(Song song, String key, int token) async {
     try {
       final portraits = await widget.loadArtistPortraits(song);
-      if (!mounted || widget.controller.currentSong?.id != song.id) return;
-      setState(() {
-        _portraits = portraits;
-        _portraitLoading = false;
-      });
+      if (!mounted ||
+          token != _portraitRequestToken ||
+          _portraitSongKey != key) {
+        return;
+      }
+      final resolved = List<String>.unmodifiable(portraits);
+      _portraitCache[key] = resolved;
+      setState(() => _portraits = resolved);
     } catch (_) {
-      if (mounted && widget.controller.currentSong?.id == song.id) {
-        setState(() => _portraitLoading = false);
+      if (mounted &&
+          token == _portraitRequestToken &&
+          _portraitSongKey == key) {
+        setState(() {
+          _portraits = const [];
+        });
       }
     }
   }
@@ -115,22 +133,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
       setState(() => _portraitMode = false);
       return;
     }
-    if (_portraits.isNotEmpty) {
-      _portraitModePreference = true;
-      setState(() => _portraitMode = true);
-      return;
-    }
-    if (!_portraitLoading) {
-      final song = widget.controller.currentSong;
-      if (song != null) {
-        _loadPortraits(song).then((_) {
-          if (mounted && _portraits.isNotEmpty) {
-            _portraitModePreference = true;
-            setState(() => _portraitMode = true);
-          }
-        });
-      }
-    }
+    _portraitModePreference = true;
+    setState(() => _portraitMode = true);
   }
 
   @override
@@ -195,10 +199,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                       song: song,
                       onLike: widget.onLike,
                       onAddToPlaylist: widget.onAddToPlaylist,
-                      portraitLoading: _portraitLoading,
                       portraitSelected: _portraitMode,
-                      portraitAvailable:
-                          _portraits.isNotEmpty || !_portraitLoading,
+                      portraitAvailable: true,
                       onTogglePortrait: _togglePortraitMode,
                       desktopLyricsVisible: widget.desktopLyricsVisible,
                       onDesktopLyricsChanged: widget.onDesktopLyricsChanged,
@@ -234,7 +236,7 @@ class _BlurredCoverBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final coverUrl = (song?.coverUrl ?? '').trim();
     final portrait = (portraitUrl ?? '').trim();
-    final showPortrait = portraitMode && portrait.isNotEmpty;
+    final showPortrait = portraitMode;
     final hasCover = coverUrl.isNotEmpty;
     final dark = AppColors.isDark;
     final overlay = dark ? Colors.black : Colors.white;
@@ -252,9 +254,12 @@ class _BlurredCoverBackground extends StatelessWidget {
                 switchInCurve: Curves.easeOutCubic,
                 switchOutCurve: Curves.easeInCubic,
                 child: showPortrait
-                    ? _PortraitArtwork(
-                        key: ValueKey('portrait-$portrait'),
-                        url: portrait,
+                    ? _PortraitTransitionArtwork(
+                        key: const ValueKey('portrait-mode'),
+                        portraitUrl: portrait,
+                        fallbackAsset: dark
+                            ? 'assets/images/artist_wallpaper_dark.png'
+                            : 'assets/images/artist_wallpaper_light.png',
                       )
                     : Opacity(
                         key: ValueKey(
@@ -349,13 +354,168 @@ class _BlurredCoverBackground extends StatelessWidget {
   }
 }
 
-class _PortraitArtwork extends StatelessWidget {
-  const _PortraitArtwork({super.key, required this.url});
+class _PortraitSource {
+  const _PortraitSource({
+    required this.key,
+    required this.provider,
+    required this.isFallback,
+  });
 
-  final String url;
+  final String key;
+  final ImageProvider<Object> provider;
+  final bool isFallback;
+}
+
+class _PortraitTransitionArtwork extends StatefulWidget {
+  const _PortraitTransitionArtwork({
+    super.key,
+    required this.portraitUrl,
+    required this.fallbackAsset,
+  });
+
+  final String portraitUrl;
+  final String fallbackAsset;
+
+  @override
+  State<_PortraitTransitionArtwork> createState() =>
+      _PortraitTransitionArtworkState();
+}
+
+class _PortraitTransitionArtworkState extends State<_PortraitTransitionArtwork>
+    with SingleTickerProviderStateMixin {
+  static final Set<String> _decodedPortraits = <String>{};
+
+  late final AnimationController _controller;
+  late final Animation<double> _fade;
+  _PortraitSource? _current;
+  _PortraitSource? _previous;
+  int _loadToken = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _fade = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _current ??= _initialSource();
+    unawaited(_prepareTarget());
+  }
+
+  @override
+  void didUpdateWidget(covariant _PortraitTransitionArtwork oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.portraitUrl != widget.portraitUrl ||
+        oldWidget.fallbackAsset != widget.fallbackAsset) {
+      unawaited(_prepareTarget());
+    }
+  }
+
+  @override
+  void dispose() {
+    _loadToken++;
+    _controller.dispose();
+    super.dispose();
+  }
+
+  _PortraitSource _fallbackSource() => _PortraitSource(
+    key: 'asset:${widget.fallbackAsset}',
+    provider: AssetImage(widget.fallbackAsset),
+    isFallback: true,
+  );
+
+  _PortraitSource _targetSource() {
+    final url = widget.portraitUrl.trim();
+    if (url.isEmpty) return _fallbackSource();
+    return _PortraitSource(
+      key: 'network:$url',
+      provider: ResizeImage(NetworkImage(url), width: 1920),
+      isFallback: false,
+    );
+  }
+
+  _PortraitSource _initialSource() {
+    final target = _targetSource();
+    return _decodedPortraits.contains(target.key) ? target : _fallbackSource();
+  }
+
+  Future<void> _prepareTarget() async {
+    final token = ++_loadToken;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    var target = _targetSource();
+    if (_current?.key == target.key && _previous == null) return;
+    try {
+      await precacheImage(target.provider, context);
+      if (!target.isFallback) _decodedPortraits.add(target.key);
+    } catch (_) {
+      target = _fallbackSource();
+      if (_current?.key == target.key && _previous == null) return;
+      if (!mounted) return;
+      try {
+        await precacheImage(target.provider, context);
+      } catch (_) {
+        return;
+      }
+    }
+    if (!mounted || token != _loadToken || _current?.key == target.key) return;
+    final targetKey = target.key;
+    setState(() {
+      _previous = _current;
+      _current = target;
+    });
+    _controller.duration = Duration(milliseconds: reduceMotion ? 90 : 280);
+    await _controller.forward(from: 0);
+    if (!mounted || token != _loadToken || _current?.key != targetKey) return;
+    setState(() => _previous = null);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final current = _current ?? _fallbackSource();
+    final previous = _previous;
+    if (previous == null) return _PortraitArtwork(source: current);
+    return AnimatedBuilder(
+      animation: _fade,
+      builder: (context, _) {
+        final progress = _fade.value;
+        if (progress >= 0.999) return _PortraitArtwork(source: current);
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            _PortraitArtwork(source: previous),
+            Opacity(
+              opacity: progress,
+              child: _PortraitArtwork(source: current),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PortraitArtwork extends StatelessWidget {
+  const _PortraitArtwork({required this.source});
+
+  final _PortraitSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    if (source.isFallback) {
+      return Image(
+        image: source.provider,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+      );
+    }
     return ClipRect(
       child: Stack(
         fit: StackFit.expand,
@@ -364,12 +524,11 @@ class _PortraitArtwork extends StatelessWidget {
             scale: 1.16,
             child: ImageFiltered(
               imageFilter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-              child: Image.network(
-                url,
+              child: Image(
+                image: source.provider,
                 fit: BoxFit.cover,
                 gaplessPlayback: true,
                 filterQuality: FilterQuality.low,
-                cacheWidth: 1280,
               ),
             ),
           ),
@@ -378,13 +537,12 @@ class _PortraitArtwork extends StatelessWidget {
           // composition for very tall or very wide source images.
           Transform.scale(
             scale: 1.10,
-            child: Image.network(
-              url,
+            child: Image(
+              image: source.provider,
               fit: BoxFit.contain,
               alignment: Alignment.center,
               gaplessPlayback: true,
               filterQuality: FilterQuality.medium,
-              cacheWidth: 1600,
             ),
           ),
         ],
@@ -458,13 +616,11 @@ class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
 
 class _PortraitModeButton extends StatelessWidget {
   const _PortraitModeButton({
-    required this.loading,
     required this.selected,
     required this.available,
     required this.onPressed,
   });
 
-  final bool loading;
   final bool selected;
   final bool available;
   final VoidCallback onPressed;
@@ -486,16 +642,10 @@ class _PortraitModeButton extends StatelessWidget {
           hoverColor: AppColors.primary.withValues(alpha: 0.10),
           shape: const CircleBorder(),
         ),
-        icon: loading
-            ? const SizedBox(
-                width: 17,
-                height: 17,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(
-                selected ? Icons.person_rounded : Icons.person_outline_rounded,
-                size: 22,
-              ),
+        icon: Icon(
+          selected ? Icons.person_rounded : Icons.person_outline_rounded,
+          size: 22,
+        ),
       ),
     );
   }
@@ -842,6 +992,8 @@ class _LyricsPanelState extends State<_LyricsPanel> {
   bool _loading = true;
   String? _errorText;
   int _activeIndex = -1;
+  Timer? _layerControlsTimer;
+  bool _showLayerControls = false;
 
   @override
   void initState() {
@@ -868,8 +1020,20 @@ class _LyricsPanelState extends State<_LyricsPanel> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleControllerChanged);
+    _layerControlsTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _revealLayerControls({bool leaving = false}) {
+    _layerControlsTimer?.cancel();
+    if (!_showLayerControls) setState(() => _showLayerControls = true);
+    _layerControlsTimer = Timer(
+      Duration(milliseconds: leaving ? 700 : 2600),
+      () {
+        if (mounted) setState(() => _showLayerControls = false);
+      },
+    );
   }
 
   void _handleControllerChanged() {
@@ -951,45 +1115,62 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     final hasTransliteration = _lines.any(
       (line) => (line.transliteration ?? '').trim().isNotEmpty,
     );
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 430),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: widget.centered
-            ? CrossAxisAlignment.center
-            : CrossAxisAlignment.start,
-        children: [
-          if (hasTranslation || hasTransliteration) ...[
-            Row(
-              mainAxisAlignment: widget.centered
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.start,
-              children: [
-                if (hasTranslation)
-                  _LyricLayerToggle(
-                    label: '译',
-                    tooltip: '外语翻译',
-                    selected: widget.showTranslation,
-                    onTap: () =>
-                        widget.onTranslationChanged(!widget.showTranslation),
-                  ),
-                if (hasTranslation && hasTransliteration)
-                  const SizedBox(width: 6),
-                if (hasTransliteration)
-                  _LyricLayerToggle(
-                    label: '音',
-                    tooltip: '音译',
-                    selected: widget.showTransliteration,
-                    onTap: () => widget.onTransliterationChanged(
-                      !widget.showTransliteration,
+    return MouseRegion(
+      onEnter: (_) => _revealLayerControls(),
+      onHover: (_) => _revealLayerControls(),
+      onExit: (_) => _revealLayerControls(leaving: true),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 430),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: widget.centered
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            if (hasTranslation || hasTransliteration) ...[
+              SizedBox(
+                height: 26,
+                child: IgnorePointer(
+                  ignoring: !_showLayerControls,
+                  child: AnimatedOpacity(
+                    opacity: _showLayerControls ? 1 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: Row(
+                      mainAxisAlignment: widget.centered
+                          ? MainAxisAlignment.center
+                          : MainAxisAlignment.start,
+                      children: [
+                        if (hasTranslation)
+                          _LyricLayerToggle(
+                            label: '译',
+                            tooltip: '外语翻译',
+                            selected: widget.showTranslation,
+                            onTap: () => widget.onTranslationChanged(
+                              !widget.showTranslation,
+                            ),
+                          ),
+                        if (hasTranslation && hasTransliteration)
+                          const SizedBox(width: 6),
+                        if (hasTransliteration)
+                          _LyricLayerToggle(
+                            label: '音',
+                            tooltip: '音译',
+                            selected: widget.showTransliteration,
+                            onTap: () => widget.onTransliterationChanged(
+                              !widget.showTransliteration,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            SizedBox(height: _lyricViewportHeight, child: _lyricsContent()),
           ],
-          SizedBox(height: _lyricViewportHeight, child: _lyricsContent()),
-        ],
+        ),
       ),
     );
   }
@@ -998,14 +1179,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     if (_loading) {
       return Align(
         alignment: widget.centered ? Alignment.center : Alignment.centerLeft,
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2.2,
-            color: AppColors.primary,
-          ),
-        ),
+        child: const _LyricLoadingIndicator(),
       );
     }
     if (_errorText != null) {
@@ -1106,6 +1280,59 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     return ScrollConfiguration(
       behavior: ScrollConfiguration.of(context).copyWith(scrollbars: false),
       child: listView,
+    );
+  }
+}
+
+class _LyricLoadingIndicator extends StatefulWidget {
+  const _LyricLoadingIndicator();
+
+  @override
+  State<_LyricLoadingIndicator> createState() => _LyricLoadingIndicatorState();
+}
+
+class _LyricLoadingIndicatorState extends State<_LyricLoadingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1050),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (index) {
+          final phase = (_controller.value - index * 0.16) % 1.0;
+          final opacity = reduceMotion
+              ? 0.52
+              : (0.26 + (1 - (phase * 2 - 1).abs()) * 0.54);
+          return Container(
+            width: 4,
+            height: 4,
+            margin: EdgeInsets.only(right: index == 2 ? 0 : 5),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: opacity),
+              shape: BoxShape.circle,
+            ),
+          );
+        }),
+      ),
     );
   }
 }
@@ -1283,7 +1510,6 @@ class _PlaybackControls extends StatelessWidget {
     required this.song,
     this.onLike,
     this.onAddToPlaylist,
-    required this.portraitLoading,
     required this.portraitSelected,
     required this.portraitAvailable,
     required this.onTogglePortrait,
@@ -1296,7 +1522,6 @@ class _PlaybackControls extends StatelessWidget {
   final Song song;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
-  final bool portraitLoading;
   final bool portraitSelected;
   final bool portraitAvailable;
   final VoidCallback onTogglePortrait;
@@ -1378,15 +1603,13 @@ class _PlaybackControls extends StatelessWidget {
                             controller: playbackQualityController,
                             compact: true,
                           ),
-                          _GlassControlButton(
+                          _DesktopLyricControlButton(
                             tooltip: desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词',
-                            icon: Icons.lyrics_outlined,
                             selected: desktopLyricsVisible,
                             onPressed: () =>
                                 onDesktopLyricsChanged(!desktopLyricsVisible),
                           ),
                           _PortraitModeButton(
-                            loading: portraitLoading,
                             selected: portraitSelected,
                             available: portraitAvailable,
                             onPressed: onTogglePortrait,
@@ -1417,13 +1640,11 @@ class _GlassControlButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
-    this.selected = false,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback? onPressed;
-  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -1438,11 +1659,52 @@ class _GlassControlButton extends StatelessWidget {
         minimumSize: const Size(42, 42),
         fixedSize: const Size(42, 42),
         iconSize: 22,
-        foregroundColor: selected ? AppColors.primary : AppColors.muted,
+        foregroundColor: AppColors.muted,
         disabledForegroundColor: AppColors.faint.withValues(alpha: 0.45),
         hoverColor: AppColors.primary.withValues(alpha: 0.10),
         highlightColor: AppColors.primary.withValues(alpha: 0.14),
         shape: const CircleBorder(),
+      ),
+    );
+  }
+}
+
+class _DesktopLyricControlButton extends StatelessWidget {
+  const _DesktopLyricControlButton({
+    required this.tooltip,
+    required this.onPressed,
+    required this.selected,
+  });
+
+  final String tooltip;
+  final VoidCallback onPressed;
+  final bool selected;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      mouseCursor: SystemMouseCursors.click,
+      style: IconButton.styleFrom(
+        minimumSize: const Size(42, 42),
+        fixedSize: const Size(42, 42),
+        foregroundColor: selected ? AppColors.primary : AppColors.muted,
+        backgroundColor: selected
+            ? AppColors.primary.withValues(alpha: 0.10)
+            : Colors.transparent,
+        hoverColor: AppColors.primary.withValues(alpha: 0.10),
+        highlightColor: AppColors.primary.withValues(alpha: 0.14),
+        shape: const CircleBorder(),
+      ),
+      icon: Text(
+        '词',
+        style: TextStyle(
+          color: selected ? AppColors.primary : AppColors.muted,
+          fontSize: 15,
+          height: 1,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
