@@ -55,6 +55,10 @@ abstract interface class MusicRepository {
 
   Future<void> removeSongFromPlaylist(MusicPlaylist playlist, Song song);
 
+  Future<void> createPlaylist(String name, {bool isPrivate = false});
+
+  Future<void> deletePlaylist(MusicPlaylist playlist);
+
   Future<Song> resolvePlayback(Song song);
 
   Future<List<LyricLine>> getLyrics(Song song);

@@ -124,6 +124,16 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<void> createPlaylist(String name, {bool isPrivate = false}) {
+    return apiClient.createPlaylist(name, isPrivate: isPrivate);
+  }
+
+  @override
+  Future<void> deletePlaylist(MusicPlaylist playlist) {
+    return apiClient.deletePlaylist(playlist);
+  }
+
+  @override
   Future<Song> resolvePlayback(Song song) {
     return apiClient.resolvePlayback(song);
   }

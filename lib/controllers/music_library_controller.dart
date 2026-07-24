@@ -462,6 +462,24 @@ class MusicLibraryController extends ChangeNotifier {
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 
+  Future<void> createPlaylist(String name, {bool isPrivate = false}) async {
+    await repository.createPlaylist(name, isPrivate: isPrivate);
+    loaded.remove(LibrarySection.playlists);
+    await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
+  Future<void> deletePlaylist(MusicPlaylist playlist) async {
+    await repository.deletePlaylist(playlist);
+    playlists = playlists
+        .where((item) => item.listId != playlist.listId)
+        .toList();
+    unawaited(cacheService.clearPlaylistSongs(_playlistCacheKey(playlist)));
+    unawaited(_saveCache());
+    notifyListeners();
+    loaded.remove(LibrarySection.playlists);
+    await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
   Future<void> _refreshPlaylistSongsCache(
     MusicPlaylist playlist,
     String cacheKey,

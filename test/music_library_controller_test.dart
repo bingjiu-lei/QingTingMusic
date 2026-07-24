@@ -274,6 +274,23 @@ class _FakeMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<void> createPlaylist(String name, {bool isPrivate = false}) async {
+    playlists.add(
+      MusicPlaylist(
+        id: 'created-$name',
+        listId: 'created-$name',
+        name: name,
+        songCount: 0,
+      ),
+    );
+  }
+
+  @override
+  Future<void> deletePlaylist(MusicPlaylist playlist) async {
+    playlists.removeWhere((item) => item.listId == playlist.listId);
+  }
+
+  @override
   Future<List<SearchCatalogItem>> getArtistAlbums(
     SearchCatalogItem artist,
   ) async => const [];

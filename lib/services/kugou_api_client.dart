@@ -1103,6 +1103,36 @@ class KugouApiClient {
     );
   }
 
+  Future<void> createPlaylist(String name, {bool isPrivate = false}) async {
+    final cleanName = name.trim();
+    if (cleanName.isEmpty) {
+      throw const KugouApiException('请输入歌单名称');
+    }
+    final response = await _post(
+      '/playlist/add',
+      authenticated: true,
+      queryParameters: {
+        'name': cleanName,
+        'source': 1,
+        'type': 0,
+        'is_pri': isPrivate ? 1 : 0,
+      },
+    );
+    _ensureOperationSucceeded(response.data);
+  }
+
+  Future<void> deletePlaylist(MusicPlaylist playlist) async {
+    if (playlist.listId.trim().isEmpty || playlist.isDefault) {
+      throw const KugouApiException('该歌单不能删除');
+    }
+    final response = await _post(
+      '/playlist/del',
+      authenticated: true,
+      queryParameters: {'listid': playlist.listId},
+    );
+    _ensureOperationSucceeded(response.data);
+  }
+
   Future<Song> resolvePlayback(Song song) async {
     if (song.audioUrl.isNotEmpty) return song;
     if (!await _usesOfficialApi() && !session.isLoggedIn) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../controllers/music_library_controller.dart';
@@ -24,6 +26,7 @@ class LibraryPage extends StatefulWidget {
     required this.onOpenPlaylist,
     required this.onOpenCatalog,
     required this.onLogin,
+    required this.onCreatePlaylist,
     required this.selectedTab,
     required this.onTabChanged,
   });
@@ -40,6 +43,7 @@ class LibraryPage extends StatefulWidget {
   final ValueChanged<MusicPlaylist> onOpenPlaylist;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final VoidCallback onLogin;
+  final VoidCallback onCreatePlaylist;
   final int selectedTab;
   final ValueChanged<int> onTabChanged;
 
@@ -105,6 +109,7 @@ class _LibraryPageState extends State<LibraryPage> {
         created: controller.createdPlaylists,
         collected: controller.collectedPlaylists,
         onOpen: widget.onOpenPlaylist,
+        onCreate: widget.onCreatePlaylist,
         storageKey: const PageStorageKey('library-playlists-scroll'),
       ),
       LibrarySection.albums => _PlaylistGrid(
@@ -200,28 +205,40 @@ class _PlaylistGroups extends StatelessWidget {
     required this.created,
     required this.collected,
     required this.onOpen,
+    required this.onCreate,
     required this.storageKey,
   });
 
   final List<MusicPlaylist> created;
   final List<MusicPlaylist> collected;
   final ValueChanged<MusicPlaylist> onOpen;
+  final VoidCallback onCreate;
   final PageStorageKey<String> storageKey;
 
   @override
   Widget build(BuildContext context) {
-    if (created.isEmpty && collected.isEmpty) {
-      return Center(
-        child: Text('还没有歌单', style: TextStyle(color: AppColors.faint)),
-      );
-    }
     return CustomScrollView(
       key: storageKey,
       slivers: [
+        SliverToBoxAdapter(
+          child: _PlaylistSectionTitle('创建', onCreate: onCreate),
+        ),
         if (created.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: _SectionTitle('创建')),
           _PlaylistSliver(playlists: created, onOpen: onOpen),
           const SliverToBoxAdapter(child: SizedBox(height: 22)),
+        ] else ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Center(
+                child: Text(
+                  '创建一个歌单，整理你想留下的音乐',
+                  style: TextStyle(color: AppColors.faint),
+                ),
+              ),
+            ),
+          ),
+          const SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
         if (collected.isNotEmpty) ...[
           const SliverToBoxAdapter(child: _SectionTitle('收藏')),
@@ -234,24 +251,109 @@ class _PlaylistGroups extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+  const _SectionTitle(this.text, {this.action});
 
   final String text;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Text(
-        text,
-        style: TextStyle(
-          color: AppColors.text,
-          fontSize: 17,
-          fontWeight: FontWeight.w700,
-        ),
+      child: Row(
+        children: [
+          Text(
+            text,
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (action != null) ...[const SizedBox(width: 8), action!],
+        ],
       ),
     );
   }
+}
+
+class _PlaylistSectionTitle extends StatefulWidget {
+  const _PlaylistSectionTitle(this.text, {required this.onCreate});
+
+  final String text;
+  final VoidCallback onCreate;
+
+  @override
+  State<_PlaylistSectionTitle> createState() => _PlaylistSectionTitleState();
+}
+
+class _PlaylistSectionTitleState extends State<_PlaylistSectionTitle> {
+  Timer? _hideTimer;
+  var _visible = false;
+
+  void _show() {
+    _hideTimer?.cancel();
+    if (!_visible) setState(() => _visible = true);
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(milliseconds: 650), () {
+      if (mounted) setState(() => _visible = false);
+    });
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+    onEnter: (_) => _show(),
+    onExit: (_) => _scheduleHide(),
+    child: Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Text(
+            widget.text,
+            style: TextStyle(
+              color: AppColors.text,
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(width: 8),
+          IgnorePointer(
+            ignoring: !_visible,
+            child: AnimatedOpacity(
+              opacity: _visible ? 1 : 0,
+              duration: AppMotion.fast,
+              child: Tooltip(
+                message: '新建歌单',
+                child: IconButton(
+                  onPressed: widget.onCreate,
+                  mouseCursor: SystemMouseCursors.click,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(32, 32),
+                    fixedSize: const Size(32, 32),
+                    foregroundColor: AppColors.muted,
+                    backgroundColor: AppColors.surfaceMuted,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PlaylistSliver extends StatelessWidget {

@@ -137,6 +137,12 @@ class DemoMusicRepository implements MusicRepository {
   ) async {}
 
   @override
+  Future<void> createPlaylist(String name, {bool isPrivate = false}) async {}
+
+  @override
+  Future<void> deletePlaylist(MusicPlaylist playlist) async {}
+
+  @override
   Future<Song> resolvePlayback(Song song) async => song;
 
   @override

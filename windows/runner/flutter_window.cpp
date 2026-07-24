@@ -159,6 +159,8 @@ void RenderDesktopLyricWindow(HWND hwnd) {
   Gdiplus::Graphics graphics(&bitmap);
   graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
   graphics.SetPixelOffsetMode(Gdiplus::PixelOffsetModeHighQuality);
+  // Layered windows cannot use ClearType safely. Grid-fitted grayscale text
+  // stays crisp on both light and dark desktops without colour fringes.
   graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
   const float scale = LyricScale(hwnd);
 
@@ -182,12 +184,11 @@ void RenderDesktopLyricWindow(HWND hwnd) {
     graphics.DrawPath(&panel_border, &panel);
   }
 
-  Gdiplus::FontFamily lyric_family(L"Microsoft YaHei UI");
-  Gdiplus::Font title_font(&lyric_family, 25.0f * scale,
-                           Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-  Gdiplus::Font secondary_font(&lyric_family, 15.0f * scale,
-                               Gdiplus::FontStyleRegular,
-                               Gdiplus::UnitPixel);
+  Gdiplus::FontFamily lyric_family(L"Noto Sans SC");
+  Gdiplus::FontFamily fallback_family(L"Microsoft YaHei UI");
+  Gdiplus::FontFamily* active_family = lyric_family.IsAvailable()
+                                             ? &lyric_family
+                                             : &fallback_family;
   Gdiplus::StringFormat format;
   format.SetAlignment(Gdiplus::StringAlignmentCenter);
   format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
@@ -198,17 +199,18 @@ void RenderDesktopLyricWindow(HWND hwnd) {
                             width - 52.0f * scale, 46.0f * scale);
   Gdiplus::RectF secondary_rect(28.0f * scale, toolbar_height + 43.0f * scale,
                                 width - 56.0f * scale, 30.0f * scale);
-  Gdiplus::RectF title_shadow = title_rect;
-  title_shadow.X += scale;
-  title_shadow.Y += scale;
-  Gdiplus::SolidBrush title_shadow_brush(
-      g_lyric.dark ? Gdiplus::Color(170, 0, 0, 0)
-                   : Gdiplus::Color(120, 255, 255, 255));
+  Gdiplus::Font title_font(active_family, 28.0f * scale,
+                           Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
   Gdiplus::SolidBrush title_brush(
       g_lyric.dark ? Gdiplus::Color(245, 244, 247, 251)
                    : Gdiplus::Color(245, 61, 70, 84));
-  graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_shadow,
-                      &format, &title_shadow_brush);
+  Gdiplus::SolidBrush title_shadow(
+      g_lyric.dark ? Gdiplus::Color(94, 0, 0, 0)
+                   : Gdiplus::Color(106, 255, 255, 255));
+  Gdiplus::RectF title_shadow_rect = title_rect;
+  title_shadow_rect.Offset(0.65f * scale, 0.85f * scale);
+  graphics.DrawString(g_lyric.text.c_str(), -1, &title_font,
+                      title_shadow_rect, &format, &title_shadow);
   graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_rect,
                       &format, &title_brush);
   Gdiplus::RectF measured;
@@ -223,17 +225,19 @@ void RenderDesktopLyricWindow(HWND hwnd) {
                       &format, &accent_brush);
   graphics.ResetClip();
   if (!g_lyric.secondary.empty()) {
-    Gdiplus::SolidBrush secondary_shadow(
-        g_lyric.dark ? Gdiplus::Color(145, 0, 0, 0)
-                     : Gdiplus::Color(95, 255, 255, 255));
+    Gdiplus::Font secondary_font(active_family, 17.0f * scale,
+                                 Gdiplus::FontStyleRegular,
+                                 Gdiplus::UnitPixel);
     Gdiplus::SolidBrush secondary_brush(
         g_lyric.dark ? Gdiplus::Color(220, 188, 197, 211)
                      : Gdiplus::Color(220, 104, 116, 134));
-    Gdiplus::RectF shadow_rect = secondary_rect;
-    shadow_rect.X += scale;
-    shadow_rect.Y += scale;
+    Gdiplus::SolidBrush secondary_shadow(
+        g_lyric.dark ? Gdiplus::Color(72, 0, 0, 0)
+                     : Gdiplus::Color(84, 255, 255, 255));
+    Gdiplus::RectF secondary_shadow_rect = secondary_rect;
+    secondary_shadow_rect.Offset(0.5f * scale, 0.6f * scale);
     graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
-                        shadow_rect, &format, &secondary_shadow);
+                        secondary_shadow_rect, &format, &secondary_shadow);
     graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
                         secondary_rect, &format, &secondary_brush);
   }
@@ -477,6 +481,13 @@ HWND EnsureDesktopLyricWindow(HWND owner) {
   if (!g_lyric.gdiplus_token) {
     Gdiplus::GdiplusStartupInput input;
     Gdiplus::GdiplusStartup(&g_lyric.gdiplus_token, &input, nullptr);
+    wchar_t executable_path[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, executable_path, MAX_PATH);
+    std::wstring font_path(executable_path);
+    const size_t slash = font_path.find_last_of(L"\\/");
+    if (slash != std::wstring::npos) font_path.resize(slash + 1);
+    font_path += L"data\\flutter_assets\\assets\\fonts\\NotoSansSC-Variable.ttf";
+    AddFontResourceExW(font_path.c_str(), FR_PRIVATE, nullptr);
   }
   const float scale = static_cast<float>(GetDpiForSystem()) / 96.0f;
   const int width = static_cast<int>(820 * scale);

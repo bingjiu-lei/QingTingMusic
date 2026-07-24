@@ -36,6 +36,7 @@ class CollectionDetailPage extends StatefulWidget {
     this.openedFromArtist = false,
     this.onRemoveFromPlaylist,
     this.onToggleCollection,
+    this.onDeletePlaylist,
     this.collectionItem,
     this.currentSong,
     this.isPlaying = false,
@@ -69,6 +70,7 @@ class CollectionDetailPage extends StatefulWidget {
   final bool isPlaying;
   final SearchCatalogItem? collectionItem;
   final VoidCallback? onToggleCollection;
+  final VoidCallback? onDeletePlaylist;
 
   @override
   State<CollectionDetailPage> createState() => _CollectionDetailPageState();
@@ -172,6 +174,26 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                               size: 18,
                             ),
                           ),
+                        if (widget.onDeletePlaylist != null)
+                          IconButton(
+                            tooltip: '删除歌单',
+                            onPressed: widget.onDeletePlaylist,
+                            mouseCursor: SystemMouseCursors.click,
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(40, 40),
+                              fixedSize: const Size(40, 40),
+                              foregroundColor: AppColors.muted,
+                              backgroundColor: AppColors.surfaceMuted
+                                  .withValues(alpha: 0.42),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                            ),
+                          ),
                       ],
                     ),
                   ],
@@ -252,15 +274,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
       !widget.openedFromArtist;
 
   List<Song> _songsForDisplay() {
-    if (widget.kind != CollectionDetailKind.artist) return widget.songs;
-    return widget.songs
-        .map(
-          (song) => song.copyWith(
-            artist: widget.title,
-            artists: [SongArtist(name: widget.title)],
-          ),
-        )
-        .toList();
+    // Keep the complete artist metadata returned by the API. Replacing it with
+    // the current artist used to hide collaborators on artist detail pages.
+    return widget.songs;
   }
 }
 

@@ -58,6 +58,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
 
   List<String> _portraits = const [];
   bool _portraitMode = _portraitModePreference;
+  bool _portraitLoading = true;
   String? _portraitSongKey;
   int _portraitRequestToken = 0;
 
@@ -94,14 +95,19 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     if (song == null) {
       setState(() {
         _portraits = const [];
+        _portraitLoading = false;
       });
       return;
     }
     final cached = _portraitCache[key];
     if (cached != null) {
-      setState(() => _portraits = cached);
+      setState(() {
+        _portraits = cached;
+        _portraitLoading = false;
+      });
       return;
     }
+    setState(() => _portraitLoading = true);
     _loadPortraits(song, key!, token);
   }
 
@@ -113,15 +119,39 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
           _portraitSongKey != key) {
         return;
       }
-      final resolved = List<String>.unmodifiable(portraits);
+      final decoded = <String>[];
+      for (final url in portraits) {
+        final cleanUrl = url.trim();
+        if (cleanUrl.isEmpty) continue;
+        try {
+          await precacheImage(
+            ResizeImage(NetworkImage(cleanUrl), width: 1920),
+            context,
+          );
+          decoded.add(cleanUrl);
+          break;
+        } catch (_) {
+          // Try the next upstream portrait before using the local fallback.
+        }
+      }
+      if (!mounted ||
+          token != _portraitRequestToken ||
+          _portraitSongKey != key) {
+        return;
+      }
+      final resolved = List<String>.unmodifiable(decoded);
       _portraitCache[key] = resolved;
-      setState(() => _portraits = resolved);
+      setState(() {
+        _portraits = resolved;
+        _portraitLoading = false;
+      });
     } catch (_) {
       if (mounted &&
           token == _portraitRequestToken &&
           _portraitSongKey == key) {
         setState(() {
           _portraits = const [];
+          _portraitLoading = false;
         });
       }
     }
@@ -149,6 +179,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
             song: song,
             portraitUrl: _portraits.firstOrNull,
             portraitMode: _portraitMode,
+            portraitLoading: _portraitLoading,
           ),
           SafeArea(
             child: Padding(
@@ -226,17 +257,23 @@ class _BlurredCoverBackground extends StatelessWidget {
     required this.song,
     required this.portraitUrl,
     required this.portraitMode,
+    required this.portraitLoading,
   });
 
   final Song? song;
   final String? portraitUrl;
   final bool portraitMode;
+  final bool portraitLoading;
 
   @override
   Widget build(BuildContext context) {
     final coverUrl = (song?.coverUrl ?? '').trim();
     final portrait = (portraitUrl ?? '').trim();
-    final showPortrait = portraitMode;
+    // While discovery is still running, keep the current artwork (or album
+    // backdrop on first open). The bundled wallpaper is only shown after the
+    // API has definitively returned no usable portrait.
+    final showPortrait =
+        portraitMode && (!portraitLoading || portrait.isNotEmpty);
     final hasCover = coverUrl.isNotEmpty;
     final dark = AppColors.isDark;
     final overlay = dark ? Colors.black : Colors.white;
@@ -441,8 +478,9 @@ class _PortraitTransitionArtworkState extends State<_PortraitTransitionArtwork>
   }
 
   _PortraitSource _initialSource() {
-    final target = _targetSource();
-    return _decodedPortraits.contains(target.key) ? target : _fallbackSource();
+    // Network portraits are decoded before this widget is revealed, so using
+    // the target immediately avoids a one-frame fallback wallpaper flash.
+    return _targetSource();
   }
 
   Future<void> _prepareTarget() async {
@@ -509,11 +547,16 @@ class _PortraitArtwork extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (source.isFallback) {
-      return Image(
-        image: source.provider,
-        fit: BoxFit.cover,
-        gaplessPlayback: true,
-        filterQuality: FilterQuality.medium,
+      return SizedBox.expand(
+        child: Image(
+          image: source.provider,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          alignment: Alignment.center,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+        ),
       );
     }
     return ClipRect(
@@ -1582,7 +1625,7 @@ class _PlaybackControls extends StatelessWidget {
                       ),
                       _PlayControlButton(
                         isPlaying: controller.isPlaying,
-                        disabled: controller.isPreparing,
+                        preparing: controller.isPreparing,
                         onPressed: controller.togglePlay,
                       ),
                       _GlassControlButton(
@@ -1713,12 +1756,12 @@ class _DesktopLyricControlButton extends StatelessWidget {
 class _PlayControlButton extends StatelessWidget {
   const _PlayControlButton({
     required this.isPlaying,
-    required this.disabled,
+    required this.preparing,
     required this.onPressed,
   });
 
   final bool isPlaying;
-  final bool disabled;
+  final bool preparing;
   final VoidCallback onPressed;
 
   @override
@@ -1731,22 +1774,24 @@ class _PlayControlButton extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: disabled ? AppColors.surfaceMuted : AppColors.selected,
+            color: preparing ? AppColors.surfaceMuted : AppColors.selected,
           ),
           child: Material(
             color: Colors.transparent,
             shape: const CircleBorder(),
             child: InkWell(
-              onTap: disabled ? null : onPressed,
+              onTap: preparing ? null : onPressed,
               customBorder: const CircleBorder(),
               child: Center(
-                child: Icon(
-                  isPlaying || disabled
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
-                  color: disabled ? AppColors.faint : AppColors.primary,
-                  size: 26,
-                ),
+                child: preparing
+                    ? const _PreparingDots()
+                    : Icon(
+                        isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: AppColors.primary,
+                        size: 26,
+                      ),
               ),
             ),
           ),
@@ -1754,6 +1799,55 @@ class _PlayControlButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class _PreparingDots extends StatefulWidget {
+  const _PreparingDots();
+
+  @override
+  State<_PreparingDots> createState() => _PreparingDotsState();
+}
+
+class _PreparingDotsState extends State<_PreparingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 720),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, child) {
+      final phase = _controller.value;
+      return SizedBox(
+        width: 20,
+        height: 20,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (index) {
+            final offset = (phase + index / 3) % 1;
+            final opacity = 0.32 + (offset < 0.5 ? offset : 1 - offset) * 1.36;
+            return Container(
+              width: 3.5,
+              height: 3.5,
+              margin: const EdgeInsets.symmetric(horizontal: 1.2),
+              decoration: BoxDecoration(
+                color: AppColors.muted.withValues(alpha: opacity),
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        ),
+      );
+    },
+  );
 }
 
 class _EmptyState extends StatelessWidget {

@@ -22,6 +22,8 @@ class PlayerBar extends StatelessWidget {
     this.onOpenArtist,
     this.onLike,
     this.onAddToPlaylist,
+    required this.desktopLyricsVisible,
+    required this.onDesktopLyricsChanged,
   });
 
   final PlayerController controller;
@@ -32,6 +34,8 @@ class PlayerBar extends StatelessWidget {
   final ValueChanged<Song>? onOpenArtist;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
+  final bool desktopLyricsVisible;
+  final ValueChanged<bool> onDesktopLyricsChanged;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -119,6 +123,8 @@ class PlayerBar extends StatelessWidget {
                             volume: controller.volume,
                             onVolumeChanged: controller.setVolume,
                             qualityController: playbackQualityController,
+                            desktopLyricsVisible: desktopLyricsVisible,
+                            onDesktopLyricsChanged: onDesktopLyricsChanged,
                             onQueuePressed: onQueuePressed,
                           ),
                         ),
@@ -324,6 +330,8 @@ class _ToolSection extends StatelessWidget {
     required this.volume,
     required this.onVolumeChanged,
     required this.qualityController,
+    required this.desktopLyricsVisible,
+    required this.onDesktopLyricsChanged,
     required this.onQueuePressed,
   });
 
@@ -332,6 +340,8 @@ class _ToolSection extends StatelessWidget {
   final double volume;
   final ValueChanged<double> onVolumeChanged;
   final PlaybackQualityController qualityController;
+  final bool desktopLyricsVisible;
+  final ValueChanged<bool> onDesktopLyricsChanged;
   final VoidCallback? onQueuePressed;
 
   @override
@@ -346,6 +356,21 @@ class _ToolSection extends StatelessWidget {
         ),
       PlaybackQualityMenu(controller: qualityController, compact: true),
       const SizedBox(width: 4),
+      _ControlIconButton(
+        tooltip: desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词',
+        onPressed: () => onDesktopLyricsChanged(!desktopLyricsVisible),
+        icon: null,
+        selected: desktopLyricsVisible,
+        child: Text(
+          '词',
+          style: TextStyle(
+            color: desktopLyricsVisible ? AppColors.primary : AppColors.muted,
+            fontSize: 15,
+            height: 1,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
       _HoverVolumeControl(volume: volume, onChanged: onVolumeChanged),
       _ControlIconButton(
         tooltip: '播放队列',
@@ -410,14 +435,7 @@ class _PrimaryPlayButton extends StatelessWidget {
                 : SystemMouseCursors.basic,
             child: Center(
               child: preparing
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.2,
-                        color: AppColors.primary,
-                      ),
-                    )
+                  ? const _PreparingDots()
                   : Icon(
                       isPlaying
                           ? Icons.pause_rounded
@@ -433,11 +451,61 @@ class _PrimaryPlayButton extends StatelessWidget {
   );
 }
 
+class _PreparingDots extends StatefulWidget {
+  const _PreparingDots();
+
+  @override
+  State<_PreparingDots> createState() => _PreparingDotsState();
+}
+
+class _PreparingDotsState extends State<_PreparingDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 720),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+    animation: _controller,
+    builder: (context, child) {
+      final phase = _controller.value;
+      return SizedBox(
+        width: 20,
+        height: 20,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(3, (index) {
+            final offset = (phase + index / 3) % 1;
+            final opacity = 0.32 + (offset < 0.5 ? offset : 1 - offset) * 1.36;
+            return Container(
+              width: 3.5,
+              height: 3.5,
+              margin: const EdgeInsets.symmetric(horizontal: 1.2),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: opacity),
+                shape: BoxShape.circle,
+              ),
+            );
+          }),
+        ),
+      );
+    },
+  );
+}
+
 class _ControlIconButton extends StatelessWidget {
   const _ControlIconButton({
     required this.tooltip,
     required this.onPressed,
-    required this.icon,
+    this.icon,
+    this.child,
     this.iconSize = 21,
     this.selected = false,
     this.size = 42,
@@ -447,7 +515,8 @@ class _ControlIconButton extends StatelessWidget {
 
   final String tooltip;
   final VoidCallback? onPressed;
-  final IconData icon;
+  final IconData? icon;
+  final Widget? child;
   final double iconSize;
   final bool selected;
   final double size;
@@ -461,7 +530,7 @@ class _ControlIconButton extends StatelessWidget {
     mouseCursor: onPressed == null
         ? SystemMouseCursors.basic
         : SystemMouseCursors.click,
-    icon: Icon(icon, size: iconSize),
+    icon: child ?? Icon(icon ?? Icons.circle_outlined, size: iconSize),
     style: IconButton.styleFrom(
       minimumSize: Size(size, size),
       fixedSize: Size(size, size),

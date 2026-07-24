@@ -86,6 +86,7 @@ class _MusicShellState extends State<MusicShell>
   int librarySelectedTab = 0;
   String? detailTitle;
   String? detailSubtitle;
+  String? detailHeaderArtistName;
   String? detailImageUrl;
   List<Song> detailSongs = [];
   List<SearchCatalogItem> detailRelatedItems = [];
@@ -510,6 +511,7 @@ class _MusicShellState extends State<MusicShell>
       setState(() {
         detailTitle = null;
         detailSubtitle = null;
+        detailHeaderArtistName = null;
         detailImageUrl = null;
         detailSongs = [];
         detailRelatedItems = [];
@@ -576,7 +578,10 @@ class _MusicShellState extends State<MusicShell>
     setState(() {
       detailTitle = '每日推荐';
       detailSubtitle = '今天为你准备了 ${songs.length} 首歌';
-      detailImageUrl = null;
+      detailHeaderArtistName = null;
+      detailImageUrl = songs
+          .map((song) => song.coverUrl?.trim() ?? '')
+          .firstWhere((url) => url.isNotEmpty, orElse: () => '');
       detailSongs = songs;
       detailRelatedItems = const [];
       detailRelatedLoadingMore = false;
@@ -603,6 +608,64 @@ class _MusicShellState extends State<MusicShell>
     );
     if (controller.isLoggedIn) {
       await libraryController.ensureLoaded(LibrarySection.songs, refresh: true);
+    }
+  }
+
+  Future<void> _showCreatePlaylist() async {
+    final nameController = TextEditingController();
+    var isPrivate = false;
+    final result = await showDialog<({String name, bool isPrivate})>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => _CreatePlaylistDialog(
+          controller: nameController,
+          isPrivate: isPrivate,
+          onPrivacyChanged: (value) => setDialogState(() => isPrivate = value),
+          onCancel: () => Navigator.of(dialogContext).pop(),
+          onCreate: () {
+            final name = nameController.text.trim();
+            if (name.isNotEmpty) {
+              Navigator.of(
+                dialogContext,
+              ).pop((name: name, isPrivate: isPrivate));
+            }
+          },
+        ),
+      ),
+    );
+    nameController.dispose();
+    if (result == null || !mounted) return;
+    try {
+      await libraryController.createPlaylist(
+        result.name,
+        isPrivate: result.isPrivate,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
+    }
+  }
+
+  Future<void> _confirmDeletePlaylist(MusicPlaylist playlist) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _DeletePlaylistDialog(
+        playlistName: playlist.name,
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        onDelete: () => Navigator.of(dialogContext).pop(true),
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await libraryController.deletePlaylist(playlist);
+      if (detailPlaylist?.listId == playlist.listId && mounted) _popDetail();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
   }
 
@@ -658,6 +721,9 @@ class _MusicShellState extends State<MusicShell>
       _pushCurrentDetail();
       detailTitle = item.title;
       detailSubtitle = item.subtitle;
+      detailHeaderArtistName = item.category == SearchCategory.album
+          ? _navigableArtistName(item.subtitle)
+          : null;
       detailImageUrl = item.imageUrl;
       detailSongs = [];
       detailRelatedItems = [];
@@ -759,6 +825,7 @@ class _MusicShellState extends State<MusicShell>
       _pushCurrentDetail();
       detailTitle = playlist.name;
       detailSubtitle = '${playlist.songCount} 首歌曲';
+      detailHeaderArtistName = null;
       detailImageUrl = playlist.coverUrl;
       detailSongs = [];
       detailRelatedItems = [];
@@ -1111,6 +1178,7 @@ class _MusicShellState extends State<MusicShell>
         identity: detailIdentity,
         title: detailTitle!,
         subtitle: detailSubtitle,
+        headerArtistName: detailHeaderArtistName,
         imageUrl: detailImageUrl,
         songs: detailSongs,
         relatedItems: detailRelatedItems,
@@ -1131,6 +1199,7 @@ class _MusicShellState extends State<MusicShell>
     if (detailHistory.isEmpty) {
       setState(() {
         detailTitle = null;
+        detailHeaderArtistName = null;
         detailPlaylist = null;
         detailCatalogItem = null;
         detailIdentity = null;
@@ -1147,6 +1216,7 @@ class _MusicShellState extends State<MusicShell>
       detailIdentity = previous.identity;
       detailTitle = previous.title;
       detailSubtitle = previous.subtitle;
+      detailHeaderArtistName = previous.headerArtistName;
       detailImageUrl = previous.imageUrl;
       detailSongs = previous.songs;
       detailRelatedItems = previous.relatedItems;
@@ -1240,6 +1310,7 @@ class _MusicShellState extends State<MusicShell>
                               setState(() {
                                 selectedIndex = index;
                                 detailTitle = null;
+                                detailHeaderArtistName = null;
                                 detailPlaylist = null;
                                 detailCatalogItem = null;
                                 detailIdentity = null;
@@ -1265,6 +1336,10 @@ class _MusicShellState extends State<MusicShell>
                     PlayerBar(
                       controller: playerController,
                       playbackQualityController: playbackQualityController,
+                      desktopLyricsVisible: _desktopLyricsVisible,
+                      onDesktopLyricsChanged: (value) {
+                        unawaited(_setDesktopLyricsVisible(value));
+                      },
                       onNowPlayingPressed: playerController.currentSong == null
                           ? null
                           : () => setState(() => showNowPlayingPage = true),
@@ -1450,8 +1525,8 @@ class _MusicShellState extends State<MusicShell>
         onBack: _popDetail,
         onOpenHeaderArtist:
             detailKind == CollectionDetailKind.album &&
-                (detailSubtitle ?? '').trim().isNotEmpty
-            ? () => _openArtistByName(detailSubtitle!.trim())
+                detailHeaderArtistName != null
+            ? () => _openArtistByName(detailHeaderArtistName!)
             : null,
         onPlay: _playSong,
         onLike: _toggleFavorite,
@@ -1459,6 +1534,10 @@ class _MusicShellState extends State<MusicShell>
         onRemoveFromPlaylist:
             detailPlaylist?.kind == MusicPlaylistKind.createdPlaylist
             ? _removeFromDetailPlaylist
+            : null,
+        onDeletePlaylist:
+            detailPlaylist?.kind == MusicPlaylistKind.createdPlaylist
+            ? () => _confirmDeletePlaylist(detailPlaylist!)
             : null,
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
@@ -1484,6 +1563,7 @@ class _MusicShellState extends State<MusicShell>
         onOpenPlaylist: _openPlaylist,
         onOpenCatalog: _openCatalog,
         onLogin: _showLogin,
+        onCreatePlaylist: _showCreatePlaylist,
         selectedTab: librarySelectedTab,
         onTabChanged: (index) => setState(() => librarySelectedTab = index),
       ),
@@ -1535,6 +1615,198 @@ class _MusicShellState extends State<MusicShell>
   }
 }
 
+class _PlaylistDialogFrame extends StatelessWidget {
+  const _PlaylistDialogFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Dialog(
+    backgroundColor: Colors.transparent,
+    insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+    child: Container(
+      width: 420,
+      padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        border: Border.all(color: AppColors.border),
+        boxShadow: AppShadows.popover,
+      ),
+      child: child,
+    ),
+  );
+}
+
+class _CreatePlaylistDialog extends StatelessWidget {
+  const _CreatePlaylistDialog({
+    required this.controller,
+    required this.isPrivate,
+    required this.onPrivacyChanged,
+    required this.onCancel,
+    required this.onCreate,
+  });
+
+  final TextEditingController controller;
+  final bool isPrivate;
+  final ValueChanged<bool> onPrivacyChanged;
+  final VoidCallback onCancel;
+  final VoidCallback onCreate;
+
+  @override
+  Widget build(BuildContext context) => _PlaylistDialogFrame(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '新建歌单',
+          style: TextStyle(
+            color: AppColors.text,
+            fontSize: 20,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '给这组音乐一个名字',
+          style: TextStyle(color: AppColors.muted, fontSize: 13),
+        ),
+        const SizedBox(height: 18),
+        TextField(
+          controller: controller,
+          autofocus: true,
+          maxLength: 40,
+          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w600),
+          decoration: const InputDecoration(counterText: ''),
+          onSubmitted: (_) => onCreate(),
+        ),
+        const SizedBox(height: 12),
+        Material(
+          color: AppColors.surfaceMuted,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          child: InkWell(
+            onTap: () => onPrivacyChanged(!isPrivate),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            mouseCursor: SystemMouseCursors.click,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(AppRadius.sm),
+                    ),
+                    child: Icon(
+                      isPrivate ? Icons.lock_rounded : Icons.public_rounded,
+                      size: 16,
+                      color: AppColors.muted,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '设为私密歌单',
+                          style: TextStyle(
+                            color: AppColors.text,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(value: isPrivate, onChanged: onPrivacyChanged),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: onCancel, child: const Text('取消')),
+            const SizedBox(width: 8),
+            FilledButton(onPressed: onCreate, child: const Text('创建')),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _DeletePlaylistDialog extends StatelessWidget {
+  const _DeletePlaylistDialog({
+    required this.playlistName,
+    required this.onCancel,
+    required this.onDelete,
+  });
+
+  final String playlistName;
+  final VoidCallback onCancel;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) => _PlaylistDialogFrame(
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.danger,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '删除歌单',
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          '“$playlistName”将从你的音乐库移除，此操作无法恢复',
+          style: TextStyle(color: AppColors.muted, height: 1.55),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: onCancel, child: const Text('取消')),
+            const SizedBox(width: 8),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: onDelete,
+              child: const Text('删除'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
 String? _navigableArtistName(String value) {
   final cleaned = value
       .replaceAll(RegExp(r'^[\s/\\|,，、]+|[\s/\\|,，、]+$'), '')
@@ -1562,6 +1834,7 @@ class _DetailSnapshot {
     required this.identity,
     required this.title,
     required this.subtitle,
+    required this.headerArtistName,
     required this.imageUrl,
     required this.songs,
     required this.relatedItems,
@@ -1579,6 +1852,7 @@ class _DetailSnapshot {
   final String? identity;
   final String title;
   final String? subtitle;
+  final String? headerArtistName;
   final String? imageUrl;
   final List<Song> songs;
   final List<SearchCatalogItem> relatedItems;
