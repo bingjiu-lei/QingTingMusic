@@ -608,48 +608,57 @@ class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
       child: Tooltip(
         message: '收起播放页',
-        child: AnimatedContainer(
-          duration: AppMotion.normal,
-          curve: AppMotion.curve,
-          width: 58,
-          height: 58,
-          decoration: BoxDecoration(
-            color: _hovered
-                ? AppColors.surfaceMuted.withValues(
-                    alpha: AppColors.isDark ? 0.72 : 0.78,
-                  )
-                : AppColors.surfaceMuted.withValues(
-                    alpha: AppColors.isDark ? 0.16 : 0.20,
+        child: GestureDetector(
+          onTap: widget.onClose,
+          child: AnimatedScale(
+            scale: _hovered ? 1.06 : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.normal,
+              curve: AppMotion.curve,
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: _hovered
+                    ? (isDark
+                          ? Colors.white.withValues(alpha: 0.18)
+                          : Colors.white.withValues(alpha: 0.85))
+                    : (isDark
+                          ? Colors.white.withValues(alpha: 0.10)
+                          : Colors.white.withValues(alpha: 0.50)),
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withValues(alpha: _hovered ? 0.25 : 0.14)
+                      : Colors.white.withValues(alpha: _hovered ? 0.90 : 0.70),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.shadow.withValues(
+                      alpha: isDark ? 0.25 : 0.10,
+                    ),
+                    blurRadius: _hovered ? 14 : 8,
+                    offset: const Offset(0, 3),
                   ),
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: _hovered
-                  ? AppColors.border.withValues(alpha: 0.48)
-                  : Colors.transparent,
-            ),
-          ),
-          child: IconButton(
-            mouseCursor: SystemMouseCursors.click,
-            style: IconButton.styleFrom(
-              foregroundColor: (_hovered ? AppColors.muted : AppColors.faint)
-                  .withValues(
-                    alpha: _hovered ? 1 : (AppColors.isDark ? 0.74 : 0.62),
-                  ),
-              hoverColor: Colors.transparent,
-              highlightColor: AppColors.primary.withValues(alpha: 0.08),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(13),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 26,
+                  color: _hovered ? AppColors.text : AppColors.muted,
+                ),
               ),
             ),
-            tooltip: '收起播放页',
-            onPressed: widget.onClose,
-            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 24),
           ),
         ),
       ),
@@ -657,7 +666,7 @@ class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
   }
 }
 
-class _PortraitModeButton extends StatelessWidget {
+class _PortraitModeButton extends StatefulWidget {
   const _PortraitModeButton({
     required this.selected,
     required this.available,
@@ -669,25 +678,67 @@ class _PortraitModeButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
+  State<_PortraitModeButton> createState() => _PortraitModeButtonState();
+}
+
+class _PortraitModeButtonState extends State<_PortraitModeButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 42,
-      height: 42,
-      child: IconButton(
-        tooltip: selected ? '切换到专辑封面' : '切换到歌手写真',
-        onPressed: available ? onPressed : null,
-        mouseCursor: available
-            ? SystemMouseCursors.click
-            : SystemMouseCursors.basic,
-        style: IconButton.styleFrom(
-          foregroundColor: selected ? AppColors.primary : AppColors.muted,
-          backgroundColor: Colors.transparent,
-          hoverColor: AppColors.primary.withValues(alpha: 0.10),
-          shape: const CircleBorder(),
-        ),
-        icon: Icon(
-          selected ? Icons.person_rounded : Icons.person_outline_rounded,
-          size: 22,
+    final selected = widget.selected;
+    final available = widget.available;
+    final isDark = AppColors.isDark;
+
+    return Tooltip(
+      message: selected ? '切换到专辑封面' : '切换到歌手写真',
+      child: MouseRegion(
+        cursor: available ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: available ? widget.onPressed : null,
+          child: AnimatedScale(
+            scale: _hovered && available ? 1.06 : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: selected
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12)
+                    : _hovered && available
+                    ? AppColors.primary.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: selected
+                      ? AppColors.primary.withValues(alpha: 0.35)
+                      : _hovered && available
+                      ? Colors.white.withValues(alpha: 0.60)
+                      : Colors.transparent,
+                  width: 1,
+                ),
+              ),
+              child: Center(
+                child: Icon(
+                  selected
+                      ? Icons.person_rounded
+                      : Icons.person_outline_rounded,
+                  size: 22,
+                  color: !available
+                      ? AppColors.faint.withValues(alpha: 0.40)
+                      : selected
+                      ? AppColors.primary
+                      : _hovered
+                      ? AppColors.text
+                      : AppColors.muted,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -781,7 +832,7 @@ class _NowPlayingActions extends StatelessWidget {
   }
 }
 
-class _NowPlayingActionButton extends StatelessWidget {
+class _NowPlayingActionButton extends StatefulWidget {
   const _NowPlayingActionButton({
     required this.tooltip,
     required this.icon,
@@ -797,29 +848,83 @@ class _NowPlayingActionButton extends StatelessWidget {
   final bool selected;
 
   @override
+  State<_NowPlayingActionButton> createState() =>
+      _NowPlayingActionButtonState();
+}
+
+class _NowPlayingActionButtonState extends State<_NowPlayingActionButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return IconButton(
-      tooltip: tooltip,
-      onPressed: onPressed,
-      mouseCursor: onPressed == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      icon: Icon(icon),
-      style: IconButton.styleFrom(
-        minimumSize: Size(size, size),
-        fixedSize: Size(size, size),
-        padding: EdgeInsets.zero,
-        iconSize: size < 36 ? 18 : 20,
-        foregroundColor: selected ? AppColors.favorite : AppColors.muted,
-        disabledForegroundColor: AppColors.faint.withValues(alpha: 0.45),
-        backgroundColor: selected
-            ? Colors.transparent
-            : AppColors.surfaceMuted.withValues(
-                alpha: AppColors.isDark ? 0.34 : 0.46,
+    final enabled = widget.onPressed != null;
+    final selected = widget.selected;
+    final isDark = AppColors.isDark;
+
+    final foregroundColor = !enabled
+        ? AppColors.faint.withValues(alpha: 0.45)
+        : selected
+        ? AppColors.favorite
+        : _hovered
+        ? AppColors.text
+        : AppColors.muted;
+
+    final backgroundColor = selected
+        ? AppColors.favoriteSoft
+        : _hovered && enabled
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.14)
+              : Colors.white.withValues(alpha: 0.55))
+        : Colors.transparent;
+
+    final borderColor = selected
+        ? AppColors.favorite.withValues(alpha: 0.35)
+        : _hovered && enabled
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.16)
+              : Colors.white.withValues(alpha: 0.70))
+        : Colors.transparent;
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: AnimatedScale(
+            scale: _hovered && enabled ? 1.08 : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: backgroundColor,
+                border: Border.all(color: borderColor, width: 1),
+                boxShadow: selected
+                    ? [
+                        BoxShadow(
+                          color: AppColors.favorite.withValues(alpha: 0.18),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : null,
               ),
-        disabledBackgroundColor: AppColors.surfaceMuted.withValues(alpha: 0.22),
-        hoverColor: AppColors.primary.withValues(alpha: 0.10),
-        shape: const CircleBorder(),
+              child: Center(
+                child: Icon(
+                  widget.icon,
+                  size: widget.size < 36 ? 18 : 20,
+                  color: foregroundColor,
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1301,21 +1406,13 @@ class _LyricsPanelState extends State<_LyricsPanel> {
                         style: TextStyle(
                           color: widget.centered
                               ? Colors.white.withValues(
-                                  alpha: active ? 0.86 : 0.58,
+                                  alpha: active ? 0.88 : 0.58,
                                 )
                               : active
-                              ? AppColors.primary.withValues(alpha: 0.82)
+                              ? AppColors.primary.withValues(alpha: 0.85)
                               : AppColors.faint,
                           fontSize: active ? 12 : 11,
                           fontWeight: FontWeight.w500,
-                          shadows: widget.centered
-                              ? const [
-                                  Shadow(
-                                    color: Color(0x99000000),
-                                    blurRadius: 8,
-                                  ),
-                                ]
-                              : null,
                         ),
                       ),
                     ],
@@ -1450,16 +1547,13 @@ class _KaraokeLine extends StatelessWidget {
     final style = TextStyle(
       fontFamily: 'NotoSansSC',
       color: centered
-          ? Colors.white.withValues(alpha: active ? 0.96 : 0.66)
+          ? Colors.white.withValues(alpha: active ? 0.98 : 0.66)
           : active
           ? AppColors.text
           : AppColors.muted.withValues(alpha: 0.82),
       fontSize: active ? 22 : 17,
       fontWeight: active ? FontWeight.w800 : FontWeight.w500,
       height: 1.24,
-      shadows: centered
-          ? const [Shadow(color: Color(0xB3000000), blurRadius: 10)]
-          : null,
     );
     if (!active || !line.hasExactTiming || centered) {
       return Text(

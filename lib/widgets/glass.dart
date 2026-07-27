@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -7,9 +6,9 @@ import '../theme/app_theme.dart';
 
 /// 液态玻璃面板。
 ///
-/// [blur] 为 null 时不做真实背景模糊(用于静止背景上的玻璃,零额外开销);
-/// 传入 [AppGlass.blurChrome] / [AppGlass.blurOverlay] 时启用 BackdropFilter,
-/// 只应该用在会覆盖动态内容的常驻栏与浮层上。
+/// [blur] 启用 BackdropFilter 模糊背景；
+/// [showHighlight] 渲染顶部柔和微光高光；
+/// [showBorder] 渲染 1px 半透明玻璃边框。
 class GlassSurface extends StatelessWidget {
   const GlassSurface({
     super.key,
@@ -67,16 +66,18 @@ class GlassSurface extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         borderRadius: shape,
-        boxShadow: shadows,
-        border: showBorder ? Border.all(color: AppGlass.border) : null,
+        boxShadow: shadows ?? AppShadows.soft,
+        border: showBorder
+            ? Border.all(color: AppGlass.border.withValues(alpha: 0.40))
+            : null,
       ),
       child: core,
     );
   }
 }
 
-/// 玻璃胶囊分段标签,选中丸子滑动跟随。
-/// 统一取代原先分散在库页/详情页/搜索页的三套私有 tab 实现。
+/// 轻量柔和胶囊分段标签。
+/// 与侧边栏导航风格完全统一，平滑舒适，非侵入式。
 class GlassTabBar extends StatelessWidget {
   const GlassTabBar({
     super.key,
@@ -94,69 +95,26 @@ class GlassTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (tabs.isEmpty) return const SizedBox.shrink();
-    // Keep tab text on the same 14px rhythm as the song title column. The
-    // compact variant only shrinks its horizontal padding, not the type.
-    const fontSize = 14.0;
-    final measureStyle = AppTypography.style(fontSize, 600);
-    var maxLabelWidth = 0.0;
-    for (final label in tabs) {
-      final painter = TextPainter(
-        text: TextSpan(text: label, style: measureStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      maxLabelWidth = math.max(maxLabelWidth, painter.width);
-    }
-    final segmentWidth = (maxLabelWidth + (dense ? 22 : 28)).ceilToDouble();
-    final segmentHeight = dense ? 34.0 : 36.0;
-    final index = selectedIndex.clamp(0, tabs.length - 1);
 
-    return GlassSurface(
-      radius: AppRadius.lg,
-      tint: AppGlass.surfaceSoft,
-      padding: const EdgeInsets.all(3),
-      showHighlight: false,
-      child: SizedBox(
-        width: segmentWidth * tabs.length,
-        height: segmentHeight,
-        child: Stack(
-          children: [
-            AnimatedPositioned(
-              duration: AppMotion.normal,
-              curve: AppMotion.curve,
-              left: index * segmentWidth,
-              top: 0,
-              bottom: 0,
-              width: segmentWidth,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: AppGlass.thumb,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.shadow.withValues(
-                        alpha: AppColors.isDark ? 0.22 : 0.28,
-                      ),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Row(
-              children: [
-                for (var i = 0; i < tabs.length; i++)
-                  _GlassTabCell(
-                    label: tabs[i],
-                    width: segmentWidth,
-                    fontSize: fontSize,
-                    selected: i == index,
-                    onTap: i == index ? null : () => onChanged(i),
-                  ),
-              ],
+    final tabRadius = BorderRadius.circular(AppRadius.lg);
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < tabs.length; i++) ...[
+            if (i > 0) SizedBox(width: dense ? 4 : 6),
+            _GlassTabCell(
+              label: tabs[i],
+              dense: dense,
+              selected: i == selectedIndex,
+              pillRadius: tabRadius,
+              onTap: i == selectedIndex ? null : () => onChanged(i),
             ),
           ],
-        ),
+        ],
       ),
     );
   }
@@ -165,16 +123,16 @@ class GlassTabBar extends StatelessWidget {
 class _GlassTabCell extends StatefulWidget {
   const _GlassTabCell({
     required this.label,
-    required this.width,
-    required this.fontSize,
+    required this.dense,
     required this.selected,
+    required this.pillRadius,
     required this.onTap,
   });
 
   final String label;
-  final double width;
-  final double fontSize;
+  final bool dense;
   final bool selected;
+  final BorderRadius pillRadius;
   final VoidCallback? onTap;
 
   @override
@@ -186,11 +144,25 @@ class _GlassTabCellState extends State<_GlassTabCell> {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.selected
+    final selected = widget.selected;
+    final isDark = AppColors.isDark;
+
+    final backgroundColor = selected
+        ? (isDark
+              ? AppColors.primary.withValues(alpha: 0.18)
+              : AppColors.primary.withValues(alpha: 0.08))
+        : _hovered
+        ? (isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : AppColors.primary.withValues(alpha: 0.04))
+        : Colors.transparent;
+
+    final textColor = selected
         ? AppColors.primaryPressed
         : _hovered
         ? AppColors.text
         : AppColors.muted;
+
     return MouseRegion(
       cursor: widget.onTap == null
           ? MouseCursor.defer
@@ -200,20 +172,26 @@ class _GlassTabCellState extends State<_GlassTabCell> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: widget.onTap,
-        child: SizedBox(
-          width: widget.width,
-          height: double.infinity,
-          child: Center(
-            child: AnimatedDefaultTextStyle(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              style: AppTypography.style(
-                widget.fontSize,
-                widget.selected ? 600 : 500,
-                color: color,
-              ),
-              child: Text(widget.label, maxLines: 1),
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.dense ? 14 : 18,
+            vertical: widget.dense ? 6 : 8,
+          ),
+          decoration: BoxDecoration(
+            borderRadius: widget.pillRadius,
+            color: backgroundColor,
+          ),
+          child: AnimatedDefaultTextStyle(
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            style: AppTypography.style(
+              14,
+              selected ? 600 : 500,
+              color: textColor,
             ),
+            child: Text(widget.label, maxLines: 1),
           ),
         ),
       ),

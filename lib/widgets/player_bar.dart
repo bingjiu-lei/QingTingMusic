@@ -40,7 +40,7 @@ class PlayerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: controller,
+    animation: Listenable.merge([controller, controller.progress]),
     builder: (context, _) {
       final song = controller.currentSong;
       final duration = controller.duration == Duration.zero && song != null
@@ -404,7 +404,7 @@ IconData _playbackModeIcon(PlaybackMode mode) => switch (mode) {
   PlaybackMode.shuffle => Icons.shuffle_rounded,
 };
 
-class _PrimaryPlayButton extends StatelessWidget {
+class _PrimaryPlayButton extends StatefulWidget {
   const _PrimaryPlayButton({
     required this.isPlaying,
     required this.preparing,
@@ -418,48 +418,88 @@ class _PrimaryPlayButton extends StatelessWidget {
   final VoidCallback onPressed;
 
   @override
-  Widget build(BuildContext context) => Semantics(
-    button: true,
-    label: isPlaying ? '暂停' : '播放',
-    child: Tooltip(
-      message: preparing
-          ? '正在准备'
-          : isPlaying
-          ? '暂停'
-          : '播放',
-      child: AnimatedContainer(
-        duration: AppMotion.fast,
-        width: 46,
-        height: 46,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: enabled ? AppColors.selected : AppColors.surfaceMuted,
-        ),
-        child: Material(
-          color: Colors.transparent,
-          shape: const CircleBorder(),
-          child: InkWell(
-            onTap: !enabled || preparing ? null : onPressed,
-            customBorder: const CircleBorder(),
-            mouseCursor: enabled && !preparing
-                ? SystemMouseCursors.click
-                : SystemMouseCursors.basic,
-            child: Center(
-              child: preparing
-                  ? const _PreparingDots()
-                  : Icon(
-                      isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: enabled ? AppColors.primary : AppColors.faint,
-                      size: 27,
-                    ),
+  State<_PrimaryPlayButton> createState() => _PrimaryPlayButtonState();
+}
+
+class _PrimaryPlayButtonState extends State<_PrimaryPlayButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.enabled;
+    final preparing = widget.preparing;
+    final isPlaying = widget.isPlaying;
+    final isDark = AppColors.isDark;
+
+    return Semantics(
+      button: true,
+      label: isPlaying ? '暂停' : '播放',
+      child: Tooltip(
+        message: preparing
+            ? '正在准备'
+            : isPlaying
+            ? '暂停'
+            : '播放',
+        child: MouseRegion(
+          cursor: enabled && !preparing
+              ? SystemMouseCursors.click
+              : SystemMouseCursors.basic,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() {
+            _hovered = false;
+            _pressed = false;
+          }),
+          child: GestureDetector(
+            onTapDown: enabled && !preparing
+                ? (_) => setState(() => _pressed = true)
+                : null,
+            onTapUp: enabled && !preparing
+                ? (_) => setState(() => _pressed = false)
+                : null,
+            onTapCancel: () => setState(() => _pressed = false),
+            onTap: enabled && !preparing ? widget.onPressed : null,
+            child: AnimatedScale(
+              scale: _pressed ? 0.94 : (_hovered && enabled ? 1.07 : 1.0),
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              child: AnimatedContainer(
+                duration: AppMotion.fast,
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: enabled ? AppColors.primary : AppColors.surfaceMuted,
+                  boxShadow: enabled
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(
+                              alpha: isDark ? 0.28 : 0.18,
+                            ),
+                            blurRadius: _hovered ? 10 : 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Center(
+                  child: preparing
+                      ? const _PreparingDots()
+                      : Icon(
+                          isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: enabled ? Colors.white : AppColors.faint,
+                          size: 25,
+                        ),
+                ),
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _PreparingDots extends StatefulWidget {
@@ -500,7 +540,7 @@ class _PreparingDotsState extends State<_PreparingDots>
               height: 3.5,
               margin: const EdgeInsets.symmetric(horizontal: 1.2),
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: opacity),
+                color: Colors.white.withValues(alpha: opacity.clamp(0.2, 1.0)),
                 shape: BoxShape.circle,
               ),
             );
@@ -511,7 +551,7 @@ class _PreparingDotsState extends State<_PreparingDots>
   );
 }
 
-class _ControlIconButton extends StatelessWidget {
+class _ControlIconButton extends StatefulWidget {
   const _ControlIconButton({
     required this.tooltip,
     required this.onPressed,
@@ -535,28 +575,68 @@ class _ControlIconButton extends StatelessWidget {
   final Color? selectedBackgroundColor;
 
   @override
-  Widget build(BuildContext context) => IconButton(
-    tooltip: tooltip,
-    onPressed: onPressed,
-    mouseCursor: onPressed == null
-        ? SystemMouseCursors.basic
-        : SystemMouseCursors.click,
-    icon: child ?? Icon(icon ?? Icons.circle_outlined, size: iconSize),
-    style: IconButton.styleFrom(
-      minimumSize: Size(size, size),
-      fixedSize: Size(size, size),
-      foregroundColor: selected
-          ? selectedColor ?? AppColors.primary
-          : AppColors.muted,
-      disabledForegroundColor: AppColors.faint.withValues(alpha: 0.42),
-      backgroundColor: selected
-          ? selectedBackgroundColor ?? AppColors.selected
-          : Colors.transparent,
-      hoverColor: AppColors.selected,
-      highlightColor: AppColors.surfacePressed,
-      shape: const CircleBorder(),
-    ),
-  );
+  State<_ControlIconButton> createState() => _ControlIconButtonState();
+}
+
+class _ControlIconButtonState extends State<_ControlIconButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null;
+    final selected = widget.selected;
+    final isDark = AppColors.isDark;
+
+    final foregroundColor = !enabled
+        ? AppColors.faint.withValues(alpha: 0.42)
+        : selected
+        ? widget.selectedColor ?? AppColors.primary
+        : _hovered
+        ? AppColors.text
+        : AppColors.muted;
+
+    final backgroundColor = selected
+        ? widget.selectedBackgroundColor ??
+              AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+        : _hovered && enabled
+        ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
+        : Colors.transparent;
+
+    return Tooltip(
+      message: widget.tooltip,
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onPressed,
+          child: AnimatedScale(
+            scale: _hovered && enabled ? 1.05 : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              width: widget.size,
+              height: widget.size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: backgroundColor,
+              ),
+              child: Center(
+                child:
+                    widget.child ??
+                    Icon(
+                      widget.icon ?? Icons.circle_outlined,
+                      size: widget.iconSize,
+                      color: foregroundColor,
+                    ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _HoverVolumeControl extends StatefulWidget {

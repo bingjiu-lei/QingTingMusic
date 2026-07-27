@@ -93,22 +93,19 @@ abstract final class AppGlass {
   static const double blurOverlay = 26;
 
   static Color get surface => AppColors.isDark
-      ? const Color(0xFF18202B).withValues(alpha: 0.62)
-      : Colors.white.withValues(alpha: 0.58);
+      ? const Color(0xFF18202B).withValues(alpha: 0.82)
+      : Colors.white.withValues(alpha: 0.88);
   static Color get surfaceStrong => AppColors.isDark
-      ? const Color(0xFF19222E).withValues(alpha: 0.84)
-      : Colors.white.withValues(alpha: 0.80);
+      ? const Color(0xFF19222E).withValues(alpha: 0.92)
+      : Colors.white.withValues(alpha: 0.94);
   static Color get surfaceSoft => AppColors.isDark
-      ? Colors.white.withValues(alpha: 0.055)
-      : Colors.white.withValues(alpha: 0.44);
-  static Color get border => AppColors.isDark
-      ? Colors.white.withValues(alpha: 0.10)
-      : Colors.white.withValues(alpha: 0.62);
+      ? Colors.white.withValues(alpha: 0.08)
+      : const Color(0xFFF4F7FB).withValues(alpha: 0.85);
+  static Color get border => AppColors.border;
   static Color get highlight =>
-      Colors.white.withValues(alpha: AppColors.isDark ? 0.07 : 0.30);
-  static Color get thumb => AppColors.isDark
-      ? Colors.white.withValues(alpha: 0.13)
-      : Colors.white.withValues(alpha: 0.92);
+      Colors.white.withValues(alpha: AppColors.isDark ? 0.08 : 0.35);
+  static Color get thumb =>
+      AppColors.isDark ? const Color(0xFF242C38) : Colors.white;
 }
 
 /// 统一字体层级。NotoSansSC 是应用原有的品牌字体；所有页面都从同一套

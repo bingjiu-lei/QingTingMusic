@@ -636,8 +636,33 @@ class _GlassRoundButtonState extends State<_GlassRoundButton> {
               decoration: BoxDecoration(
                 color: background,
                 borderRadius: BorderRadius.circular(AppRadius.pill),
+                border: widget.filled && enabled
+                    ? Border.all(
+                        color: Colors.white.withValues(
+                          alpha: _hovered ? 0.52 : 0.32,
+                        ),
+                        width: 1,
+                      )
+                    : Border.all(
+                        color: AppColors.isDark
+                            ? Colors.white.withValues(
+                                alpha: _hovered ? 0.20 : 0.10,
+                              )
+                            : Colors.white.withValues(
+                                alpha: _hovered ? 0.85 : 0.60,
+                              ),
+                        width: 1,
+                      ),
                 boxShadow: widget.filled && enabled
-                    ? AppShadows.primaryGlow
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(
+                            alpha: AppColors.isDark ? 0.40 : 0.28,
+                          ),
+                          blurRadius: _hovered ? 16 : 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ]
                     : null,
               ),
               child: Center(

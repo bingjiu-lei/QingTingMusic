@@ -984,7 +984,7 @@ class _MusicShellState extends State<MusicShell>
         text: '晴听音乐',
         secondary: '选择一首歌开始播放',
         progress: 0,
-        dark: AppColors.isDark,
+        dark: true,
         accent: AppColors.primary.toARGB32(),
       );
       return;
@@ -1024,7 +1024,7 @@ class _MusicShellState extends State<MusicShell>
       text: active?.text ?? (lines.isEmpty ? song.title : '…'),
       secondary: secondary.join('  ·  '),
       progress: active == null ? 0 : _desktopLyricProgress(active, position),
-      dark: AppColors.isDark,
+      dark: true,
       accent: AppColors.primary.toARGB32(),
     );
   }
@@ -1289,17 +1289,7 @@ class _MusicShellState extends State<MusicShell>
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [
-                  AppColors.sidebar,
-                  AppColors.page,
-                  Color.alphaBlend(
-                    AppColors.accent.withValues(
-                      alpha: AppColors.isDark ? 0.055 : 0.035,
-                    ),
-                    AppColors.page,
-                  ),
-                ],
-                stops: const [0, 0.42, 1],
+                colors: [AppColors.sidebar, AppColors.page],
               ),
             ),
             child: Stack(

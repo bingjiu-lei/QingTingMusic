@@ -90,9 +90,7 @@ class _SongPanelState extends State<SongPanel> {
     final hasFilter = _filterText.trim().isNotEmpty;
     return GlassSurface(
       radius: AppRadius.xl,
-      tint: AppColors.surface.withValues(
-        alpha: AppColors.isDark ? 0.72 : 0.80,
-      ),
+      tint: AppColors.surface.withValues(alpha: AppColors.isDark ? 0.72 : 0.80),
       shadows: AppColors.isDark ? null : AppShadows.soft,
       padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
       child: Column(

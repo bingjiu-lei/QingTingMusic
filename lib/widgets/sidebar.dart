@@ -39,21 +39,7 @@ class AppSidebar extends StatelessWidget {
     return Container(
       width: compact ? 70 : 176,
       padding: EdgeInsets.fromLTRB(compact ? 8 : 9, 14, compact ? 8 : 9, 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            AppColors.sidebar,
-            Color.alphaBlend(
-              AppColors.primary.withValues(
-                alpha: AppColors.isDark ? 0.035 : 0.018,
-              ),
-              AppColors.sidebar,
-            ),
-          ],
-        ),
-      ),
+      decoration: BoxDecoration(color: AppColors.sidebar),
       child: Column(
         children: [
           _Brand(
@@ -173,8 +159,10 @@ class _NavigationItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark;
+    final pillRadius = BorderRadius.circular(AppRadius.lg);
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Tooltip(
@@ -184,25 +172,37 @@ class _NavigationItem extends StatelessWidget {
           curve: AppMotion.curve,
           height: 46,
           decoration: BoxDecoration(
-            color: selected ? AppColors.selected : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            color: selected
+                ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
+                : Colors.transparent,
+            borderRadius: pillRadius,
             border: Border.all(
               color: selected
-                  ? AppColors.primary.withValues(
-                      alpha: AppColors.isDark ? 0.24 : 0.12,
-                    )
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.38 : 0.22)
                   : Colors.transparent,
+              width: 1,
             ),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(
+                        alpha: isDark ? 0.16 : 0.08,
+                      ),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
           child: Material(
             color: Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: pillRadius,
             child: InkWell(
               onTap: onTap,
               mouseCursor: SystemMouseCursors.click,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              hoverColor: AppColors.surfaceHover.withValues(
-                alpha: AppColors.isDark ? 0.56 : 0.74,
+              borderRadius: pillRadius,
+              hoverColor: AppColors.primary.withValues(
+                alpha: isDark ? 0.08 : 0.05,
               ),
               child: Row(
                 mainAxisAlignment: compact
@@ -227,6 +227,7 @@ class _NavigationItem extends StatelessWidget {
                         color: selected
                             ? AppColors.primaryPressed
                             : AppColors.text,
+                        letterSpacing: selected ? 0.2 : 0,
                       ),
                     ),
                   ],
@@ -285,11 +286,9 @@ class _AccountDock extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(
-          alpha: AppColors.isDark ? 0.46 : 0.68,
-        ),
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(AppRadius.lg),
-        border: Border.all(color: AppColors.border.withValues(alpha: 0.72)),
+        border: Border.all(color: AppColors.border),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: SizedBox(

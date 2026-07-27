@@ -187,21 +187,17 @@ void RenderDesktopLyricWindow(HWND hwnd) {
   const float scale = LyricScale(hwnd);
 
   if (g_lyric.hover_amount > 0.01) {
-    const BYTE panel_alpha = static_cast<BYTE>(
-        (g_lyric.dark ? 142 : 172) * g_lyric.hover_amount);
+    const BYTE panel_alpha = static_cast<BYTE>(142 * g_lyric.hover_amount);
     Gdiplus::GraphicsPath panel;
     AddRoundedRectPath(
         panel,
         Gdiplus::RectF(1.0f * scale, 1.0f * scale, width - 2.0f * scale,
                        height - 2.0f * scale),
         14.0f * scale);
-    Gdiplus::SolidBrush panel_brush(
-        g_lyric.dark ? Gdiplus::Color(panel_alpha, 20, 24, 31)
-                     : Gdiplus::Color(panel_alpha, 245, 247, 251));
+    Gdiplus::SolidBrush panel_brush(Gdiplus::Color(panel_alpha, 20, 24, 31));
     graphics.FillPath(&panel_brush, &panel);
     Gdiplus::Pen panel_border(
-        g_lyric.dark ? Gdiplus::Color(static_cast<BYTE>(72 * g_lyric.hover_amount), 255, 255, 255)
-                     : Gdiplus::Color(static_cast<BYTE>(52 * g_lyric.hover_amount), 73, 87, 107),
+        Gdiplus::Color(static_cast<BYTE>(72 * g_lyric.hover_amount), 255, 255, 255),
         1.0f * scale);
     graphics.DrawPath(&panel_border, &panel);
   }
@@ -223,12 +219,8 @@ void RenderDesktopLyricWindow(HWND hwnd) {
                                 width - 56.0f * scale, 30.0f * scale);
   Gdiplus::Font title_font(active_family, 28.0f * scale,
                            Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-  Gdiplus::SolidBrush title_brush(
-      g_lyric.dark ? Gdiplus::Color(245, 244, 247, 251)
-                   : Gdiplus::Color(245, 61, 70, 84));
-  Gdiplus::SolidBrush title_shadow(
-      g_lyric.dark ? Gdiplus::Color(94, 0, 0, 0)
-                   : Gdiplus::Color(106, 255, 255, 255));
+  Gdiplus::SolidBrush title_brush(Gdiplus::Color(245, 244, 247, 251));
+  Gdiplus::SolidBrush title_shadow(Gdiplus::Color(110, 0, 0, 0));
   Gdiplus::RectF title_shadow_rect = title_rect;
   title_shadow_rect.Offset(0.65f * scale, 0.85f * scale);
   graphics.DrawString(g_lyric.text.c_str(), -1, &title_font,
@@ -250,12 +242,8 @@ void RenderDesktopLyricWindow(HWND hwnd) {
     Gdiplus::Font secondary_font(active_family, 17.0f * scale,
                                  Gdiplus::FontStyleRegular,
                                  Gdiplus::UnitPixel);
-    Gdiplus::SolidBrush secondary_brush(
-        g_lyric.dark ? Gdiplus::Color(220, 188, 197, 211)
-                     : Gdiplus::Color(220, 104, 116, 134));
-    Gdiplus::SolidBrush secondary_shadow(
-        g_lyric.dark ? Gdiplus::Color(72, 0, 0, 0)
-                     : Gdiplus::Color(84, 255, 255, 255));
+    Gdiplus::SolidBrush secondary_brush(Gdiplus::Color(220, 188, 197, 211));
+    Gdiplus::SolidBrush secondary_shadow(Gdiplus::Color(85, 0, 0, 0));
     Gdiplus::RectF secondary_shadow_rect = secondary_rect;
     secondary_shadow_rect.Offset(0.5f * scale, 0.6f * scale);
     graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
