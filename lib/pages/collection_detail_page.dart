@@ -4,6 +4,7 @@ import '../models/song.dart';
 import '../models/search_catalog_item.dart';
 import '../theme/app_theme.dart';
 import '../widgets/album_art.dart';
+import '../widgets/glass.dart';
 import '../widgets/song_panel.dart';
 
 enum CollectionDetailKind { playlist, artist, album }
@@ -112,15 +113,12 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   mouseCursor: SystemMouseCursors.click,
                   onPressed: widget.onBack,
                   style: IconButton.styleFrom(
-                    backgroundColor: AppColors.surfaceMuted.withValues(
-                      alpha: AppColors.isDark ? 0.54 : 0.72,
-                    ),
+                    backgroundColor: AppGlass.surface,
                     hoverColor: AppColors.surfaceHover,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.md),
-                    ),
+                    side: BorderSide(color: AppGlass.border),
+                    shape: const CircleBorder(),
                   ),
-                  icon: Icon(Icons.arrow_back_rounded, size: 24),
+                  icon: Icon(Icons.arrow_back_rounded, size: 22),
                 ),
               ),
               SizedBox(width: 10),
@@ -134,11 +132,12 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       widget.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: AppTypography.style(
+                        25,
+                        800,
                         color: AppColors.text,
-                        fontSize: 25,
-                        fontWeight: FontWeight.w800,
                         height: 1.16,
+                        letterSpacing: 0.2,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -202,19 +201,17 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
             ],
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              for (var index = 0; index < tabs.length; index++) ...[
-                _DetailTab(
-                  label: tabs[index],
-                  selected: selectedTab == index,
-                  onTap: () => widget.onTabChanged(index),
-                ),
-                if (index != tabs.length - 1) SizedBox(width: 8),
-              ],
-            ],
-          ),
-          const SizedBox(height: 6),
+          if (tabs.length > 1) ...[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: GlassTabBar(
+                tabs: tabs,
+                selectedIndex: selectedTab,
+                onChanged: widget.onTabChanged,
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
           Expanded(
             child: widget.isLoading
                 ? const _DetailLoadingPlaceholder()
@@ -444,64 +441,74 @@ class _CatalogGridState extends State<_CatalogGrid> {
           ),
           delegate: SliverChildBuilderDelegate((context, index) {
             final item = widget.items[index];
-            return Material(
-              color: AppColors.surface,
-              borderRadius: BorderRadius.circular(AppRadius.lg),
-              child: InkWell(
-                onTap: () => widget.onTap(item),
+            final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+            return Container(
+              decoration: BoxDecoration(
+                color: AppGlass.surface,
                 borderRadius: BorderRadius.circular(AppRadius.lg),
-                hoverColor: AppColors.surfaceHover,
-                mouseCursor: SystemMouseCursors.click,
-                child: Padding(
-                  padding: EdgeInsets.all(10),
-                  child: Row(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(AppRadius.sm),
-                        child: Container(
-                          width: 50,
-                          height: 50,
-                          color: AppColors.surfaceMuted,
-                          child: item.imageUrl == null
-                              ? Icon(
-                                  Icons.album_rounded,
-                                  color: AppColors.muted,
-                                )
-                              : Image.network(
-                                  item.imageUrl!,
-                                  fit: BoxFit.cover,
+                border: Border.all(color: AppGlass.border),
+              ),
+              child: Material(
+                color: Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                child: InkWell(
+                  onTap: () => widget.onTap(item),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  hoverColor: AppColors.surfaceHover,
+                  mouseCursor: SystemMouseCursors.click,
+                  child: Padding(
+                    padding: EdgeInsets.all(10),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
+                          child: Container(
+                            width: 50,
+                            height: 50,
+                            color: AppColors.surfaceMuted,
+                            child: item.imageUrl == null
+                                ? Icon(
+                                    Icons.album_rounded,
+                                    color: AppColors.muted,
+                                  )
+                                : Image.network(
+                                    item.imageUrl!,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: (50 * pixelRatio).round(),
+                                    gaplessPlayback: true,
+                                  ),
+                          ),
+                        ),
+                        SizedBox(width: 11),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.text,
+                                  fontWeight: FontWeight.w600,
                                 ),
-                        ),
-                      ),
-                      SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              item.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.text,
-                                fontWeight: FontWeight.w600,
                               ),
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              item.subtitle,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 12,
+                              SizedBox(height: 4),
+                              Text(
+                                item.subtitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 12,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -562,58 +569,6 @@ class _CatalogGridState extends State<_CatalogGrid> {
   }
 }
 
-class _DetailTab extends StatelessWidget {
-  const _DetailTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: selected ? AppColors.selected : Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        hoverColor: AppColors.surfaceHover,
-        mouseCursor: SystemMouseCursors.click,
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-          child: Column(
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? AppColors.text : AppColors.muted,
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: 7),
-              AnimatedContainer(
-                duration: AppMotion.fast,
-                curve: AppMotion.curve,
-                width: selected ? 22 : 0,
-                height: 2,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _FacetGrid extends StatelessWidget {
   const _FacetGrid({
     required this.songs,
@@ -661,46 +616,59 @@ class _FacetGrid extends StatelessWidget {
       itemCount: values.length,
       itemBuilder: (context, index) {
         final song = values[index];
-        return Material(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: InkWell(
-            onTap: onTap == null ? null : () => onTap!(song),
+        final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+        return Container(
+          decoration: BoxDecoration(
+            color: AppGlass.surface,
             borderRadius: BorderRadius.circular(AppRadius.lg),
-            hoverColor: AppColors.surfaceHover,
-            mouseCursor: onTap == null
-                ? SystemMouseCursors.basic
-                : SystemMouseCursors.click,
-            child: Padding(
-              padding: EdgeInsets.all(10),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(artists ? 25 : 6),
-                    child: Container(
-                      width: 50,
-                      height: 50,
-                      color: AppColors.surfaceMuted,
-                      child: artists
-                          ? Icon(Icons.person_rounded, color: AppColors.muted)
-                          : song.coverUrl == null
-                          ? Icon(Icons.album_rounded, color: AppColors.muted)
-                          : Image.network(song.coverUrl!, fit: BoxFit.cover),
-                    ),
-                  ),
-                  SizedBox(width: 11),
-                  Expanded(
-                    child: Text(
-                      artists ? song.artist : song.album,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w600,
+            border: Border.all(color: AppGlass.border),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: InkWell(
+              onTap: onTap == null ? null : () => onTap!(song),
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              hoverColor: AppColors.surfaceHover,
+              mouseCursor: onTap == null
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.click,
+              child: Padding(
+                padding: EdgeInsets.all(10),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(artists ? 25 : 6),
+                      child: Container(
+                        width: 50,
+                        height: 50,
+                        color: AppColors.surfaceMuted,
+                        child: artists
+                            ? Icon(Icons.person_rounded, color: AppColors.muted)
+                            : song.coverUrl == null
+                            ? Icon(Icons.album_rounded, color: AppColors.muted)
+                            : Image.network(
+                                song.coverUrl!,
+                                fit: BoxFit.cover,
+                                cacheWidth: (50 * pixelRatio).round(),
+                                gaplessPlayback: true,
+                              ),
                       ),
                     ),
-                  ),
-                ],
+                    SizedBox(width: 11),
+                    Expanded(
+                      child: Text(
+                        artists ? song.artist : song.album,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),

@@ -3,6 +3,7 @@ import 'package:flutter/rendering.dart';
 
 import '../models/song.dart';
 import '../theme/app_theme.dart';
+import 'glass.dart';
 import 'list_scroll_actions.dart';
 import 'song_row.dart';
 import 'smooth_mouse_scroll.dart';
@@ -73,10 +74,9 @@ class _SongPanelState extends State<SongPanel> {
     }).toList();
   }
 
-  int? get _currentIndex {
+  int? _currentIndexIn(List<Song> songs) {
     final current = widget.currentSong;
     if (current == null) return null;
-    final songs = _visibleSongs;
     for (var i = 0; i < songs.length; i++) {
       if (songs[i].id == current.id) return i;
     }
@@ -88,16 +88,13 @@ class _SongPanelState extends State<SongPanel> {
     final itemExtent = widget.compactRows ? 59.0 : 67.0;
     final visibleSongs = _visibleSongs;
     final hasFilter = _filterText.trim().isNotEmpty;
-    return Container(
-      padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(
-          alpha: AppColors.isDark ? 0.78 : 0.86,
-        ),
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppColors.isDark ? null : AppShadows.soft,
+    return GlassSurface(
+      radius: AppRadius.xl,
+      tint: AppColors.surface.withValues(
+        alpha: AppColors.isDark ? 0.72 : 0.80,
       ),
+      shadows: AppColors.isDark ? null : AppShadows.soft,
+      padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -132,9 +129,7 @@ class _SongPanelState extends State<SongPanel> {
                           highlightColor: AppColors.primary.withValues(
                             alpha: 0.14,
                           ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(9),
-                          ),
+                          shape: const CircleBorder(),
                         ),
                       ),
               ),
@@ -281,7 +276,7 @@ class _SongPanelState extends State<SongPanel> {
                       ),
                       ListScrollActions(
                         controller: _scrollController,
-                        currentIndex: _currentIndex,
+                        currentIndex: _currentIndexIn(visibleSongs),
                         itemExtent: itemExtent,
                       ),
                     ],

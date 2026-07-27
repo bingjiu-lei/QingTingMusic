@@ -95,17 +95,20 @@ class _SongRowState extends State<SongRow> {
                               size: 20,
                             ),
                           )
+                        : active
+                        ? Icon(
+                            Icons.graphic_eq_rounded,
+                            key: const ValueKey('row-eq'),
+                            color: AppColors.primary,
+                            size: 16,
+                          )
                         : Text(
                             '${widget.index + 1}'.padLeft(2, '0'),
                             key: const ValueKey('row-index'),
                             style: TextStyle(
-                              color: active
-                                  ? AppColors.primary
-                                  : AppColors.faint,
+                              color: AppColors.faint,
                               fontSize: 11,
-                              fontWeight: active
-                                  ? FontWeight.w700
-                                  : FontWeight.w400,
+                              fontWeight: FontWeight.w400,
                             ),
                           ),
                   ),
@@ -233,7 +236,7 @@ class _SongRowState extends State<SongRow> {
               SizedBox(width: 8),
               Text(
                 formatDuration(widget.song.duration),
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
+                style: AppTypography.timeCode(12, color: AppColors.muted),
               ),
               SizedBox(width: 8),
             ],

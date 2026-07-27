@@ -1042,6 +1042,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
   void initState() {
     super.initState();
     widget.controller.addListener(_handleControllerChanged);
+    widget.controller.progress.addListener(_handleProgressChanged);
     _load();
   }
 
@@ -1050,7 +1051,9 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleControllerChanged);
+      oldWidget.controller.progress.removeListener(_handleProgressChanged);
       widget.controller.addListener(_handleControllerChanged);
+      widget.controller.progress.addListener(_handleProgressChanged);
     }
     if (oldWidget.song.id != widget.song.id ||
         oldWidget.song.hash != widget.song.hash) {
@@ -1063,6 +1066,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleControllerChanged);
+    widget.controller.progress.removeListener(_handleProgressChanged);
     _layerControlsTimer?.cancel();
     _scrollController.dispose();
     super.dispose();
@@ -1081,6 +1085,10 @@ class _LyricsPanelState extends State<_LyricsPanel> {
 
   void _handleControllerChanged() {
     _syncActiveLine();
+  }
+
+  void _handleProgressChanged() {
+    if (mounted) _syncActiveLine();
   }
 
   Future<void> _load() async {

@@ -51,10 +51,14 @@ class MusicSearchController extends ChangeNotifier {
   Future<void> updateKeyword(String value) async {
     keyword = value;
     hasSearched = false;
+    isLoading = false;
     results = const [];
     catalogResults = const [];
     errorText = null;
     requiresLogin = false;
+    // 关键词已变化，作废仍在途的搜索请求，避免旧搜索完成后回写结果，
+    // 造成界面状态(未搜索)与数据(旧结果)不一致。
+    _searchRequest++;
     final query = value.trim();
     final request = ++_suggestionRequest;
     if (query.isEmpty) {
@@ -93,31 +97,38 @@ class MusicSearchController extends ChangeNotifier {
     try {
       if (category == SearchCategory.song) {
         final cached = _songCache[query];
-        results = _usableSongCache(cached)
+        final songs = _usableSongCache(cached)
             ? cached!
             : await repository.searchSongs(query);
+        // 请求已被更新的搜索作废时不回写，避免先发后至覆盖新结果。
+        if (request != _searchRequest) return;
+        results = songs;
         if (results.isNotEmpty) _songCache[query] = results;
         unawaited(cacheService.save(_songCache, _catalogCache));
         catalogResults = const [];
       } else {
         final key = '${category.name}:$query';
         final cached = _catalogCache[key];
-        catalogResults = cached != null && cached.isNotEmpty
+        final items = cached != null && cached.isNotEmpty
             ? cached
             : await _loadCatalog(query, category);
         if (request != _searchRequest) return;
+        catalogResults = items;
         if (catalogResults.isNotEmpty) _catalogCache[key] = catalogResults;
         unawaited(cacheService.save(_songCache, _catalogCache));
         results = const [];
       }
     } on AuthenticationRequiredException {
+      if (request != _searchRequest) return;
       results = const [];
       requiresLogin = true;
       errorText = '登录后即可搜索完整歌曲';
     } on KugouApiException catch (error) {
+      if (request != _searchRequest) return;
       results = const [];
       errorText = error.message;
     } catch (_) {
+      if (request != _searchRequest) return;
       results = const [];
       errorText = '搜索失败，请稍后重试';
     } finally {
@@ -242,7 +253,11 @@ class MusicSearchController extends ChangeNotifier {
   }
 
   Future<void> useHistory(String value) async {
-    await updateKeyword(value);
+    // 直接搜索，跳过 updateKeyword 的联想防抖链路(250ms 延迟 + 联想请求)；
+    // 同时作废在途联想请求，防止其结果在搜索后回显。
+    _suggestionRequest++;
+    keyword = value;
+    suggestions = const [];
     await search(value);
   }
 

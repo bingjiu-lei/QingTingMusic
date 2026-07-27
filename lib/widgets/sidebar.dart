@@ -61,7 +61,7 @@ class AppSidebar extends StatelessWidget {
             isDark: isDark,
             onToggleTheme: onToggleTheme,
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 24),
           for (var index = 0; index < primaryItems.length; index++)
             _NavigationItem(
               icon: primaryItems[index].$1,
@@ -99,61 +99,60 @@ class _Brand extends StatelessWidget {
   final VoidCallback onToggleTheme;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: EdgeInsets.zero,
-    child: SizedBox(
-      height: 48,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Tooltip(
-            message: isDark ? '切换到浅色模式' : '切换到深色模式',
-            child: Material(
-              color: Colors.transparent,
+  Widget build(BuildContext context) => SizedBox(
+    height: 48,
+    child: Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Tooltip(
+          message: isDark ? '切换到浅色模式' : '切换到深色模式',
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: InkWell(
+              onTap: onToggleTheme,
+              mouseCursor: SystemMouseCursors.click,
               borderRadius: BorderRadius.circular(AppRadius.lg),
-              child: InkWell(
-                onTap: onToggleTheme,
-                mouseCursor: SystemMouseCursors.click,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                hoverColor: AppColors.selected,
-                child: Padding(
-                  padding: const EdgeInsets.all(3),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(AppRadius.lg),
-                    child: AnimatedSwitcher(
-                      duration: AppMotion.normal,
-                      child: Image.asset(
-                        isDark
-                            ? 'assets/images/app_icon_dark.png'
-                            : 'assets/images/app_icon_light.png',
-                        key: ValueKey(isDark),
-                        width: 42,
-                        height: 42,
-                        fit: BoxFit.cover,
-                      ),
+              hoverColor: AppColors.selected,
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  child: AnimatedSwitcher(
+                    duration: AppMotion.normal,
+                    child: Image.asset(
+                      isDark
+                          ? 'assets/images/app_icon_dark.png'
+                          : 'assets/images/app_icon_light.png',
+                      key: ValueKey(isDark),
+                      width: 42,
+                      height: 42,
+                      cacheWidth: 126,
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          if (!compact) ...[
-            const SizedBox(width: 9),
-            Flexible(
-              child: Text(
-                '晴听音乐',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                ),
+        ),
+        if (!compact) ...[
+          const SizedBox(width: 9),
+          Flexible(
+            child: Text(
+              '晴听音乐',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.style(
+                17,
+                800,
+                color: AppColors.text,
+                letterSpacing: 0.4,
               ),
             ),
-          ],
+          ),
         ],
-      ),
+      ],
     ),
   );
 }
@@ -174,58 +173,60 @@ class _NavigationItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: Tooltip(
-      message: compact ? label : '',
-      child: AnimatedContainer(
-        duration: AppMotion.fast,
-        curve: AppMotion.curve,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.selected : Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(
-            color: selected
-                ? AppColors.primary.withValues(
-                    alpha: AppColors.isDark ? 0.22 : 0.10,
-                  )
-                : Colors.transparent,
-          ),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: InkWell(
-            onTap: onTap,
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Tooltip(
+        message: compact ? label : '',
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          height: 46,
+          decoration: BoxDecoration(
+            color: selected ? AppColors.selected : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.lg),
-            hoverColor: AppColors.surfaceHover.withValues(alpha: 0.78),
-            child: SizedBox(
-              height: 48,
+            border: Border.all(
+              color: selected
+                  ? AppColors.primary.withValues(
+                      alpha: AppColors.isDark ? 0.24 : 0.12,
+                    )
+                  : Colors.transparent,
+            ),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            child: InkWell(
+              onTap: onTap,
+              mouseCursor: SystemMouseCursors.click,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              hoverColor: AppColors.surfaceHover.withValues(
+                alpha: AppColors.isDark ? 0.56 : 0.74,
+              ),
               child: Row(
                 mainAxisAlignment: compact
                     ? MainAxisAlignment.center
                     : MainAxisAlignment.start,
                 children: [
                   if (!compact) const SizedBox(width: 14),
-                  SizedBox(
-                    width: 24,
-                    child: Icon(
-                      icon,
-                      size: 21,
-                      color: selected ? AppColors.primary : AppColors.muted,
-                    ),
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: selected ? AppColors.primary : AppColors.muted,
                   ),
                   if (!compact) ...[
                     const SizedBox(width: 12),
                     Text(
                       label,
-                      style: TextStyle(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.style(
+                        14,
+                        selected ? 700 : 600,
                         color: selected
                             ? AppColors.primaryPressed
                             : AppColors.text,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w600,
                       ),
                     ),
                   ],
@@ -235,8 +236,8 @@ class _NavigationItem extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AccountDock extends StatelessWidget {
@@ -283,56 +284,58 @@ class _AccountDock extends StatelessWidget {
     }
 
     return Container(
-      height: 58,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(
-          alpha: AppColors.isDark ? 0.48 : 0.72,
+          alpha: AppColors.isDark ? 0.46 : 0.68,
         ),
-        borderRadius: BorderRadius.circular(AppRadius.xl),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
         border: Border.all(color: AppColors.border.withValues(alpha: 0.72)),
       ),
-      child: Row(
-        children: [
-          _Avatar(
-            label: label,
-            avatarUrl: avatarUrl,
-            isLoggedIn: isLoggedIn,
-            onTap: onLogin,
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Tooltip(
-              message: isLoggedIn ? '$label\n$vipTooltip' : '登录晴听音乐',
-              child: InkWell(
-                onTap: onLogin,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: SizedBox(
+        height: 54,
+        child: Row(
+          children: [
+            _Avatar(
+              label: label,
+              avatarUrl: avatarUrl,
+              isLoggedIn: isLoggedIn,
+              onTap: onLogin,
+            ),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Tooltip(
+                message: isLoggedIn ? '$label\n$vipTooltip' : '登录晴听音乐',
+                child: InkWell(
+                  onTap: onLogin,
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.style(
+                          12,
+                          700,
+                          color: AppColors.text,
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          _DockIcon(
-            tooltip: '设置',
-            icon: Icons.settings_rounded,
-            selected: settingsSelected,
-            onPressed: onSettings,
-          ),
-        ],
+            _DockIcon(
+              tooltip: '设置',
+              icon: Icons.settings_rounded,
+              selected: settingsSelected,
+              onPressed: onSettings,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -352,30 +355,37 @@ class _Avatar extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: isLoggedIn ? '账户' : '登录',
-    child: InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: Container(
-        width: 38,
-        height: 38,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: AppColors.selected,
-          border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
+  Widget build(BuildContext context) {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    return Tooltip(
+      message: isLoggedIn ? '账户' : '登录',
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 38,
+          height: 38,
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AppColors.selected,
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.16),
+            ),
+          ),
+          child: avatarUrl.isNotEmpty
+              ? Image.network(
+                  avatarUrl,
+                  fit: BoxFit.cover,
+                  cacheWidth: (38 * pixelRatio).round(),
+                  gaplessPlayback: true,
+                  errorBuilder: (_, _, _) => _AvatarFallback(label: label),
+                )
+              : _AvatarFallback(label: label),
         ),
-        child: avatarUrl.isNotEmpty
-            ? Image.network(
-                avatarUrl,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => _AvatarFallback(label: label),
-              )
-            : _AvatarFallback(label: label),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _AvatarFallback extends StatelessWidget {
@@ -386,11 +396,7 @@ class _AvatarFallback extends StatelessWidget {
   Widget build(BuildContext context) => Center(
     child: Text(
       label.trim().isEmpty ? '听' : label.trim().characters.first,
-      style: TextStyle(
-        color: AppColors.primaryPressed,
-        fontSize: 14,
-        fontWeight: FontWeight.w900,
-      ),
+      style: AppTypography.style(14, 860, color: AppColors.primaryPressed),
     ),
   );
 }

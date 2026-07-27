@@ -7,6 +7,7 @@ import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
+import '../widgets/glass.dart';
 import '../widgets/page_header.dart';
 import '../widgets/search_catalog_list.dart';
 import '../widgets/song_panel.dart';
@@ -72,23 +73,16 @@ class _LibraryPageState extends State<LibraryPage> {
           const SizedBox(height: 10),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (var index = 0; index < tabs.length; index++) ...[
-                  _LibraryTab(
-                    label: tabs[index].$1,
-                    selected: widget.selectedTab == index,
-                    onTap: () {
-                      widget.onTabChanged(index);
-                      widget.controller.ensureLoaded(tabs[index].$2);
-                    },
-                  ),
-                  if (index != tabs.length - 1) const SizedBox(width: 10),
-                ],
-              ],
+            child: GlassTabBar(
+              tabs: [for (final tab in tabs) tab.$1],
+              selectedIndex: widget.selectedTab,
+              onChanged: (index) {
+                widget.onTabChanged(index);
+                widget.controller.ensureLoaded(tabs[index].$2);
+              },
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Expanded(child: _content()),
         ],
       ),
@@ -251,10 +245,9 @@ class _PlaylistGroups extends StatelessWidget {
 }
 
 class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text, {this.action});
+  const _SectionTitle(this.text);
 
   final String text;
-  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -264,13 +257,8 @@ class _SectionTitle extends StatelessWidget {
         children: [
           Text(
             text,
-            style: TextStyle(
-              color: AppColors.text,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
+            style: AppTypography.style(17, 700, color: AppColors.text),
           ),
-          if (action != null) ...[const SizedBox(width: 8), action!],
         ],
       ),
     );
@@ -319,11 +307,7 @@ class _PlaylistSectionTitleState extends State<_PlaylistSectionTitle> {
         children: [
           Text(
             widget.text,
-            style: TextStyle(
-              color: AppColors.text,
-              fontSize: 17,
-              fontWeight: FontWeight.w700,
-            ),
+            style: AppTypography.style(17, 700, color: AppColors.text),
           ),
           const SizedBox(width: 8),
           IgnorePointer(
@@ -423,121 +407,80 @@ class _PlaylistTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
     return Tooltip(
       message: playlist.name,
       waitDuration: const Duration(milliseconds: 450),
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        child: InkWell(
-          onTap: () => onOpen(playlist),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppGlass.surface,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          hoverColor: AppColors.surfaceHover,
-          mouseCursor: SystemMouseCursors.click,
-          child: Padding(
-            padding: const EdgeInsets.all(10),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  child: Container(
-                    width: 52,
-                    height: 52,
-                    color: AppColors.surfaceMuted,
-                    child: playlist.coverUrl == null
-                        ? Icon(
-                            playlist.kind == MusicPlaylistKind.album
-                                ? Icons.album_rounded
-                                : Icons.queue_music_rounded,
-                            color: AppColors.muted,
-                          )
-                        : Image.network(
-                            playlist.coverUrl!,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, _, _) => Icon(
-                              Icons.queue_music_rounded,
-                              color: AppColors.muted,
-                            ),
-                          ),
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        playlist.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.text,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Text(
-                        '${playlist.songCount} 首歌曲',
-                        style: TextStyle(color: AppColors.muted, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          border: Border.all(color: AppGlass.border),
         ),
-      ),
-    );
-  }
-}
-
-class _LibraryTab extends StatelessWidget {
-  const _LibraryTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.sm),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-        hoverColor: AppColors.surfaceHover,
-        mouseCursor: SystemMouseCursors.click,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: selected ? AppColors.primaryPressed : AppColors.muted,
-                  fontSize: 14,
-                  fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          child: InkWell(
+            onTap: () => onOpen(playlist),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            hoverColor: AppColors.surfaceHover,
+            mouseCursor: SystemMouseCursors.click,
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    child: Container(
+                      width: 52,
+                      height: 52,
+                      color: AppColors.surfaceMuted,
+                      child: playlist.coverUrl == null
+                          ? Icon(
+                              playlist.kind == MusicPlaylistKind.album
+                                  ? Icons.album_rounded
+                                  : Icons.queue_music_rounded,
+                              color: AppColors.muted,
+                            )
+                          : Image.network(
+                              playlist.coverUrl!,
+                              fit: BoxFit.cover,
+                              cacheWidth: (52 * pixelRatio).round(),
+                              gaplessPlayback: true,
+                              errorBuilder: (_, _, _) => Icon(
+                                Icons.queue_music_rounded,
+                                color: AppColors.muted,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          playlist.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.style(
+                            14,
+                            700,
+                            color: AppColors.text,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          '${playlist.songCount} 首歌曲',
+                          style: AppTypography.caption,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 6),
-              AnimatedContainer(
-                duration: AppMotion.fast,
-                curve: AppMotion.curve,
-                width: selected ? 20 : 0,
-                height: 2.5,
-                decoration: BoxDecoration(
-                  color: AppColors.primary,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -561,8 +504,9 @@ class _SoftLoading extends StatelessWidget {
         child: Container(
           height: 64,
           decoration: BoxDecoration(
-            color: AppColors.surface,
-            borderRadius: BorderRadius.circular(8),
+            color: AppGlass.surfaceSoft,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(color: AppGlass.border),
           ),
         ),
       ),

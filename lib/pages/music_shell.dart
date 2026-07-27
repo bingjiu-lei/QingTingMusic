@@ -151,6 +151,7 @@ class _MusicShellState extends State<MusicShell>
       recentSongsService: RecentSongsService(),
       playbackStateService: PlaybackStateService(),
     )..addListener(_handlePlayerChanged);
+    playerController.progress.addListener(_handlePlayerProgress);
     if (Platform.isWindows && widget.enableWindowControls) {
       unawaited(
         _windowsMediaBridge.initialize(
@@ -472,6 +473,13 @@ class _MusicShellState extends State<MusicShell>
     if (shouldRefreshShell) _refresh();
   }
 
+  void _handlePlayerProgress() {
+    // Progress is intentionally kept off ChangeNotifier to avoid rebuilding
+    // the whole shell every tick. Desktop lyrics still need a lightweight
+    // cadence so the highlighted line follows the audio clock.
+    _scheduleDesktopLyricsSync();
+  }
+
   Future<void> _maintainFmQueue(Song song) async {
     if (_lastFmSyncSongId == song.id) return;
     _lastFmSyncSongId = song.id;
@@ -649,6 +657,7 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _confirmDeletePlaylist(MusicPlaylist playlist) async {
+    if (playlist.isDefault) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => _DeletePlaylistDialog(
@@ -1241,6 +1250,7 @@ class _MusicShellState extends State<MusicShell>
       windowManager.removeListener(this);
       trayManager.removeListener(this);
     }
+    playerController.progress.removeListener(_handlePlayerProgress);
     playerController
       ..removeListener(_handlePlayerChanged)
       ..dispose();
@@ -1298,7 +1308,7 @@ class _MusicShellState extends State<MusicShell>
                   children: [
                     AppWindowCaption(
                       enabled: widget.enableWindowControls,
-                      backgroundColor: Colors.transparent,
+                      transparentOverlay: true,
                     ),
                     Expanded(
                       child: Row(
@@ -1536,7 +1546,8 @@ class _MusicShellState extends State<MusicShell>
             ? _removeFromDetailPlaylist
             : null,
         onDeletePlaylist:
-            detailPlaylist?.kind == MusicPlaylistKind.createdPlaylist
+            detailPlaylist?.kind == MusicPlaylistKind.createdPlaylist &&
+                detailPlaylist?.isDefault != true
             ? () => _confirmDeletePlaylist(detailPlaylist!)
             : null,
         onOpenArtist: _openArtistFromSong,

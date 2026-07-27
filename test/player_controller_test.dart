@@ -320,6 +320,54 @@ void main() {
     controller.dispose();
   });
 
+  test('position ticks update progress without notifying listeners', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+
+    await controller.playSong(_song('one'));
+    await Future<void>.delayed(Duration.zero);
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+    audio.seekTo(const Duration(seconds: 5));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(controller.position, const Duration(seconds: 5));
+    expect(controller.progress.value.position, const Duration(seconds: 5));
+    expect(notifications, 0);
+
+    controller.dispose();
+  });
+
+  test('clamps playback speed and reapplies it after opening a song', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+
+    await controller.setPlaybackSpeed(3.0);
+    expect(controller.playbackSpeed, 2.0);
+    await controller.setPlaybackSpeed(0.1);
+    expect(controller.playbackSpeed, 0.5);
+    expect(audio.speedRequests, [2.0, 0.5]);
+
+    await controller.playSong(_song('one'));
+    expect(audio.speedRequests, [2.0, 0.5, 0.5]);
+
+    controller.dispose();
+  });
+
+  test('does not record a song into recents when opening fails', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+
+    await controller.playSong(_song('one'));
+    audio.openError = const KugouApiException('该歌曲无版权或需付费');
+    final played = await controller.playSong(_song('blocked'));
+
+    expect(played, isFalse);
+    expect(controller.recentSongs.map((song) => song.id), ['one']);
+
+    controller.dispose();
+  });
+
   test('hides technical playback notices by default', () async {
     final audio = _FakeAudioPlayerService();
     final controller = PlayerController(audioService: audio);
@@ -371,6 +419,8 @@ class _FakeAudioPlayerService extends AudioPlayerService {
   final _technicalNotices = StreamController<String>.broadcast();
   final List<Song> opened = [];
   final List<Duration> seekRequests = [];
+  final List<double> speedRequests = [];
+  Object? openError;
   bool _completedState = false;
 
   @override
@@ -393,9 +443,19 @@ class _FakeAudioPlayerService extends AudioPlayerService {
 
   @override
   Future<void> open(Song song) async {
+    final error = openError;
+    if (error != null) {
+      openError = null;
+      throw error;
+    }
     _completedState = false;
     opened.add(song);
     _playing.add(true);
+  }
+
+  @override
+  Future<void> setSpeed(double speed) async {
+    speedRequests.add(speed);
   }
 
   void complete() {

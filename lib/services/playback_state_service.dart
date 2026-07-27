@@ -38,6 +38,9 @@ class PlaybackStateService {
         playbackMode: mode,
         shuffleHistory: _readSongIds(json['shuffleHistory']),
         shuffleUpcoming: _readSongIds(json['shuffleUpcoming']),
+        // 旧版本快照没有该字段，缺省回退 1.0 倍速。
+        playbackSpeed:
+            double.tryParse(json['playbackSpeed']?.toString() ?? '') ?? 1.0,
       );
     } catch (_) {
       return null;
@@ -53,6 +56,7 @@ class PlaybackStateService {
       'playbackMode': snapshot.playbackMode.name,
       'shuffleHistory': snapshot.shuffleHistory,
       'shuffleUpcoming': snapshot.shuffleUpcoming,
+      'playbackSpeed': snapshot.playbackSpeed,
     });
   }
 
@@ -67,6 +71,7 @@ class PlaybackSnapshot {
     required this.playbackMode,
     this.shuffleHistory = const [],
     this.shuffleUpcoming = const [],
+    this.playbackSpeed = 1.0,
   });
 
   final List<Song> queue;
@@ -75,6 +80,7 @@ class PlaybackSnapshot {
   final PlaybackMode playbackMode;
   final List<String> shuffleHistory;
   final List<String> shuffleUpcoming;
+  final double playbackSpeed;
 }
 
 List<String> _readSongIds(Object? value) {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
@@ -45,96 +46,106 @@ class PlayerBar extends StatelessWidget {
       final duration = controller.duration == Duration.zero && song != null
           ? song.duration
           : controller.duration;
-      return Container(
-        height: 92,
-        decoration: BoxDecoration(
-          color: AppColors.playerSurface,
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.shadow.withValues(alpha: 0.42),
-              blurRadius: 20,
-              offset: const Offset(0, -6),
+      return ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(
+            sigmaX: AppGlass.blurChrome,
+            sigmaY: AppGlass.blurChrome,
+          ),
+          child: Container(
+            height: 92,
+            decoration: BoxDecoration(
+              color: AppGlass.surfaceStrong,
+              border: Border(top: BorderSide(color: AppGlass.border)),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.shadow.withValues(alpha: 0.42),
+                  blurRadius: 20,
+                  offset: const Offset(0, -6),
+                ),
+              ],
             ),
-          ],
-        ),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 18,
-              top: 0,
-              right: 18,
-              child: PlaybackProgress(
-                position: controller.position,
-                bufferedPosition: controller.bufferedPosition,
-                duration: duration,
-                onSeek: controller.seekByRatio,
-                compact: true,
-              ),
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 18,
+                  top: 0,
+                  right: 18,
+                  child: PlaybackProgress(
+                    position: controller.position,
+                    bufferedPosition: controller.bufferedPosition,
+                    duration: duration,
+                    onSeek: controller.seekByRatio,
+                    compact: true,
+                  ),
+                ),
+                Positioned.fill(
+                  top: 13,
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final compact = constraints.maxWidth < 1080;
+                      return Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: compact ? 14 : 22,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              flex: 4,
+                              child: _TrackSection(
+                                song: song,
+                                compact: compact,
+                                onNowPlayingPressed: onNowPlayingPressed,
+                                onOpenArtist: onOpenArtist,
+                                onOpenAlbum: onOpenAlbum,
+                                onLike: onLike,
+                                onAddToPlaylist: onAddToPlaylist,
+                                playbackMode: controller.playbackMode,
+                                onCyclePlaybackMode:
+                                    controller.cyclePlaybackMode,
+                                subtitle:
+                                    controller.errorText ??
+                                    controller.playbackNotice ??
+                                    (controller.isPreparing
+                                        ? '正在准备播放'
+                                        : song?.artist ?? ''),
+                                subtitleColor: controller.errorText != null
+                                    ? AppColors.danger
+                                    : controller.playbackNotice != null
+                                    ? AppColors.primary
+                                    : AppColors.muted,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 3,
+                              child: _TransportSection(
+                                controller: controller,
+                                song: song,
+                              ),
+                            ),
+                            Expanded(
+                              flex: 4,
+                              child: _ToolSection(
+                                song: song,
+                                onOpenAlbum: onOpenAlbum,
+                                volume: controller.volume,
+                                onVolumeChanged: controller.setVolume,
+                                qualityController: playbackQualityController,
+                                desktopLyricsVisible: desktopLyricsVisible,
+                                onDesktopLyricsChanged: onDesktopLyricsChanged,
+                                onQueuePressed: onQueuePressed,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
-            Positioned.fill(
-              top: 13,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final compact = constraints.maxWidth < 1080;
-                  return Padding(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 14 : 22,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          flex: 4,
-                          child: _TrackSection(
-                            song: song,
-                            compact: compact,
-                            onNowPlayingPressed: onNowPlayingPressed,
-                            onOpenArtist: onOpenArtist,
-                            onOpenAlbum: onOpenAlbum,
-                            onLike: onLike,
-                            onAddToPlaylist: onAddToPlaylist,
-                            playbackMode: controller.playbackMode,
-                            onCyclePlaybackMode: controller.cyclePlaybackMode,
-                            subtitle:
-                                controller.errorText ??
-                                controller.playbackNotice ??
-                                (controller.isPreparing
-                                    ? '正在准备播放'
-                                    : song?.artist ?? ''),
-                            subtitleColor: controller.errorText != null
-                                ? AppColors.danger
-                                : controller.playbackNotice != null
-                                ? AppColors.primary
-                                : AppColors.muted,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 3,
-                          child: _TransportSection(
-                            controller: controller,
-                            song: song,
-                          ),
-                        ),
-                        Expanded(
-                          flex: 4,
-                          child: _ToolSection(
-                            song: song,
-                            onOpenAlbum: onOpenAlbum,
-                            volume: controller.volume,
-                            onVolumeChanged: controller.setVolume,
-                            qualityController: playbackQualityController,
-                            desktopLyricsVisible: desktopLyricsVisible,
-                            onDesktopLyricsChanged: onDesktopLyricsChanged,
-                            onQueuePressed: onQueuePressed,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+          ),
         ),
       );
     },

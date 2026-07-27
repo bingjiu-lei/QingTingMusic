@@ -16,9 +16,18 @@ constexpr UINT kPreviousButton = 4101;
 constexpr UINT kPlayButton = 4102;
 constexpr UINT kNextButton = 4103;
 constexpr UINT kDesktopLyricsCloseButton = 4104;
+constexpr UINT kDesktopLyricsLockChangedNotify = 4105;
+constexpr UINT kDesktopLyricsMovedNotify = 4106;
 constexpr wchar_t kDesktopLyricClass[] = L"QingTingDesktopLyric";
 constexpr UINT_PTR kDesktopLyricTimer = 1;
 constexpr UINT kDesktopLyricFrameMs = 25;
+constexpr int kDesktopLyricControlCount = 5;
+constexpr int kDesktopLyricUnlockControl = 100;
+constexpr double kDesktopLyricMinFontSize = 20.0;
+constexpr double kDesktopLyricMaxFontSize = 44.0;
+constexpr double kDesktopLyricToolbarHeight = 43.0;
+constexpr double kDesktopLyricTitleGap = 4.0;
+constexpr double kDesktopLyricBottomPadding = 20.0;
 
 struct DesktopLyricState {
   HWND window = nullptr;
@@ -40,6 +49,19 @@ struct DesktopLyricState {
   double progress_velocity = 0.0;
   ULONGLONG progress_tick = 0;
   COLORREF accent = RGB(47, 139, 255);
+  // User style pushed from Dart (logical px / ARGB values).
+  double font_size = 28.0;
+  unsigned int text_color = 0;    // ARGB, 0 = auto by theme.
+  unsigned int stroke_color = 0;  // ARGB, 0 = auto by theme.
+  double stroke_width = 1.6;      // Logical px, 0 = stroke disabled.
+  bool locked = false;
+  bool has_saved_position = false;
+  double saved_x = 0.0;  // Logical px, window top-left on screen.
+  double saved_y = 0.0;
+  // Locked-mode interaction runtime state.
+  bool click_through = false;
+  bool cursor_inside = false;
+  bool unlock_hot = false;
   ULONG_PTR gdiplus_token = 0;
   HDC buffer_dc = nullptr;
   HBITMAP buffer_bitmap = nullptr;

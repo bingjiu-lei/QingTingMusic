@@ -36,15 +36,17 @@ class PlayerController extends ChangeNotifier {
         _schedulePlaybackStateSave();
         notifyListeners();
       }),
+      // Progress ticks only update the progress ValueNotifier; they never
+      // call notifyListeners, so per-second ticks don't rebuild the whole UI.
       audioService.positionStream.listen((value) {
         position = value;
+        _syncProgress();
         _watchNearEnd();
         _schedulePlaybackStateSave();
-        notifyListeners();
       }),
       audioService.bufferedPositionStream.listen((value) {
         bufferedPosition = value;
-        notifyListeners();
+        _syncProgress();
       }),
       audioService.durationStream.listen((value) {
         if (value != null && value != Duration.zero) {
@@ -86,6 +88,12 @@ class PlayerController extends ChangeNotifier {
   Duration bufferedPosition = Duration.zero;
   Duration duration = Duration.zero;
   double volume = 0.78;
+  double playbackSpeed = 1.0;
+
+  /// High-frequency progress channel: progress bar and lyrics subscribe to
+  /// this instead of the whole controller.
+  final ValueNotifier<({Duration position, Duration buffered})> progress =
+      ValueNotifier((position: Duration.zero, buffered: Duration.zero));
   String? errorText;
   String? playbackNotice;
   final List<Song> recentSongs = [];
@@ -104,6 +112,18 @@ class PlayerController extends ChangeNotifier {
     final song = currentSong;
     if (song == null) return -1;
     return queue.indexWhere((item) => item.id == song.id);
+  }
+
+  void _syncProgress() {
+    progress.value = (position: position, buffered: bufferedPosition);
+  }
+
+  void _recordRecentSong(Song song) {
+    recentSongs.removeWhere((item) => item.id == song.id);
+    recentSongs.insert(0, song);
+    if (recentSongs.length > RecentSongsService.maxItems) {
+      recentSongs.removeLast();
+    }
   }
 
   Future<void> _handleCompletion() async {
@@ -142,9 +162,16 @@ class PlayerController extends ChangeNotifier {
       position = snapshot.position;
       duration = snapshot.currentSong?.duration ?? Duration.zero;
       bufferedPosition = Duration.zero;
+      _syncProgress();
       isPlaying = false;
       isPreparing = false;
       _hasOpenSource = false;
+      playbackSpeed = snapshot.playbackSpeed.clamp(0.5, 2.0);
+      if (playbackSpeed != 1.0) {
+        try {
+          await audioService.setSpeed(playbackSpeed);
+        } catch (_) {}
+      }
     }
     notifyListeners();
   }
@@ -178,6 +205,7 @@ class PlayerController extends ChangeNotifier {
       currentSong = song;
       position = _safeStartPosition(startPosition, song.duration);
       bufferedPosition = Duration.zero;
+      _syncProgress();
       duration = song.duration;
       isPreparing = true;
       _hasOpenSource = false;
@@ -191,16 +219,12 @@ class PlayerController extends ChangeNotifier {
       }
       currentSong = playableSong;
       _showPlaybackNotice(playableSong.playbackNotice);
-      recentSongs.removeWhere((item) => item.id == playableSong.id);
-      recentSongs.insert(0, playableSong);
-      if (recentSongs.length > RecentSongsService.maxItems) {
-        recentSongs.removeLast();
-      }
 
       if (!audioService.isEnabled) {
         isPlaying = true;
         isPreparing = false;
         _hasOpenSource = true;
+        _recordRecentSong(playableSong);
         unawaited(_saveRecentSongs());
         _schedulePlaybackStateSave(immediate: true);
         notifyListeners();
@@ -217,8 +241,11 @@ class PlayerController extends ChangeNotifier {
           currentSong = playableSong;
           duration = detectedDuration;
           _replaceSongInQueue(playableSong);
-          recentSongs.removeWhere((item) => item.id == playableSong.id);
-          recentSongs.insert(0, playableSong);
+        }
+        if (playbackSpeed != 1.0) {
+          try {
+            await audioService.setSpeed(playbackSpeed);
+          } catch (_) {}
         }
         if (position > Duration.zero) {
           await audioService.seek(position);
@@ -228,6 +255,8 @@ class PlayerController extends ChangeNotifier {
         await PlaybackLogService.write('open', error, stackTrace);
         rethrow;
       }
+      // Only a song that actually opened counts as recently played.
+      _recordRecentSong(playableSong);
       unawaited(_saveRecentSongs());
       _schedulePlaybackStateSave(immediate: true);
       isPreparing = false;
@@ -310,6 +339,7 @@ class PlayerController extends ChangeNotifier {
       isPlaying = false;
       _hasOpenSource = false;
     }
+    _syncProgress();
     _schedulePlaybackStateSave();
     notifyListeners();
   }
@@ -400,6 +430,7 @@ class PlayerController extends ChangeNotifier {
       position = Duration.zero;
       bufferedPosition = Duration.zero;
       duration = Duration.zero;
+      _syncProgress();
       _hasOpenSource = false;
       _schedulePlaybackStateSave(immediate: true);
       notifyListeners();
@@ -432,6 +463,7 @@ class PlayerController extends ChangeNotifier {
     position = Duration.zero;
     bufferedPosition = Duration.zero;
     duration = Duration.zero;
+    _syncProgress();
     errorText = null;
     playbackNotice = null;
     recentSongs.clear();
@@ -576,6 +608,7 @@ class PlayerController extends ChangeNotifier {
     _nearEndTimer?.cancel();
     isPlaying = false;
     position = duration;
+    _syncProgress();
     _hasOpenSource = false;
     _schedulePlaybackStateSave(immediate: true);
     notifyListeners();
@@ -649,6 +682,7 @@ class PlayerController extends ChangeNotifier {
         ? duration
         : target;
     position = safeTarget < Duration.zero ? Duration.zero : safeTarget;
+    _syncProgress();
     _schedulePlaybackStateSave();
     notifyListeners();
     if (audioService.isCompleted && currentSong != null) {
@@ -667,6 +701,15 @@ class PlayerController extends ChangeNotifier {
     volume = value.clamp(0.0, 1.0);
     notifyListeners();
     await audioService.setVolume(volume);
+  }
+
+  Future<void> setPlaybackSpeed(double value) async {
+    final clamped = value.clamp(0.5, 2.0).toDouble();
+    if (playbackSpeed == clamped) return;
+    playbackSpeed = clamped;
+    notifyListeners();
+    await audioService.setSpeed(clamped);
+    _schedulePlaybackStateSave(immediate: true);
   }
 
   void _schedulePlaybackStateSave({bool immediate = false}) {
@@ -694,6 +737,7 @@ class PlayerController extends ChangeNotifier {
           playbackMode: playbackMode,
           shuffleHistory: List.unmodifiable(_shuffleHistory),
           shuffleUpcoming: List.unmodifiable(_shuffleUpcoming),
+          playbackSpeed: playbackSpeed,
         ),
       );
     } catch (error, stackTrace) {
@@ -772,6 +816,7 @@ class PlayerController extends ChangeNotifier {
     _nearEndTimer?.cancel();
     _savePlaybackTimer?.cancel();
     unawaited(_savePlaybackState());
+    progress.dispose();
     audioService.dispose();
     super.dispose();
   }

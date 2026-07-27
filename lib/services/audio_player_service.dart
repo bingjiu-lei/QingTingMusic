@@ -31,6 +31,10 @@ class AudioPlayerService {
   final Map<String, DateTime> _localPlaybackSkips = {};
   int _openGeneration = 0;
   Duration? _openedDuration;
+  Timer? _localGuardTimer;
+  // Set on pause() and cleared on play()/open(): delayed play retries must
+  // never override an explicit user pause.
+  bool _userPaused = false;
 
   Stream<bool> get playingStream =>
       _player?.playingStream ?? const Stream<bool>.empty();
@@ -71,11 +75,13 @@ class AudioPlayerService {
     // previous song knows to cancel itself instead of clobbering the new one.
     _openGeneration++;
     _openedDuration = null;
+    _userPaused = false;
+    _localGuardTimer?.cancel();
     final generation = _openGeneration;
 
     final cacheFile = await _readableCachedFile(song, uri);
     if (cacheFile != null && !_shouldSkipLocalPlayback(song)) {
-      if (await _playLocal(player, cacheFile)) {
+      if (await _playLocal(player, cacheFile, generation)) {
         await _touch(cacheFile);
         unawaited(_cacheManagementService.trimToLimit());
         _technicalNotices.add('已使用本地缓存');
@@ -88,14 +94,19 @@ class AudioPlayerService {
       _skipLocalPlayback(song);
     }
 
-    await _openUri(player, uri, headers: const {_userAgentHeader: _userAgent});
+    await _openUri(
+      player,
+      uri,
+      generation,
+      headers: const {_userAgentHeader: _userAgent},
+    );
     unawaited(_cacheInBackground(song, uri));
   }
 
   /// Starts playback from a cached local file. Only blocks for setAudioSource
   /// (fast for a local file); the play retry and failure watch happen off the
   /// critical path so the caller resumes immediately.
-  Future<bool> _playLocal(AudioPlayer player, File file) async {
+  Future<bool> _playLocal(AudioPlayer player, File file, int generation) async {
     try {
       _openedDuration = await player.setAudioSource(
         AudioSource.uri(Uri.file(file.path)),
@@ -103,6 +114,7 @@ class AudioPlayerService {
       unawaited(player.play());
       unawaited(
         Future<void>.delayed(const Duration(milliseconds: 200)).then((_) {
+          if (generation != _openGeneration || _userPaused) return;
           if (!player.playing) unawaited(player.play());
         }),
       );
@@ -123,8 +135,11 @@ class AudioPlayerService {
     int generation,
   ) {
     var attempts = 0;
-    Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (generation != _openGeneration) {
+    _localGuardTimer?.cancel();
+    _localGuardTimer = Timer.periodic(const Duration(milliseconds: 500), (
+      timer,
+    ) {
+      if (generation != _openGeneration || _userPaused) {
         timer.cancel();
         return;
       }
@@ -156,6 +171,7 @@ class AudioPlayerService {
     await _openUri(
       player,
       onlineUri,
+      generation,
       headers: const {_userAgentHeader: _userAgent},
     );
     unawaited(_cacheInBackground(song, onlineUri));
@@ -163,19 +179,23 @@ class AudioPlayerService {
 
   Future<void> _openUri(
     AudioPlayer player,
-    Uri uri, {
+    Uri uri,
+    int generation, {
     Map<String, String>? headers,
   }) async {
     await player.stop();
     _openedDuration = await player.setAudioSource(
       AudioSource.uri(uri, headers: headers),
     );
+    if (generation != _openGeneration || _userPaused) return;
     unawaited(player.play());
     await Future<void>.delayed(const Duration(milliseconds: 350));
+    if (generation != _openGeneration || _userPaused) return;
     if (!player.playing) {
       unawaited(player.play());
       await Future<void>.delayed(const Duration(milliseconds: 650));
     }
+    if (generation != _openGeneration || _userPaused) return;
     if (!player.playing) {
       unawaited(player.play());
     }
@@ -291,11 +311,17 @@ class AudioPlayerService {
     } catch (_) {}
   }
 
-  Future<void> play() async => _player?.play();
+  Future<void> play() async {
+    _userPaused = false;
+    await _player?.play();
+  }
 
   bool get isPlaying => _player?.playing ?? false;
 
-  Future<void> pause() async => _player?.pause();
+  Future<void> pause() async {
+    _userPaused = true;
+    await _player?.pause();
+  }
 
   Future<void> seek(Duration position) async => _player?.seek(position);
 
@@ -303,7 +329,14 @@ class AudioPlayerService {
     await _player?.setVolume(value.clamp(0.0, 1.0));
   }
 
+  double get speed => _player?.speed ?? 1.0;
+
+  Future<void> setSpeed(double speed) async {
+    await _player?.setSpeed(speed);
+  }
+
   Future<void> dispose() async {
+    _localGuardTimer?.cancel();
     await _eventSubscription?.cancel();
     await _player?.dispose();
     await _errors.close();

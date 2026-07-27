@@ -469,6 +469,9 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   Future<void> deletePlaylist(MusicPlaylist playlist) async {
+    if (playlist.isDefault) {
+      throw const KugouApiException('默认收藏歌单不能删除');
+    }
     await repository.deletePlaylist(playlist);
     playlists = playlists
         .where((item) => item.listId != playlist.listId)

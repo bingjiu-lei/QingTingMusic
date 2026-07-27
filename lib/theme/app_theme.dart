@@ -83,6 +83,73 @@ abstract final class AppColors {
       isDark ? const Color(0xFF171A1F) : Colors.white;
 }
 
+/// 液态玻璃材质 token。
+/// 分两档模糊:常驻界面(播放栏、控制岛)用 blurChrome,
+/// 瞬时浮层(队列、音量、弹窗)用 blurOverlay。
+/// 静止背景上的玻璃(侧栏、标签胶囊)不做真实背景模糊,只用半透明叠色,
+/// 保持每帧模糊数量可控。
+abstract final class AppGlass {
+  static const double blurChrome = 16;
+  static const double blurOverlay = 26;
+
+  static Color get surface => AppColors.isDark
+      ? const Color(0xFF18202B).withValues(alpha: 0.62)
+      : Colors.white.withValues(alpha: 0.58);
+  static Color get surfaceStrong => AppColors.isDark
+      ? const Color(0xFF19222E).withValues(alpha: 0.84)
+      : Colors.white.withValues(alpha: 0.80);
+  static Color get surfaceSoft => AppColors.isDark
+      ? Colors.white.withValues(alpha: 0.055)
+      : Colors.white.withValues(alpha: 0.44);
+  static Color get border => AppColors.isDark
+      ? Colors.white.withValues(alpha: 0.10)
+      : Colors.white.withValues(alpha: 0.62);
+  static Color get highlight =>
+      Colors.white.withValues(alpha: AppColors.isDark ? 0.07 : 0.30);
+  static Color get thumb => AppColors.isDark
+      ? Colors.white.withValues(alpha: 0.13)
+      : Colors.white.withValues(alpha: 0.92);
+}
+
+/// 统一字体层级。NotoSansSC 是应用原有的品牌字体；所有页面都从同一套
+/// 字体和字重映射取值，避免导航、列表与播放页出现不一致的字形。
+abstract final class AppTypography {
+  static TextStyle style(
+    double size,
+    double weight, {
+    double? height,
+    double? letterSpacing,
+    Color? color,
+    List<FontFeature>? features,
+  }) => TextStyle(
+    fontSize: size,
+    fontWeight: _closestWeight(weight),
+    height: height,
+    letterSpacing: letterSpacing,
+    color: color,
+    fontFeatures: features,
+    fontFamily: 'NotoSansSC',
+  );
+
+  static FontWeight _closestWeight(double weight) {
+    final index = ((weight / 100).round() - 1).clamp(0, 8);
+    return FontWeight.values[index];
+  }
+
+  static TextStyle get pageTitle =>
+      style(26, 800, letterSpacing: 0.3, color: AppColors.text);
+  static TextStyle get pageSubtitle => style(13, 450, color: AppColors.muted);
+  static TextStyle get panelTitle => style(16, 700, color: AppColors.text);
+  static TextStyle get body => style(14, 500, color: AppColors.text);
+  static TextStyle get caption => style(12, 500, color: AppColors.muted);
+  static TextStyle timeCode(double size, {Color? color}) => style(
+    size,
+    500,
+    color: color ?? AppColors.faint,
+    features: const [FontFeature.tabularFigures()],
+  );
+}
+
 abstract final class AppRadius {
   static const double xs = 6;
   static const double sm = 8;
@@ -90,6 +157,7 @@ abstract final class AppRadius {
   static const double lg = 12;
   static const double xl = 16;
   static const double xxl = 22;
+  static const double pill = 999;
 }
 
 abstract final class AppMotion {
