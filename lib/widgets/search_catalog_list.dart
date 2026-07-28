@@ -31,7 +31,8 @@ class SearchCatalogList extends StatelessWidget {
 
     return ListView.separated(
       key: storageKey,
-      padding: const EdgeInsets.only(top: 4, bottom: 12),
+      clipBehavior: Clip.none,
+      padding: const EdgeInsets.fromLTRB(6, 4, 6, 12),
       scrollCacheExtent: const ScrollCacheExtent.pixels(720),
       itemCount: items.length,
       separatorBuilder: (_, _) => Divider(

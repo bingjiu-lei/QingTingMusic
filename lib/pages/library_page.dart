@@ -213,12 +213,19 @@ class _PlaylistGroups extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScrollView(
       key: storageKey,
+      clipBehavior: Clip.none,
       slivers: [
-        SliverToBoxAdapter(
-          child: _PlaylistSectionTitle('创建', onCreate: onCreate),
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          sliver: SliverToBoxAdapter(
+            child: _PlaylistSectionTitle('创建', onCreate: onCreate),
+          ),
         ),
         if (created.isNotEmpty) ...[
-          _PlaylistSliver(playlists: created, onOpen: onOpen),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            sliver: _PlaylistSliver(playlists: created, onOpen: onOpen),
+          ),
           const SliverToBoxAdapter(child: SizedBox(height: 22)),
         ] else ...[
           SliverToBoxAdapter(
@@ -235,8 +242,14 @@ class _PlaylistGroups extends StatelessWidget {
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
         ],
         if (collected.isNotEmpty) ...[
-          const SliverToBoxAdapter(child: _SectionTitle('收藏')),
-          _PlaylistSliver(playlists: collected, onOpen: onOpen),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            sliver: const SliverToBoxAdapter(child: _SectionTitle('收藏')),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 6),
+            sliver: _PlaylistSliver(playlists: collected, onOpen: onOpen),
+          ),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 20)),
       ],
@@ -386,6 +399,8 @@ class _PlaylistGrid extends StatelessWidget {
     }
     return GridView.builder(
       key: storageKey,
+      clipBehavior: Clip.none,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
       gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
         maxCrossAxisExtent: 260,
         mainAxisExtent: 80,
