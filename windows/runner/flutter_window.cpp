@@ -160,7 +160,7 @@ double RenderedLyricProgress() {
   if (!g_lyric.playing || g_lyric.progress_tick == 0)
     return std::clamp(g_lyric.progress, 0.0, 1.0);
   const double elapsed = static_cast<double>(std::min<ULONGLONG>(
-                             GetTickCount64() - g_lyric.progress_tick, 260)) /
+                             GetTickCount64() - g_lyric.progress_tick, 140)) /
                          1000.0;
   return std::clamp(g_lyric.progress + g_lyric.progress_velocity * elapsed,
                     0.0, 1.0);
@@ -219,6 +219,21 @@ void RenderDesktopLyricWindow(HWND hwnd) {
                                 width - 56.0f * scale, 30.0f * scale);
   Gdiplus::Font title_font(active_family, 28.0f * scale,
                            Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+  Gdiplus::RectF measured;
+  graphics.MeasureString(g_lyric.text.c_str(), -1, &title_font,
+                         Gdiplus::PointF(0, 0), &format, &measured);
+  float highlight_left =
+      title_rect.X + (std::max)(0.0f, (title_rect.Width - measured.Width) / 2);
+  if (measured.Width > title_rect.Width) {
+    const float overflow = measured.Width - title_rect.Width + 18.0f * scale;
+    const float scroll_offset = std::round(
+        -overflow * static_cast<float>(RenderedLyricProgress()));
+    title_rect.X += (std::min)(0.0f, scroll_offset);
+    title_rect.Width = measured.Width + 60.0f * scale;
+    highlight_left = title_rect.X;
+    format.SetAlignment(Gdiplus::StringAlignmentNear);
+    format.SetTrimming(Gdiplus::StringTrimmingNone);
+  }
   Gdiplus::SolidBrush title_brush(Gdiplus::Color(245, 244, 247, 251));
   Gdiplus::SolidBrush title_shadow(Gdiplus::Color(110, 0, 0, 0));
   Gdiplus::RectF title_shadow_rect = title_rect;
@@ -227,18 +242,21 @@ void RenderDesktopLyricWindow(HWND hwnd) {
                       title_shadow_rect, &format, &title_shadow);
   graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_rect,
                       &format, &title_brush);
-  Gdiplus::RectF measured;
-  graphics.MeasureString(g_lyric.text.c_str(), -1, &title_font, title_rect,
-                         &format, &measured);
   const float highlight_width = static_cast<float>(
       measured.Width * RenderedLyricProgress());
-  graphics.SetClip(Gdiplus::RectF(measured.X, measured.Y, highlight_width,
-                                  measured.Height));
+  graphics.SetClip(Gdiplus::RectF(highlight_left, title_rect.Y,
+                                  highlight_width, title_rect.Height));
   Gdiplus::SolidBrush accent_brush(LyricAccent());
   graphics.DrawString(g_lyric.text.c_str(), -1, &title_font, title_rect,
                       &format, &accent_brush);
   graphics.ResetClip();
   if (!g_lyric.secondary.empty()) {
+    Gdiplus::StringFormat secondary_format;
+    secondary_format.SetAlignment(Gdiplus::StringAlignmentCenter);
+    secondary_format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
+    secondary_format.SetTrimming(
+        Gdiplus::StringTrimmingEllipsisCharacter);
+    secondary_format.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
     Gdiplus::Font secondary_font(active_family, 17.0f * scale,
                                  Gdiplus::FontStyleRegular,
                                  Gdiplus::UnitPixel);
@@ -247,9 +265,10 @@ void RenderDesktopLyricWindow(HWND hwnd) {
     Gdiplus::RectF secondary_shadow_rect = secondary_rect;
     secondary_shadow_rect.Offset(0.5f * scale, 0.6f * scale);
     graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
-                        secondary_shadow_rect, &format, &secondary_shadow);
+                        secondary_shadow_rect, &secondary_format,
+                        &secondary_shadow);
     graphics.DrawString(g_lyric.secondary.c_str(), -1, &secondary_font,
-                        secondary_rect, &format, &secondary_brush);
+                        secondary_rect, &secondary_format, &secondary_brush);
   }
 
   if (g_lyric.hover_amount > 0.02) {
@@ -644,6 +663,7 @@ void FlutterWindow::SetupMediaChannel() {
             };
             const std::wstring next_text = Utf8ToWide(string_value("text"));
             const bool line_changed = next_text != g_lyric.text;
+            const double rendered_progress = RenderedLyricProgress();
             g_lyric.text = next_text;
             g_lyric.secondary = Utf8ToWide(string_value("secondary"));
             const auto progress = args->find(flutter::EncodableValue("progress"));
@@ -659,19 +679,32 @@ void FlutterWindow::SetupMediaChannel() {
                              std::get_if<int64_t>(&progress->second)) {
                 next_progress = static_cast<double>(*progress_64);
               }
-              const ULONGLONG now = GetTickCount64();
-              const double seconds = g_lyric.progress_tick == 0
-                                         ? 0.0
-                                         : static_cast<double>(
-                                               now - g_lyric.progress_tick) /
-                                               1000.0;
-              if (!line_changed && seconds > 0.015 &&
-                  next_progress >= g_lyric.progress) {
-                g_lyric.progress_velocity = std::clamp(
-                    (next_progress - g_lyric.progress) / seconds, 0.0, 1.8);
-              } else {
-                g_lyric.progress_velocity = 0.0;
+              // The Flutter position stream updates less often than this
+              // native window renders. Repeated method-channel updates can
+              // therefore carry the same stale progress and pull a smooth
+              // marquee backwards every frame. Keep the native monotonic
+              // position for small same-line regressions; a real seek or a
+              // new lyric line still replaces it immediately.
+              if (!line_changed && g_lyric.playing &&
+                  next_progress < rendered_progress &&
+                  rendered_progress - next_progress < 0.15) {
+                next_progress = rendered_progress;
               }
+              const ULONGLONG now = GetTickCount64();
+              // Use the velocity of the active timed word from Dart. Limit
+              // extrapolation in RenderedLyricProgress so a delayed Flutter
+              // update cannot run past the current word or a timing gap.
+              const auto velocity_it =
+                  args->find(flutter::EncodableValue("velocity"));
+              double dart_velocity = 0.0;
+              if (velocity_it != args->end()) {
+                if (const auto* v =
+                        std::get_if<double>(&velocity_it->second)) {
+                  dart_velocity = *v;
+                }
+              }
+              g_lyric.progress_velocity =
+                  std::clamp(dart_velocity, 0.0, 12.0);
               g_lyric.progress = std::clamp(next_progress, 0.0, 1.0);
               g_lyric.progress_tick = now;
             }

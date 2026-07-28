@@ -51,6 +51,7 @@ class WindowsMediaBridge {
     required String text,
     String secondary = '',
     required double progress,
+    double velocity = 0.0,
     required bool dark,
     required int accent,
   }) async {
@@ -59,6 +60,7 @@ class WindowsMediaBridge {
       'text': text,
       'secondary': secondary,
       'progress': progress.clamp(0.0, 1.0),
+      'velocity': velocity,
       'dark': dark,
       'accent': accent,
     });

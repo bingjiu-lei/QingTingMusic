@@ -45,7 +45,12 @@ class GlassSurface extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [AppGlass.highlight, Colors.white.withValues(alpha: 0)],
+            colors: [
+              AppGlass.highlight,
+              (AppColors.isDark ? AppColors.primary : Colors.white).withValues(
+                alpha: 0,
+              ),
+            ],
             stops: const [0, 0.55],
           ),
         ),

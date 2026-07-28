@@ -93,17 +93,18 @@ abstract final class AppGlass {
   static const double blurOverlay = 26;
 
   static Color get surface => AppColors.isDark
-      ? const Color(0xFF18202B).withValues(alpha: 0.82)
+      ? const Color(0xFF131922).withValues(alpha: 0.92)
       : Colors.white.withValues(alpha: 0.88);
   static Color get surfaceStrong => AppColors.isDark
-      ? const Color(0xFF19222E).withValues(alpha: 0.92)
+      ? const Color(0xFF151C26).withValues(alpha: 0.95)
       : Colors.white.withValues(alpha: 0.94);
   static Color get surfaceSoft => AppColors.isDark
-      ? Colors.white.withValues(alpha: 0.08)
+      ? const Color(0xFF1C2430).withValues(alpha: 0.70)
       : const Color(0xFFF4F7FB).withValues(alpha: 0.85);
   static Color get border => AppColors.border;
-  static Color get highlight =>
-      Colors.white.withValues(alpha: AppColors.isDark ? 0.08 : 0.35);
+  static Color get highlight => AppColors.isDark
+      ? AppColors.primary.withValues(alpha: 0.08)
+      : Colors.white.withValues(alpha: 0.35);
   static Color get thumb =>
       AppColors.isDark ? const Color(0xFF242C38) : Colors.white;
 }

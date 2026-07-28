@@ -1367,6 +1367,9 @@ class _LyricsPanelState extends State<_LyricsPanel> {
           behavior: HitTestBehavior.opaque,
           onDoubleTap: () async {
             await widget.controller.seek(line.time);
+            if (!widget.controller.isPlaying) {
+              await widget.controller.togglePlay();
+            }
             if (!mounted) return;
             _syncActiveLine(forceScroll: true);
           },
@@ -1555,73 +1558,119 @@ class _KaraokeLine extends StatelessWidget {
       fontWeight: active ? FontWeight.w800 : FontWeight.w500,
       height: 1.24,
     );
-    if (!active || !line.hasExactTiming || centered) {
-      return Text(
-        line.text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: centered ? TextAlign.center : TextAlign.start,
-        style: style,
-      );
-    }
-    final progress = _wordProgress(line, position);
+
+    final progress = resolveLyricProgress(line, position).progress;
+
     return LayoutBuilder(
-      builder: (context, constraints) => Stack(
-        children: [
-          Text(
-            line.text,
+      builder: (context, constraints) {
+        final hasBoundedWidth =
+            constraints.hasBoundedWidth && constraints.maxWidth.isFinite;
+        final maxWidth = hasBoundedWidth
+            ? constraints.maxWidth
+            : double.infinity;
+        var resolvedStyle = style;
+        var tp = TextPainter(
+          text: TextSpan(text: line.text, style: resolvedStyle),
+          maxLines: 1,
+          textDirection: TextDirection.ltr,
+        )..layout();
+
+        // The active line uses a larger font. For long English lyrics that
+        // small size change can push only the final word outside the lyric
+        // column. Scale that line down just enough to keep the full sentence
+        // visible instead of clipping a word while it is being sung.
+        if (active && hasBoundedWidth && tp.width > maxWidth && maxWidth > 0) {
+          // Only make a small correction for a single trailing word. Truly
+          // long lines remain wider than the viewport and continue through
+          // the marquee path below.
+          final scale = ((maxWidth - 8) / tp.width).clamp(0.88, 1.0);
+          resolvedStyle = style.copyWith(
+            fontSize: (style.fontSize ?? 22) * scale,
+          );
+          tp = TextPainter(
+            text: TextSpan(text: line.text, style: resolvedStyle),
             maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: centered ? TextAlign.center : TextAlign.start,
-            style: style.copyWith(
-              color: AppColors.muted.withValues(alpha: 0.5),
-            ),
-          ),
-          ClipRect(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress,
-              child: SizedBox(
-                width: constraints.maxWidth,
-                child: Text(
-                  line.text,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: centered ? TextAlign.center : TextAlign.start,
-                  style: style.copyWith(color: AppColors.text),
+            textDirection: TextDirection.ltr,
+          )..layout();
+        }
+
+        final textWidth = tp.width;
+        final textHeight = tp.height;
+        final effectiveMaxWidth = hasBoundedWidth ? maxWidth : textWidth;
+        final isOverflow = hasBoundedWidth && textWidth > effectiveMaxWidth;
+
+        final baseText = Text(
+          line.text,
+          maxLines: 1,
+          textAlign: centered ? TextAlign.center : TextAlign.start,
+          style: resolvedStyle,
+        );
+
+        Widget child;
+        if (!active || !line.hasExactTiming) {
+          child = baseText;
+        } else {
+          child = Stack(
+            children: [
+              Text(
+                line.text,
+                maxLines: 1,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
+                style: resolvedStyle.copyWith(
+                  color: AppColors.muted.withValues(alpha: 0.5),
+                ),
+              ),
+              ClipRect(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: progress,
+                  child: Text(
+                    line.text,
+                    maxLines: 1,
+                    textAlign: centered ? TextAlign.center : TextAlign.start,
+                    style: resolvedStyle.copyWith(color: AppColors.text),
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
+        if (!isOverflow) {
+          return child;
+        }
+
+        // Long lyric line auto-scroll (marquee) to left
+        final overflowWidth = (textWidth - effectiveMaxWidth + 18.0).clamp(
+          0.0,
+          double.infinity,
+        );
+        final scrollOffset = active
+            ? -overflowWidth * progress.clamp(0.0, 1.0)
+            : 0.0;
+
+        return SizedBox(
+          height: textHeight,
+          child: ClipRect(
+            child: OverflowBox(
+              minWidth: 0,
+              maxWidth: double.infinity,
+              minHeight: textHeight,
+              maxHeight: textHeight,
+              alignment: centered ? Alignment.center : Alignment.centerLeft,
+              child: Transform.translate(
+                offset: Offset(scrollOffset, 0),
+                child: SizedBox(
+                  width: textWidth + 60.0,
+                  height: textHeight,
+                  child: child,
                 ),
               ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
-  }
-
-  double _wordProgress(LyricLine line, Duration position) {
-    final elapsed = position - line.time;
-    if (elapsed <= Duration.zero) return 0;
-    var completedCharacters = 0.0;
-    final totalCharacters = line.words.fold<int>(
-      0,
-      (total, word) => total + word.text.runes.length,
-    );
-    if (totalCharacters == 0) return 0;
-    for (final word in line.words) {
-      final count = word.text.runes.length;
-      if (elapsed >= word.offset + word.duration) {
-        completedCharacters += count;
-        continue;
-      }
-      if (elapsed > word.offset && word.duration > Duration.zero) {
-        final local =
-            (elapsed - word.offset).inMicroseconds /
-            word.duration.inMicroseconds;
-        completedCharacters += count * local.clamp(0.0, 1.0);
-      }
-      break;
-    }
-    return (completedCharacters / totalCharacters).clamp(0.0, 1.0);
   }
 }
 

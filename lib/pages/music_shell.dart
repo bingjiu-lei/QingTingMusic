@@ -106,7 +106,6 @@ class _MusicShellState extends State<MusicShell>
   bool _desktopLyricsVisible = false;
   Timer? _desktopLyricsTimer;
   bool _desktopLyricsSyncing = false;
-  bool _desktopLyricsSyncPending = false;
   String? _lastCoverAccentSongId;
   bool _isFmSession = false;
   String? _lastFmSyncSongId;
@@ -953,24 +952,20 @@ class _MusicShellState extends State<MusicShell>
     if (immediate) _desktopLyricsTimer?.cancel();
     if (_desktopLyricsTimer?.isActive ?? false) return;
     _desktopLyricsTimer = Timer(
-      immediate ? Duration.zero : const Duration(milliseconds: 110),
+      immediate ? Duration.zero : const Duration(milliseconds: 50),
       () => unawaited(_syncDesktopLyrics()),
     );
   }
 
   Future<void> _syncDesktopLyrics() async {
     if (!_desktopLyricsVisible) return;
-    if (_desktopLyricsSyncing) {
-      _desktopLyricsSyncPending = true;
-      return;
-    }
+    if (_desktopLyricsSyncing) return;
     _desktopLyricsSyncing = true;
     try {
       await _performDesktopLyricsSync();
     } finally {
       _desktopLyricsSyncing = false;
-      if (_desktopLyricsSyncPending && _desktopLyricsVisible) {
-        _desktopLyricsSyncPending = false;
+      if (_desktopLyricsVisible) {
         _scheduleDesktopLyricsSync();
       }
     }
@@ -998,8 +993,7 @@ class _MusicShellState extends State<MusicShell>
     if (!_desktopLyricsVisible || playerController.currentSong?.id != song.id) {
       return;
     }
-    final position =
-        playerController.position + const Duration(milliseconds: 70);
+    final position = playerController.position;
     var activeIndex = -1;
     for (var index = 0; index < lines.length; index++) {
       if (lines[index].time <= position) {
@@ -1020,47 +1014,19 @@ class _MusicShellState extends State<MusicShell>
     if (secondary.isEmpty && activeIndex + 1 < lines.length) {
       secondary.add(lines[activeIndex + 1].text);
     }
+
+    final timing = active == null
+        ? const LyricProgressFrame(progress: 0, velocity: 0)
+        : resolveLyricProgress(active, position);
+
     await _windowsMediaBridge.updateDesktopLyrics(
       text: active?.text ?? (lines.isEmpty ? song.title : '…'),
       secondary: secondary.join('  ·  '),
-      progress: active == null ? 0 : _desktopLyricProgress(active, position),
+      progress: timing.progress,
+      velocity: playerController.isPlaying ? timing.velocity : 0,
       dark: true,
       accent: AppColors.primary.toARGB32(),
     );
-  }
-
-  double _desktopLyricProgress(LyricLine line, Duration position) {
-    final elapsed = position - line.time;
-    if (elapsed <= Duration.zero) return 0;
-    if (!line.hasExactTiming) {
-      if (line.duration <= Duration.zero) return 0;
-      return (elapsed.inMicroseconds / line.duration.inMicroseconds).clamp(
-        0.0,
-        1.0,
-      );
-    }
-    var completed = 0.0;
-    final total = line.words.fold<int>(
-      0,
-      (sum, word) => sum + word.text.runes.length,
-    );
-    if (total == 0) return 0;
-    for (final word in line.words) {
-      final count = word.text.runes.length;
-      if (elapsed >= word.offset + word.duration) {
-        completed += count;
-        continue;
-      }
-      if (elapsed > word.offset && word.duration > Duration.zero) {
-        completed +=
-            count *
-            ((elapsed - word.offset).inMicroseconds /
-                    word.duration.inMicroseconds)
-                .clamp(0.0, 1.0);
-      }
-      break;
-    }
-    return (completed / total).clamp(0.0, 1.0);
   }
 
   Future<void> _showAddToPlaylist(Song song) async {

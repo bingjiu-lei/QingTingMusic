@@ -114,81 +114,89 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _searchField() {
     final focused = _focusNode.hasFocus;
+    final isDark = AppColors.isDark;
     return AnimatedContainer(
-      duration: AppMotion.normal,
+      duration: AppMotion.fast,
       curve: AppMotion.curve,
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        boxShadow: focused
-            ? AppShadows.primaryGlow
-            : (AppColors.isDark ? null : AppShadows.soft),
-      ),
-      foregroundDecoration: BoxDecoration(
+        color: focused
+            ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.04)
+            : AppGlass.surface,
         borderRadius: BorderRadius.circular(AppRadius.pill),
         border: Border.all(
-          color: focused ? AppColors.primary : AppGlass.border,
-          width: focused ? 1.4 : 1,
+          color: focused
+              ? AppColors.primary.withValues(alpha: isDark ? 0.42 : 0.28)
+              : AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08),
+          width: 1,
         ),
+        boxShadow: focused
+            ? [
+                BoxShadow(
+                  color: AppColors.primary.withValues(
+                    alpha: isDark ? 0.14 : 0.07,
+                  ),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : (isDark ? null : AppShadows.soft),
       ),
-      child: GlassSurface(
-        radius: AppRadius.pill,
-        showBorder: false,
-        child: TextField(
-          controller: _textController,
-          focusNode: _focusNode,
-          autofocus: true,
-          textInputAction: TextInputAction.search,
-          onTap: () => setState(() {}),
-          onChanged: (value) {
-            widget.controller.updateKeyword(value);
-            setState(() {});
-          },
-          onSubmitted: widget.controller.search,
-          style: AppTypography.style(16, 600, color: AppColors.text),
-          decoration: InputDecoration(
-            hintText: '搜索歌曲、歌单、歌手或专辑',
-            hintStyle: AppTypography.style(16, 500, color: AppColors.faint),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.only(left: 8),
-              child: Icon(
-                Icons.search_rounded,
-                color: focused ? AppColors.primary : AppColors.muted,
-              ),
+      child: TextField(
+        controller: _textController,
+        focusNode: _focusNode,
+        autofocus: true,
+        textInputAction: TextInputAction.search,
+        onTap: () => setState(() {}),
+        onChanged: (value) {
+          widget.controller.updateKeyword(value);
+          setState(() {});
+        },
+        onSubmitted: widget.controller.search,
+        style: AppTypography.style(15.5, 600, color: AppColors.text),
+        decoration: InputDecoration(
+          hintText: '搜索歌曲、歌单、歌手或专辑...',
+          hintStyle: AppTypography.style(15, 500, color: AppColors.faint),
+          prefixIcon: Padding(
+            padding: const EdgeInsets.only(left: 12, right: 4),
+            child: Icon(
+              Icons.search_rounded,
+              color: focused ? AppColors.primary : AppColors.muted,
+              size: 22,
             ),
-            suffixIcon: _textController.text.isEmpty
-                ? null
-                : Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: IconButton(
-                      tooltip: '清空',
-                      constraints: const BoxConstraints.tightFor(
-                        width: 44,
-                        height: 44,
+          ),
+          suffixIcon: _textController.text.isEmpty
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: IconButton(
+                    tooltip: '清空',
+                    constraints: const BoxConstraints.tightFor(
+                      width: 44,
+                      height: 44,
+                    ),
+                    padding: EdgeInsets.zero,
+                    onPressed: _clearSearch,
+                    icon: Container(
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: AppGlass.surfaceSoft,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppGlass.border),
                       ),
-                      padding: EdgeInsets.zero,
-                      onPressed: _clearSearch,
-                      icon: Container(
-                        width: 26,
-                        height: 26,
-                        decoration: BoxDecoration(
-                          color: AppGlass.surfaceSoft,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppGlass.border),
-                        ),
-                        child: Icon(
-                          Icons.close_rounded,
-                          size: 16,
-                          color: AppColors.muted,
-                        ),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: AppColors.muted,
                       ),
                     ),
                   ),
-            filled: false,
-            contentPadding: const EdgeInsets.symmetric(vertical: 16),
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-          ),
+                ),
+          filled: false,
+          contentPadding: const EdgeInsets.symmetric(vertical: 15),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
       ),
     );
@@ -263,7 +271,7 @@ class _SearchPromptShell extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 900),
         child: GlassSurface(
           radius: AppRadius.xl,
-          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           shadows: AppColors.isDark ? null : AppShadows.soft,
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -277,7 +285,7 @@ class _SearchPromptShell extends StatelessWidget {
                     Text(
                       title,
                       style: AppTypography.style(
-                        14,
+                        14.5,
                         750,
                         color: AppColors.text,
                       ),
@@ -296,7 +304,7 @@ class _SearchPromptShell extends StatelessWidget {
   }
 }
 
-class _PromptTile extends StatelessWidget {
+class _PromptTile extends StatefulWidget {
   const _PromptTile({
     required this.value,
     required this.icon,
@@ -312,70 +320,128 @@ class _PromptTile extends StatelessWidget {
   final IconData trailingIcon;
 
   @override
+  State<_PromptTile> createState() => _PromptTileState();
+}
+
+class _PromptTileState extends State<_PromptTile> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.lg),
-        hoverColor: AppColors.surfaceHover.withValues(
-          alpha: AppColors.isDark ? 0.6 : 0.8,
-        ),
-        highlightColor: AppColors.surfacePressed.withValues(
-          alpha: AppColors.isDark ? 0.6 : 0.8,
-        ),
-        mouseCursor: SystemMouseCursors.click,
-        child: SizedBox(
-          height: 48,
-          child: Row(
-            children: [
-              const SizedBox(width: 10),
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      AppColors.primary.withValues(
-                        alpha: AppColors.isDark ? 0.22 : 0.12,
-                      ),
-                      AppColors.accent.withValues(
-                        alpha: AppColors.isDark ? 0.18 : 0.10,
-                      ),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                  border: Border.all(color: AppGlass.border),
-                ),
-                child: Icon(icon, size: 17, color: AppColors.primary),
+    final isDark = AppColors.isDark;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed
+              ? 0.98
+              : _hovered
+              ? 1.01
+              : 1.0,
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            height: 46,
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: _hovered
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.25 : 0.15)
+                    : Colors.transparent,
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.style(14, 600, color: AppColors.text),
-                ),
-              ),
-              if (onRemove == null)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Icon(trailingIcon, color: AppColors.faint, size: 17),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: IconButton(
-                    tooltip: '删除记录',
-                    onPressed: onRemove,
-                    icon: const Icon(Icons.close_rounded, size: 17),
+            ),
+            child: Row(
+              children: [
+                const SizedBox(width: 4),
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.primary.withValues(
+                          alpha: isDark ? 0.25 : 0.14,
+                        ),
+                        AppColors.accent.withValues(
+                          alpha: isDark ? 0.20 : 0.10,
+                        ),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    border: Border.all(
+                      color: AppColors.primary.withValues(
+                        alpha: isDark ? 0.20 : 0.12,
+                      ),
+                    ),
+                  ),
+                  child: Icon(
+                    widget.icon,
+                    size: 16,
+                    color: _hovered ? AppColors.primaryPressed : AppColors.primary,
                   ),
                 ),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    widget.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.style(
+                      14,
+                      _hovered ? 700 : 600,
+                      color: _hovered ? AppColors.primaryPressed : AppColors.text,
+                    ),
+                  ),
+                ),
+                if (widget.onRemove == null)
+                  AnimatedSlide(
+                    offset: _hovered ? const Offset(0.12, 0) : Offset.zero,
+                    duration: AppMotion.fast,
+                    curve: AppMotion.curve,
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: Icon(
+                        widget.trailingIcon,
+                        color: _hovered ? AppColors.primary : AppColors.faint,
+                        size: 16,
+                      ),
+                    ),
+                  )
+                else
+                  Padding(
+                    padding: const EdgeInsets.only(right: 2),
+                    child: IconButton(
+                      tooltip: '删除记录',
+                      onPressed: widget.onRemove,
+                      icon: Icon(
+                        Icons.close_rounded,
+                        size: 16,
+                        color: _hovered ? AppColors.primary : AppColors.muted,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -682,22 +748,31 @@ class _RecentSearchEmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDark ? const Color(0xFFF2F5F8) : const Color(0xFF171A1F);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.60) : const Color(0xFF7A8491);
+
     return Align(
       alignment: const Alignment(0, -0.08),
       child: SizedBox(
         width: 520,
-        height: 250,
+        height: 220,
         child: Stack(
           alignment: Alignment.center,
           children: [
             Positioned(
               left: 72,
               top: 28,
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
                 width: 82,
                 height: 82,
                 decoration: BoxDecoration(
-                  color: AppColors.accent.withValues(alpha: 0.06),
+                  color: AppColors.accent.withValues(
+                    alpha: isDark ? 0.12 : 0.06,
+                  ),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -705,11 +780,14 @@ class _RecentSearchEmptyState extends StatelessWidget {
             Positioned(
               right: 74,
               bottom: 28,
-              child: Container(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
                 width: 108,
                 height: 108,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.06),
+                  color: AppColors.primary.withValues(
+                    alpha: isDark ? 0.12 : 0.06,
+                  ),
                   shape: BoxShape.circle,
                 ),
               ),
@@ -727,7 +805,11 @@ class _RecentSearchEmptyState extends StatelessWidget {
                       colors: [AppColors.primary, AppColors.accent],
                     ),
                     shape: BoxShape.circle,
-                    border: Border.all(color: AppGlass.highlight),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.22)
+                          : AppGlass.highlight,
+                    ),
                     boxShadow: AppShadows.primaryGlow,
                   ),
                   child: const Icon(
@@ -737,25 +819,28 @@ class _RecentSearchEmptyState extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 18),
-                Text(
-                  '下一首喜欢的歌，就从这里找到',
-                  style: AppTypography.style(18, 800, color: AppColors.text),
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeInOut,
+                  style: TextStyle(
+                    fontFamily: 'NotoSansSC',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: textColor,
+                  ),
+                  child: const Text('下一首喜欢的歌，就从这里找到'),
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  '搜索歌曲、歌手、歌单或专辑',
-                  style: AppTypography.style(12, 450, color: AppColors.muted),
-                ),
-                const SizedBox(height: 18),
-                const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _ShortcutHint(keys: 'Ctrl  K', label: '聚焦搜索'),
-                    SizedBox(width: 8),
-                    _ShortcutHint(keys: 'Enter', label: '开始搜索'),
-                    SizedBox(width: 8),
-                    _ShortcutHint(keys: 'Esc', label: '清空'),
-                  ],
+                AnimatedDefaultTextStyle(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Curves.easeInOut,
+                  style: TextStyle(
+                    fontFamily: 'NotoSansSC',
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: mutedColor,
+                  ),
+                  child: const Text('搜索歌曲、歌手、歌单或专辑'),
                 ),
               ],
             ),
@@ -764,30 +849,6 @@ class _RecentSearchEmptyState extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ShortcutHint extends StatelessWidget {
-  const _ShortcutHint({required this.keys, required this.label});
-  final String keys;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => GlassSurface(
-    radius: AppRadius.pill,
-    tint: AppGlass.surfaceSoft,
-    padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-    child: Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(keys, style: AppTypography.style(10, 750, color: AppColors.text)),
-        const SizedBox(width: 6),
-        Text(
-          label,
-          style: AppTypography.style(10, 480, color: AppColors.muted),
-        ),
-      ],
-    ),
-  );
 }
 
 class _SuggestionTile extends StatelessWidget {
