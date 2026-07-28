@@ -399,62 +399,110 @@ class _PlaylistGrid extends StatelessWidget {
   }
 }
 
-class _PlaylistTile extends StatelessWidget {
+class _PlaylistTile extends StatefulWidget {
   const _PlaylistTile({required this.playlist, required this.onOpen});
 
   final MusicPlaylist playlist;
   final ValueChanged<MusicPlaylist> onOpen;
 
   @override
+  State<_PlaylistTile> createState() => _PlaylistTileState();
+}
+
+class _PlaylistTileState extends State<_PlaylistTile> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final playlist = widget.playlist;
     final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final isDark = AppColors.isDark;
+
     return Tooltip(
       message: playlist.name,
       waitDuration: const Duration(milliseconds: 450),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppGlass.surface,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppGlass.border),
-        ),
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: InkWell(
-            onTap: () => onOpen(playlist),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            hoverColor: AppColors.surfaceHover,
-            mouseCursor: SystemMouseCursors.click,
-            child: Padding(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() {
+          _hovered = false;
+          _pressed = false;
+        }),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) => setState(() => _pressed = false),
+          onTapCancel: () => setState(() => _pressed = false),
+          onTap: () => widget.onOpen(playlist),
+          child: AnimatedScale(
+            scale: _pressed
+                ? 0.96
+                : _hovered
+                ? 1.02
+                : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              decoration: BoxDecoration(
+                color: _hovered
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
+                    : AppGlass.surface,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(
+                  color: _hovered
+                      ? AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.18)
+                      : AppGlass.border,
+                ),
+                boxShadow: _hovered
+                    ? [
+                        BoxShadow(
+                          color: AppColors.primary.withValues(
+                            alpha: isDark ? 0.12 : 0.06,
+                          ),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                    : AppColors.isDark
+                    ? null
+                    : AppShadows.soft,
+              ),
               padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.sm),
-                    child: Container(
-                      width: 52,
-                      height: 52,
-                      color: AppColors.surfaceMuted,
-                      child: playlist.coverUrl == null
-                          ? Icon(
-                              playlist.kind == MusicPlaylistKind.album
-                                  ? Icons.album_rounded
-                                  : Icons.queue_music_rounded,
-                              color: AppColors.muted,
-                            )
-                          : Image.network(
-                              playlist.coverUrl!,
-                              fit: BoxFit.cover,
-                              cacheWidth: (52 * pixelRatio).round(),
-                              gaplessPlayback: true,
-                              errorBuilder: (_, _, _) => Icon(
-                                Icons.queue_music_rounded,
+                    child: AnimatedScale(
+                      scale: _hovered ? 1.05 : 1.0,
+                      duration: AppMotion.fast,
+                      curve: AppMotion.curve,
+                      child: Container(
+                        width: 52,
+                        height: 52,
+                        color: AppColors.surfaceMuted,
+                        child: playlist.coverUrl == null
+                            ? Icon(
+                                playlist.kind == MusicPlaylistKind.album
+                                    ? Icons.album_rounded
+                                    : Icons.queue_music_rounded,
                                 color: AppColors.muted,
+                              )
+                            : Image.network(
+                                playlist.coverUrl!,
+                                fit: BoxFit.cover,
+                                cacheWidth: (52 * pixelRatio).round(),
+                                gaplessPlayback: true,
+                                errorBuilder: (_, _, _) => Icon(
+                                  Icons.queue_music_rounded,
+                                  color: AppColors.muted,
+                                ),
                               ),
-                            ),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 11),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -464,16 +512,23 @@ class _PlaylistTile extends StatelessWidget {
                           playlist.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTypography.style(
-                            14,
-                            700,
-                            color: AppColors.text,
+                          style: TextStyle(
+                            color: _hovered
+                                ? AppColors.primaryPressed
+                                : AppColors.text,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 5),
+                        const SizedBox(height: 3),
                         Text(
                           '${playlist.songCount} 首歌曲',
-                          style: AppTypography.caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
                         ),
                       ],
                     ),

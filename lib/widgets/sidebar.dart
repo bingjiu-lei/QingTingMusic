@@ -143,7 +143,7 @@ class _Brand extends StatelessWidget {
   );
 }
 
-class _NavigationItem extends StatelessWidget {
+class _NavigationItem extends StatefulWidget {
   const _NavigationItem({
     required this.icon,
     required this.label,
@@ -159,79 +159,109 @@ class _NavigationItem extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_NavigationItem> createState() => _NavigationItemState();
+}
+
+class _NavigationItemState extends State<_NavigationItem> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark;
     final pillRadius = BorderRadius.circular(AppRadius.lg);
+    final selected = widget.selected;
+    final compact = widget.compact;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Tooltip(
-        message: compact ? label : '',
-        child: AnimatedContainer(
-          duration: AppMotion.fast,
-          curve: AppMotion.curve,
-          height: 46,
-          decoration: BoxDecoration(
-            color: selected
-                ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
-                : Colors.transparent,
-            borderRadius: pillRadius,
-            border: Border.all(
-              color: selected
-                  ? AppColors.primary.withValues(alpha: isDark ? 0.38 : 0.22)
-                  : Colors.transparent,
-              width: 1,
-            ),
-            boxShadow: selected
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(
-                        alpha: isDark ? 0.16 : 0.08,
-                      ),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            borderRadius: pillRadius,
-            child: InkWell(
-              onTap: onTap,
-              mouseCursor: SystemMouseCursors.click,
-              borderRadius: pillRadius,
-              hoverColor: AppColors.primary.withValues(
-                alpha: isDark ? 0.08 : 0.05,
-              ),
-              child: Row(
-                mainAxisAlignment: compact
-                    ? MainAxisAlignment.center
-                    : MainAxisAlignment.start,
-                children: [
-                  if (!compact) const SizedBox(width: 14),
-                  Icon(
-                    icon,
-                    size: 20,
-                    color: selected ? AppColors.primary : AppColors.muted,
+        message: compact ? widget.label : '',
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          onEnter: (_) => setState(() => _hovered = true),
+          onExit: (_) => setState(() {
+            _hovered = false;
+            _pressed = false;
+          }),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => setState(() => _pressed = true),
+            onTapUp: (_) => setState(() => _pressed = false),
+            onTapCancel: () => setState(() => _pressed = false),
+            onTap: widget.onTap,
+            child: AnimatedScale(
+              scale: _pressed
+                  ? 0.96
+                  : _hovered
+                  ? 1.01
+                  : 1.0,
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              child: AnimatedContainer(
+                duration: AppMotion.fast,
+                curve: AppMotion.curve,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: selected
+                      ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
+                      : _hovered
+                      ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.05)
+                      : Colors.transparent,
+                  borderRadius: pillRadius,
+                  border: Border.all(
+                    color: selected
+                        ? AppColors.primary.withValues(alpha: isDark ? 0.38 : 0.22)
+                        : _hovered
+                        ? AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.10)
+                        : Colors.transparent,
+                    width: 1,
                   ),
-                  if (!compact) ...[
-                    const SizedBox(width: 12),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.style(
-                        14,
-                        selected ? 700 : 600,
-                        color: selected
-                            ? AppColors.primaryPressed
-                            : AppColors.text,
-                        letterSpacing: selected ? 0.2 : 0,
-                      ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primary.withValues(
+                              alpha: isDark ? 0.16 : 0.08,
+                            ),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: compact
+                      ? MainAxisAlignment.center
+                      : MainAxisAlignment.start,
+                  children: [
+                    if (!compact) const SizedBox(width: 14),
+                    Icon(
+                      widget.icon,
+                      size: 20,
+                      color: selected
+                          ? AppColors.primary
+                          : _hovered
+                          ? AppColors.text
+                          : AppColors.muted,
                     ),
+                    if (!compact) ...[
+                      const SizedBox(width: 12),
+                      Text(
+                        widget.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.style(
+                          14,
+                          selected ? 700 : 600,
+                          color: selected
+                              ? AppColors.primaryPressed
+                              : AppColors.text,
+                          letterSpacing: selected ? 0.2 : 0,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
           ),

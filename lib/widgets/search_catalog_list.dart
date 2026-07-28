@@ -42,65 +42,119 @@ class SearchCatalogList extends StatelessWidget {
         ),
       ),
       itemBuilder: (context, index) {
-        final item = items[index];
-        return Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(AppRadius.lg),
-          child: InkWell(
-            onTap: () => onSelected(item),
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            hoverColor: AppColors.surfaceHover,
-            mouseCursor: SystemMouseCursors.click,
-            child: SizedBox(
-              height: 64,
-              child: Row(
-                children: [
-                  _CatalogImage(item: item),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Tooltip(
-                          message: item.title,
-                          waitDuration: const Duration(milliseconds: 450),
-                          child: Text(
-                            item.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: AppColors.text,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          item.subtitle,
+        return _CatalogTile(
+          item: items[index],
+          onSelected: onSelected,
+        );
+      },
+    );
+  }
+}
+
+class _CatalogTile extends StatefulWidget {
+  const _CatalogTile({required this.item, required this.onSelected});
+
+  final SearchCatalogItem item;
+  final ValueChanged<SearchCatalogItem> onSelected;
+
+  @override
+  State<_CatalogTile> createState() => _CatalogTileState();
+}
+
+class _CatalogTileState extends State<_CatalogTile> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final isDark = AppColors.isDark;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: () => widget.onSelected(item),
+        child: AnimatedScale(
+          scale: _pressed
+              ? 0.98
+              : _hovered
+              ? 1.01
+              : 1.0,
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            height: 64,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.04)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+            ),
+            child: Row(
+              children: [
+                _CatalogImage(item: item),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Tooltip(
+                        message: item.title,
+                        waitDuration: const Duration(milliseconds: 450),
+                        child: Text(
+                          item.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: AppColors.muted,
-                            fontSize: 12,
+                            color: _hovered
+                                ? AppColors.primaryPressed
+                                : AppColors.text,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        item.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  Icon(
+                ),
+                AnimatedSlide(
+                  offset: _hovered ? const Offset(0.15, 0) : Offset.zero,
+                  duration: AppMotion.fast,
+                  curve: AppMotion.curve,
+                  child: Icon(
                     Icons.chevron_right_rounded,
                     size: 20,
-                    color: AppColors.faint,
+                    color: _hovered ? AppColors.primary : AppColors.faint,
                   ),
-                  const SizedBox(width: 4),
-                ],
-              ),
+                ),
+                const SizedBox(width: 4),
+              ],
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

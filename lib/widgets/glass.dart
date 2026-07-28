@@ -141,6 +141,7 @@ class _GlassTabCell extends StatefulWidget {
 
 class _GlassTabCellState extends State<_GlassTabCell> {
   bool _hovered = false;
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -182,33 +183,48 @@ class _GlassTabCellState extends State<_GlassTabCell> {
           ? MouseCursor.defer
           : SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
         onTap: widget.onTap,
-        child: AnimatedContainer(
+        child: AnimatedScale(
+          scale: _pressed
+              ? 0.96
+              : _hovered
+              ? 1.02
+              : 1.0,
           duration: AppMotion.fast,
           curve: AppMotion.curve,
-          padding: EdgeInsets.symmetric(
-            horizontal: widget.dense ? 14 : 16,
-            vertical: widget.dense ? 6 : 7.5,
-          ),
-          decoration: BoxDecoration(
-            borderRadius: widget.pillRadius,
-            color: backgroundColor,
-            border: Border.all(color: borderColor, width: 1),
-            boxShadow: boxShadow,
-          ),
-          child: AnimatedDefaultTextStyle(
+          child: AnimatedContainer(
             duration: AppMotion.fast,
             curve: AppMotion.curve,
-            style: AppTypography.style(
-              13.5,
-              selected ? 700 : 600,
-              color: textColor,
-              letterSpacing: selected ? 0.2 : 0,
+            padding: EdgeInsets.symmetric(
+              horizontal: widget.dense ? 14 : 16,
+              vertical: widget.dense ? 6 : 7.5,
             ),
-            child: Text(widget.label, maxLines: 1),
+            decoration: BoxDecoration(
+              borderRadius: widget.pillRadius,
+              color: backgroundColor,
+              border: Border.all(color: borderColor, width: 1),
+              boxShadow: boxShadow,
+            ),
+            child: AnimatedDefaultTextStyle(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              style: AppTypography.style(
+                13.5,
+                selected ? 700 : 600,
+                color: textColor,
+                letterSpacing: selected ? 0.2 : 0,
+              ),
+              child: Text(widget.label, maxLines: 1),
+            ),
           ),
         ),
       ),
