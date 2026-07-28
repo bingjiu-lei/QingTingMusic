@@ -60,13 +60,32 @@ class _SongRowState extends State<SongRow> {
           padding: EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: active
-                ? AppColors.selected.withValues(
-                    alpha: AppColors.isDark ? 0.78 : 1,
+                ? AppColors.primary.withValues(
+                    alpha: AppColors.isDark ? 0.20 : 0.10,
                   )
                 : _hovered
                 ? AppColors.surfaceHover
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: active
+                  ? AppColors.primary.withValues(
+                      alpha: AppColors.isDark ? 0.38 : 0.22,
+                    )
+                  : Colors.transparent,
+              width: 1,
+            ),
+            boxShadow: active
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(
+                        alpha: AppColors.isDark ? 0.16 : 0.08,
+                      ),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             children: [
@@ -131,8 +150,12 @@ class _SongRowState extends State<SongRow> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: active ? AppColors.primary : AppColors.text,
-                        fontWeight: FontWeight.w600,
+                        color: active
+                            ? AppColors.primaryPressed
+                            : AppColors.text,
+                        fontWeight: active
+                            ? FontWeight.w700
+                            : FontWeight.w600,
                         fontSize: 14,
                       ),
                     ),

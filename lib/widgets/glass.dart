@@ -148,14 +148,28 @@ class _GlassTabCellState extends State<_GlassTabCell> {
     final isDark = AppColors.isDark;
 
     final backgroundColor = selected
-        ? (isDark
-              ? AppColors.primary.withValues(alpha: 0.18)
-              : AppColors.primary.withValues(alpha: 0.08))
+        ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
         : _hovered
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.06)
-              : AppColors.primary.withValues(alpha: 0.04))
+        ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.05)
         : Colors.transparent;
+
+    final borderColor = selected
+        ? AppColors.primary.withValues(alpha: isDark ? 0.38 : 0.22)
+        : _hovered
+        ? AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.10)
+        : Colors.transparent;
+
+    final boxShadow = selected
+        ? [
+            BoxShadow(
+              color: AppColors.primary.withValues(
+                alpha: isDark ? 0.16 : 0.08,
+              ),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ]
+        : null;
 
     final textColor = selected
         ? AppColors.primaryPressed
@@ -176,20 +190,23 @@ class _GlassTabCellState extends State<_GlassTabCell> {
           duration: AppMotion.fast,
           curve: AppMotion.curve,
           padding: EdgeInsets.symmetric(
-            horizontal: widget.dense ? 14 : 18,
-            vertical: widget.dense ? 6 : 8,
+            horizontal: widget.dense ? 14 : 16,
+            vertical: widget.dense ? 6 : 7.5,
           ),
           decoration: BoxDecoration(
             borderRadius: widget.pillRadius,
             color: backgroundColor,
+            border: Border.all(color: borderColor, width: 1),
+            boxShadow: boxShadow,
           ),
           child: AnimatedDefaultTextStyle(
             duration: AppMotion.fast,
             curve: AppMotion.curve,
             style: AppTypography.style(
-              14,
-              selected ? 600 : 500,
+              13.5,
+              selected ? 700 : 600,
               color: textColor,
+              letterSpacing: selected ? 0.2 : 0,
             ),
             child: Text(widget.label, maxLines: 1),
           ),
