@@ -1037,16 +1037,22 @@ class _MusicShellState extends State<MusicShell>
       }
       await libraryController.ensureLoaded(LibrarySection.playlists);
       if (!mounted) return;
-      await showDialog<void>(
+      final editable = libraryController.editablePlaylists;
+      final containingIds = libraryController.getPlaylistIdsContainingSongSync(
+        song,
+        editable,
+      );
+      final selectedPlaylist = await showDialog<MusicPlaylist>(
         context: context,
         builder: (_) => AddToPlaylistDialog(
           song: song,
-          playlists: libraryController.editablePlaylists,
-          onSelected: (playlist) {
-            unawaited(_addToPlaylist(playlist, song));
-          },
+          playlists: editable,
+          containingPlaylistIds: containingIds,
         ),
       );
+      if (selectedPlaylist != null && mounted) {
+        await _addToPlaylist(selectedPlaylist, song);
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -1073,11 +1079,29 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _removeFromDetailPlaylist(Song song) async {
     final playlist = detailPlaylist;
     if (playlist == null) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => _RemoveSongFromPlaylistDialog(
+        songTitle: song.title,
+        playlistName: playlist.name,
+        onCancel: () => Navigator.of(dialogContext).pop(false),
+        onRemove: () => Navigator.of(dialogContext).pop(true),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
     try {
       await libraryController.removeFromPlaylist(playlist, song);
       setState(() {
         detailSongs = detailSongs.where((item) => item.id != song.id).toList();
       });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已从 ${playlist.name} 移除 ${song.title}')),
+        );
+      }
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -1706,6 +1730,77 @@ class _CreatePlaylistDialog extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _RemoveSongFromPlaylistDialog extends StatelessWidget {
+  const _RemoveSongFromPlaylistDialog({
+    required this.songTitle,
+    required this.playlistName,
+    required this.onCancel,
+    required this.onRemove,
+  });
+
+  final String songTitle;
+  final String playlistName;
+  final VoidCallback onCancel;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) => _PlaylistDialogFrame(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Icon(
+                    Icons.delete_outline_rounded,
+                    color: AppColors.danger,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  '从歌单移除',
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 20,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              '确定要将“$songTitle”从歌单“$playlistName”中移除吗？',
+              style: TextStyle(color: AppColors.muted, height: 1.55),
+            ),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(onPressed: onCancel, child: const Text('取消')),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: onRemove,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.danger,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('确认移除'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
 }
 
 class _DeletePlaylistDialog extends StatelessWidget {

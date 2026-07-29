@@ -10,12 +10,18 @@ class AddToPlaylistDialog extends StatelessWidget {
     super.key,
     required this.song,
     required this.playlists,
-    required this.onSelected,
+    this.containingPlaylistIds = const {},
+    this.onSelected,
   });
 
   final Song song;
   final List<MusicPlaylist> playlists;
-  final ValueChanged<MusicPlaylist> onSelected;
+  final Set<String> containingPlaylistIds;
+  final ValueChanged<MusicPlaylist>? onSelected;
+
+  String _getPlaylistKey(MusicPlaylist playlist) {
+    return playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,15 +110,22 @@ class AddToPlaylistDialog extends StatelessWidget {
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
                           final playlist = playlists[index];
+                          final key = _getPlaylistKey(playlist);
+                          final isAlreadyAdded = containingPlaylistIds.contains(key);
+
                           return Material(
-                            color: AppColors.page,
+                            color: isAlreadyAdded
+                                ? AppColors.page.withValues(alpha: 0.5)
+                                : AppColors.page,
                             borderRadius: BorderRadius.circular(8),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(8),
-                              onTap: () {
-                                Navigator.of(context).pop();
-                                onSelected(playlist);
-                              },
+                              onTap: isAlreadyAdded
+                                  ? null
+                                  : () {
+                                      Navigator.of(context).pop(playlist);
+                                      onSelected?.call(playlist);
+                                    },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
@@ -126,11 +139,14 @@ class AddToPlaylistDialog extends StatelessWidget {
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(
-                                          color: AppColors.text,
+                                          color: isAlreadyAdded
+                                              ? AppColors.muted
+                                              : AppColors.text,
                                           fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ),
+                                    const SizedBox(width: 8),
                                     Text(
                                       '${playlist.songCount} 首',
                                       style: TextStyle(
@@ -138,6 +154,42 @@ class AddToPlaylistDialog extends StatelessWidget {
                                         fontSize: 12,
                                       ),
                                     ),
+                                    if (isAlreadyAdded) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withValues(
+                                            alpha: 0.12,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.check_circle_rounded,
+                                              size: 12,
+                                              color: AppColors.primary,
+                                            ),
+                                            const SizedBox(width: 3),
+                                            Text(
+                                              '已包含',
+                                              style: TextStyle(
+                                                color: AppColors.primary,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ),

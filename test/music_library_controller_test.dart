@@ -5,6 +5,7 @@ import 'package:qing_ting_music/models/lyric.dart';
 import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/search_catalog_item.dart';
 import 'package:qing_ting_music/models/song.dart';
+import 'package:qing_ting_music/services/kugou_api_client.dart';
 
 void main() {
   test('removes the final favorite song from local state', () async {
@@ -67,6 +68,27 @@ void main() {
 
     expect(controller.createdPlaylists.map((item) => item.name), ['创建歌单']);
     expect(controller.collectedPlaylists.map((item) => item.name), ['收藏歌单']);
+  });
+
+  test('identifies playlists containing specific song and prevents duplicate addition', () async {
+    final playlistA = _playlist('p1', name: '歌单A');
+    final playlistB = _playlist('p2', name: '歌单B');
+    final song = _song('s1');
+    final repository = _FakeMusicRepository(
+      playlists: [playlistA, playlistB],
+      favoriteSongs: const [],
+      playlistTracks: {'p1': [song]},
+    );
+    final controller = MusicLibraryController(repository);
+
+    final containing = await controller.getPlaylistIdsContainingSong(song, [playlistA, playlistB]);
+    expect(containing, contains('p1'));
+    expect(containing, isNot(contains('p2')));
+
+    expect(
+      () => controller.addToPlaylist(playlistA, song),
+      throwsA(isA<KugouApiException>()),
+    );
   });
 
   test(
@@ -239,13 +261,16 @@ class _FakeMusicRepository implements MusicRepository {
   _FakeMusicRepository({
     required this.playlists,
     required List<Song> favoriteSongs,
-  }) : _favoriteSongs = List.of(favoriteSongs);
+    Map<String, List<Song>>? playlistTracks,
+  })  : _favoriteSongs = List.of(favoriteSongs),
+        playlistTracks = playlistTracks ?? {};
 
   final List<MusicPlaylist> playlists;
   final List<String> removedSongs = [];
   final List<SearchCategory> collectedCatalogs = [];
   final List<String> uncollectedListIds = [];
   final List<Song> _favoriteSongs;
+  final Map<String, List<Song>> playlistTracks;
   int playlistRequests = 0;
 
   @override
@@ -258,6 +283,12 @@ class _FakeMusicRepository implements MusicRepository {
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
     if (playlist.kind == MusicPlaylistKind.favoriteSongs) {
       return List.unmodifiable(_favoriteSongs);
+    }
+    if (playlistTracks.containsKey(playlist.id)) {
+      return List.unmodifiable(playlistTracks[playlist.id]!);
+    }
+    if (playlistTracks.containsKey(playlist.listId)) {
+      return List.unmodifiable(playlistTracks[playlist.listId]!);
     }
     return const [];
   }

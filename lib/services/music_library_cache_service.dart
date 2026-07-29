@@ -27,6 +27,32 @@ class MusicLibraryCacheService {
   File get _playlistTracksFile =>
       AppStorageService.file('library-playlist-tracks.json');
 
+  Map<String, List<Song>>? _cachedPlaylistSongsMap;
+
+  Future<Map<String, List<Song>>> _getAllPlaylistSongsMap() async {
+    if (_cachedPlaylistSongsMap != null) return _cachedPlaylistSongsMap!;
+    if (!await _playlistTracksFile.exists()) {
+      _cachedPlaylistSongsMap = {};
+      return _cachedPlaylistSongsMap!;
+    }
+    try {
+      final json =
+          jsonDecode(await _playlistTracksFile.readAsString())
+              as Map<String, Object?>;
+      final map = <String, List<Song>>{};
+      for (final entry in json.entries) {
+        if (entry.value is List) {
+          map[entry.key] = _list(entry.value).map(Song.fromJson).toList();
+        }
+      }
+      _cachedPlaylistSongsMap = map;
+      return map;
+    } catch (_) {
+      _cachedPlaylistSongsMap = {};
+      return _cachedPlaylistSongsMap!;
+    }
+  }
+
   Future<MusicLibrarySnapshot> load() async {
     if (!await _file.exists()) return const MusicLibrarySnapshot();
     try {
@@ -64,46 +90,45 @@ class MusicLibraryCacheService {
   }
 
   Future<List<Song>> loadPlaylistSongs(String cacheKey) async {
-    if (cacheKey.isEmpty || !await _playlistTracksFile.exists()) {
-      return const [];
-    }
-    try {
-      final json =
-          jsonDecode(await _playlistTracksFile.readAsString())
-              as Map<String, Object?>;
-      return _list(json[cacheKey]).map(Song.fromJson).toList();
-    } catch (_) {
-      return const [];
-    }
+    if (cacheKey.isEmpty) return const [];
+    final map = await _getAllPlaylistSongsMap();
+    return map[cacheKey] ?? const [];
+  }
+
+  List<Song> getPlaylistSongsSync(String cacheKey) {
+    if (cacheKey.isEmpty || _cachedPlaylistSongsMap == null) return const [];
+    return _cachedPlaylistSongsMap![cacheKey] ?? const [];
   }
 
   Future<void> savePlaylistSongs(String cacheKey, List<Song> songs) async {
     if (cacheKey.isEmpty) return;
+    final map = await _getAllPlaylistSongsMap();
+    map[cacheKey] = songs;
+
     await _playlistTracksFile.parent.create(recursive: true);
-    Map<String, Object?> json = {};
-    if (await _playlistTracksFile.exists()) {
-      try {
-        json =
-            jsonDecode(await _playlistTracksFile.readAsString())
-                as Map<String, Object?>;
-      } catch (_) {
-        json = {};
-      }
-    }
-    json[cacheKey] = songs.map((item) => item.toJson()).toList();
-    json['updatedAt'] = DateTime.now().toIso8601String();
+    final json = <String, Object?>{
+      for (final entry in map.entries)
+        entry.key: entry.value.map((item) => item.toJson()).toList(),
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
     await _playlistTracksFile.writeAsString(jsonEncode(json), flush: true);
   }
 
   Future<void> clearPlaylistSongs(String cacheKey) async {
-    if (cacheKey.isEmpty || !await _playlistTracksFile.exists()) return;
-    try {
-      final json =
-          jsonDecode(await _playlistTracksFile.readAsString())
-              as Map<String, Object?>;
-      json.remove(cacheKey);
-      await _playlistTracksFile.writeAsString(jsonEncode(json), flush: true);
-    } catch (_) {}
+    if (cacheKey.isEmpty) return;
+    final map = await _getAllPlaylistSongsMap();
+    map.remove(cacheKey);
+
+    if (await _playlistTracksFile.exists()) {
+      try {
+        final json = <String, Object?>{
+          for (final entry in map.entries)
+            entry.key: entry.value.map((item) => item.toJson()).toList(),
+          'updatedAt': DateTime.now().toIso8601String(),
+        };
+        await _playlistTracksFile.writeAsString(jsonEncode(json), flush: true);
+      } catch (_) {}
+    }
   }
 
   List<Map<String, Object?>> _list(Object? value) {

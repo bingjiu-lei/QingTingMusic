@@ -28,6 +28,7 @@ class MusicLibraryController extends ChangeNotifier {
   final Set<LibrarySection> loading = {};
   final Set<LibrarySection> loaded = {};
   final Map<LibrarySection, String> errors = {};
+  final Map<String, List<Song>> _playlistTracksInMemory = {};
   Future<List<MusicPlaylist>>? _playlistRequest;
 
   MusicPlaylist? get favoritePlaylist {
@@ -230,12 +231,15 @@ class MusicLibraryController extends ChangeNotifier {
     final cacheKey = _playlistCacheKey(playlist);
     final albumNeedsFreshOrder = playlist.kind == MusicPlaylistKind.album;
     if (!refresh) {
-      final cached = await cacheService.loadPlaylistSongs(cacheKey);
+      final cached = _playlistTracksInMemory[cacheKey] ??
+          await cacheService.loadPlaylistSongs(cacheKey);
       if (cached.isNotEmpty) {
+        _playlistTracksInMemory[cacheKey] = cached;
         if (albumNeedsFreshOrder) {
           try {
             final songs = await repository.getPlaylistSongs(playlist);
             if (songs.isNotEmpty) {
+              _playlistTracksInMemory[cacheKey] = songs;
               unawaited(cacheService.savePlaylistSongs(cacheKey, songs));
               return songs;
             }
@@ -249,6 +253,7 @@ class MusicLibraryController extends ChangeNotifier {
     }
     final songs = await repository.getPlaylistSongs(playlist);
     if (songs.isNotEmpty || refresh) {
+      _playlistTracksInMemory[cacheKey] = songs;
       unawaited(cacheService.savePlaylistSongs(cacheKey, songs));
     }
     return songs;
@@ -451,9 +456,56 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   Future<void> addToPlaylist(MusicPlaylist playlist, Song song) async {
+    try {
+      final existingSongs = await loadPlaylist(playlist);
+      if (existingSongs.any((item) => _sameSong(item, song))) {
+        throw const KugouApiException('歌单中已存在该歌曲');
+      }
+    } catch (e) {
+      if (e is KugouApiException) rethrow;
+    }
     await repository.addSongToPlaylist(playlist, song);
     await cacheService.clearPlaylistSongs(_playlistCacheKey(playlist));
     await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
+  Set<String> getPlaylistIdsContainingSongSync(
+    Song song,
+    List<MusicPlaylist> targetPlaylists,
+  ) {
+    final containingIds = <String>{};
+    for (final playlist in targetPlaylists) {
+      final cacheKey = _playlistCacheKey(playlist);
+      final songs = _playlistTracksInMemory[cacheKey] ??
+          cacheService.getPlaylistSongsSync(cacheKey);
+      if (songs.any((item) => _sameSong(item, song))) {
+        final key =
+            playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+        containingIds.add(key);
+      }
+    }
+    return containingIds;
+  }
+
+  Future<Set<String>> getPlaylistIdsContainingSong(
+    Song song,
+    List<MusicPlaylist> targetPlaylists,
+  ) async {
+    final containingIds = getPlaylistIdsContainingSongSync(song, targetPlaylists);
+    if (containingIds.isNotEmpty) return containingIds;
+    await Future.wait(
+      targetPlaylists.map((playlist) async {
+        try {
+          final songs = await loadPlaylist(playlist);
+          if (songs.any((item) => _sameSong(item, song))) {
+            final key =
+                playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+            containingIds.add(key);
+          }
+        } catch (_) {}
+      }),
+    );
+    return containingIds;
   }
 
   Future<void> removeFromPlaylist(MusicPlaylist playlist, Song song) async {
