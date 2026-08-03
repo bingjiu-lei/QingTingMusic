@@ -1,3 +1,5 @@
+import 'music_playlist.dart';
+
 enum SearchCategory {
   song('单曲'),
   playlist('歌单'),
@@ -18,6 +20,7 @@ class SearchCatalogItem {
     this.imageUrl,
     this.listId,
     this.ownerId,
+    this.releaseDate,
   });
 
   final String id;
@@ -27,6 +30,9 @@ class SearchCatalogItem {
   final String? imageUrl;
   final String? listId;
   final String? ownerId;
+  final String? releaseDate;
+
+  String? get formattedReleaseDate => formatReleaseDate(releaseDate);
 
   Map<String, Object?> toJson() => {
     'id': id,
@@ -36,6 +42,7 @@ class SearchCatalogItem {
     'imageUrl': imageUrl,
     'listId': listId,
     'ownerId': ownerId,
+    'releaseDate': releaseDate,
   };
 
   factory SearchCatalogItem.fromJson(Map<String, Object?> json) {
@@ -50,6 +57,7 @@ class SearchCatalogItem {
       imageUrl: json['imageUrl']?.toString(),
       listId: json['listId']?.toString(),
       ownerId: json['ownerId']?.toString(),
+      releaseDate: json['releaseDate']?.toString(),
     );
   }
 }

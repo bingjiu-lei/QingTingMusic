@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/song.dart';
 import '../models/search_catalog_item.dart';
+import '../models/music_playlist.dart';
 import '../theme/app_theme.dart';
 import '../widgets/album_art.dart';
 import '../widgets/glass.dart';
@@ -41,6 +42,7 @@ class CollectionDetailPage extends StatefulWidget {
     this.collectionItem,
     this.currentSong,
     this.isPlaying = false,
+    this.releaseDate,
   });
 
   final CollectionDetailKind kind;
@@ -72,6 +74,7 @@ class CollectionDetailPage extends StatefulWidget {
   final SearchCatalogItem? collectionItem;
   final VoidCallback? onToggleCollection;
   final VoidCallback? onDeletePlaylist;
+  final String? releaseDate;
 
   @override
   State<CollectionDetailPage> createState() => _CollectionDetailPageState();
@@ -140,10 +143,55 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                         letterSpacing: 0.2,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    _HeaderSubtitle(
-                      text: widget.subtitle,
-                      onTap: widget.onOpenHeaderArtist,
+                    if (widget.kind == CollectionDetailKind.playlist &&
+                        widget.subtitle.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      _HeaderSubtitle(
+                        text: widget.subtitle,
+                        onTap: widget.onOpenHeaderArtist,
+                      ),
+                    ],
+                    Builder(
+                      builder: (context) {
+                        if (widget.kind == CollectionDetailKind.artist) {
+                          return const SizedBox.shrink();
+                        }
+                        if (widget.kind == CollectionDetailKind.playlist) {
+                          if (widget.subtitle.contains('首')) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              '${widget.songs.length} 首',
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }
+                        if (widget.kind == CollectionDetailKind.album) {
+                          final formattedDate =
+                              formatReleaseDate(widget.releaseDate);
+                          final textStr = formattedDate != null
+                              ? '$formattedDate  ·  ${widget.songs.length} 首'
+                              : '${widget.songs.length} 首';
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              textStr,
+                              style: TextStyle(
+                                color: AppColors.muted,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          );
+                        }
+                        return const SizedBox.shrink();
+                      },
                     ),
                     const SizedBox(height: 10),
                     Wrap(
@@ -496,7 +544,7 @@ class _CatalogGridState extends State<_CatalogGrid> {
                               ),
                               SizedBox(height: 4),
                               Text(
-                                item.subtitle,
+                                item.formattedReleaseDate ?? item.subtitle,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(

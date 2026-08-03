@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../models/song.dart';
 import '../services/audio_player_service.dart';
 import '../services/kugou_api_client.dart';
+import '../data/music_repository.dart';
 import '../services/recent_songs_service.dart';
 import '../services/playback_log_service.dart';
 import '../services/playback_state_service.dart';
@@ -27,6 +28,7 @@ class PlayerController extends ChangeNotifier {
     this.resolveSong,
     this.recentSongsService,
     this.playbackStateService,
+    this.repository,
     this.showTechnicalPlaybackNotices = false,
   }) {
     _subscriptions = [
@@ -77,6 +79,8 @@ class PlayerController extends ChangeNotifier {
   final Future<Song> Function(Song song)? resolveSong;
   final RecentSongsService? recentSongsService;
   final PlaybackStateService? playbackStateService;
+  final MusicRepository? repository;
+  int _climaxRequestEpoch = 0;
   late final List<StreamSubscription<Object?>> _subscriptions;
 
   List<Song> queue = const [];
@@ -220,6 +224,33 @@ class PlayerController extends ChangeNotifier {
       currentSong = playableSong;
       _showPlaybackNotice(playableSong.playbackNotice);
 
+      final climaxRequestEpoch = ++_climaxRequestEpoch;
+      if (playableSong.climaxSegments.isEmpty &&
+          playableSong.hash != null &&
+          playableSong.hash!.isNotEmpty &&
+          repository != null) {
+        unawaited(
+          repository!.getSongClimax(playableSong.hash!).then((segments) {
+            if (climaxRequestEpoch == _climaxRequestEpoch &&
+                currentSong?.id == playableSong.id) {
+              final validSegments = segments
+                  .where(
+                    (segment) =>
+                        segment.start > Duration.zero &&
+                        segment.start < playableSong.duration &&
+                        segment.end >= segment.start,
+                  )
+                  .toList(growable: false);
+              if (validSegments.isEmpty) return;
+              currentSong = currentSong!.copyWith(
+                climaxSegments: validSegments,
+              );
+              notifyListeners();
+            }
+          }),
+        );
+      }
+
       if (!audioService.isEnabled) {
         isPlaying = true;
         isPreparing = false;
@@ -237,7 +268,16 @@ class PlayerController extends ChangeNotifier {
         _hasOpenSource = true;
         final detectedDuration = audioService.currentDuration;
         if (detectedDuration != null && detectedDuration > Duration.zero) {
-          playableSong = playableSong.copyWith(duration: detectedDuration);
+          // 高潮标记是异步请求的：请求可能在 open() 等待期间完成。
+          // 这里必须从 currentSong 保留已回写的片段，不能再用旧的
+          // playableSong 覆盖它，否则底栏和播放详情页都会只闪一下标记。
+          final loadedSegments = currentSong?.id == playableSong.id
+              ? currentSong!.climaxSegments
+              : playableSong.climaxSegments;
+          playableSong = playableSong.copyWith(
+            duration: detectedDuration,
+            climaxSegments: loadedSegments,
+          );
           currentSong = playableSong;
           duration = detectedDuration;
           _replaceSongInQueue(playableSong);

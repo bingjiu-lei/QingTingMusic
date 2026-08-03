@@ -75,6 +75,7 @@ class PlayerBar extends StatelessWidget {
                     position: controller.position,
                     bufferedPosition: controller.bufferedPosition,
                     duration: duration,
+                    climaxSegments: song?.climaxSegments ?? const [],
                     onSeek: controller.seekByRatio,
                     compact: true,
                   ),

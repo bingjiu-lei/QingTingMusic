@@ -1820,6 +1820,7 @@ class _PlaybackControls extends StatelessWidget {
           PlaybackProgress(
             position: controller.position,
             duration: duration,
+            climaxSegments: song.climaxSegments,
             onSeek: controller.seekByRatio,
             showTimes: true,
           ),

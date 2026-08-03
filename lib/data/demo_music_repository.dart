@@ -143,6 +143,12 @@ class DemoMusicRepository implements MusicRepository {
   Future<void> deletePlaylist(MusicPlaylist playlist) async {}
 
   @override
+  Future<List<SongClimaxSegment>> getSongClimax(String hash) async => const [];
+
+  @override
+  Future<String?> getAlbumReleaseDate(String albumId) async => null;
+
+  @override
   Future<Song> resolvePlayback(Song song) async => song;
 
   @override

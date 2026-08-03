@@ -14,6 +14,15 @@ class SongArtist {
   }
 }
 
+/// 服务端标注的歌曲高潮片段。时间均来自酷狗的 `audio_climax` 接口，
+/// 没有返回时保持为空，绝不根据歌曲时长猜测。
+class SongClimaxSegment {
+  const SongClimaxSegment({required this.start, required this.end});
+
+  final Duration start;
+  final Duration end;
+}
+
 class Song {
   const Song({
     required this.id,
@@ -33,6 +42,7 @@ class Song {
     this.cloudAudioId,
     this.liked = false,
     this.playbackNotice,
+    this.climaxSegments = const [],
   });
 
   final String id;
@@ -52,6 +62,7 @@ class Song {
   final int? cloudAudioId;
   final bool liked;
   final String? playbackNotice;
+  final List<SongClimaxSegment> climaxSegments;
 
   Song copyWith({
     String? audioUrl,
@@ -62,6 +73,7 @@ class Song {
     Duration? duration,
     bool? liked,
     String? playbackNotice,
+    List<SongClimaxSegment>? climaxSegments,
   }) {
     return Song(
       id: id,
@@ -81,6 +93,7 @@ class Song {
       cloudAudioId: cloudAudioId,
       liked: liked ?? this.liked,
       playbackNotice: playbackNotice ?? this.playbackNotice,
+      climaxSegments: climaxSegments ?? this.climaxSegments,
     );
   }
 

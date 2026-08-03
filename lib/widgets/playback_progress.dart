@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import '../models/song.dart';
 
 class PlaybackProgress extends StatefulWidget {
   const PlaybackProgress({
@@ -9,6 +10,7 @@ class PlaybackProgress extends StatefulWidget {
     required this.duration,
     required this.onSeek,
     this.bufferedPosition = Duration.zero,
+    this.climaxSegments = const [],
     this.showTimes = false,
     this.compact = false,
   });
@@ -16,6 +18,7 @@ class PlaybackProgress extends StatefulWidget {
   final Duration position;
   final Duration duration;
   final Duration bufferedPosition;
+  final List<SongClimaxSegment> climaxSegments;
   final ValueChanged<double> onSeek;
   final bool showTimes;
   final bool compact;
@@ -64,6 +67,9 @@ class _PlaybackProgressState extends State<PlaybackProgress> {
                 widget.onSeek(ratio);
               }
 
+              final previewTime = _previewRatio != null
+                  ? widget.duration * _previewRatio!
+                  : Duration.zero;
               return GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTapDown: (details) => seek(details.localPosition),
@@ -90,6 +96,8 @@ class _PlaybackProgressState extends State<PlaybackProgress> {
                             buffered: buffered,
                             active: active,
                             enabled: _enabled,
+                            duration: widget.duration,
+                            climaxSegments: widget.climaxSegments,
                           ),
                         ),
                       ),
@@ -99,9 +107,10 @@ class _PlaybackProgressState extends State<PlaybackProgress> {
                             constraints.maxWidth,
                             _previewRatio!,
                           ),
-                          top: widget.compact ? -22 : -18,
+                          top: widget.compact ? -24 : -20,
                           child: IgnorePointer(
-                            child: Container(
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 120),
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 7,
                                 vertical: 3,
@@ -114,7 +123,7 @@ class _PlaybackProgressState extends State<PlaybackProgress> {
                                 boxShadow: AppShadows.popover,
                               ),
                               child: Text(
-                                _format(widget.duration * _previewRatio!),
+                                _format(previewTime),
                                 style: TextStyle(
                                   color: AppColors.tooltipText,
                                   fontSize: 10,
@@ -207,12 +216,16 @@ class _ProgressPainter extends CustomPainter {
     required this.buffered,
     required this.active,
     required this.enabled,
+    required this.duration,
+    this.climaxSegments = const [],
   });
 
   final double played;
   final double buffered;
   final bool active;
   final bool enabled;
+  final Duration duration;
+  final List<SongClimaxSegment> climaxSegments;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -235,6 +248,7 @@ class _ProgressPainter extends CustomPainter {
         Paint()..color = AppColors.progressBuffered,
       );
     }
+
     final playedWidth = size.width * played.clamp(0.0, 1.0);
     if (playedWidth > 0) {
       canvas.drawRRect(
@@ -247,6 +261,37 @@ class _ProgressPainter extends CustomPainter {
             colors: [AppColors.primary, AppColors.accent],
           ).createShader(Rect.fromLTWH(0, top, size.width, trackHeight)),
       );
+    }
+
+    // EchoMusic 同样只根据服务端返回的 start/end 绘制刻度；不猜测高潮。
+    // 放在已播放轨道之后，保证已播放区域中的真实标记仍然可见。
+    if (duration.inMilliseconds > 0) {
+      final tickPaint = Paint()
+        ..color = AppColors.primary.withValues(alpha: active ? 0.92 : 0.78);
+      final tickWidth = 2.0;
+      final tickHeight = active ? 7.0 : 5.0;
+      final positions = <int>{};
+      for (final segment in climaxSegments) {
+        for (final value in [segment.start, segment.end]) {
+          final ratio = (value.inMilliseconds / duration.inMilliseconds).clamp(
+            0.0,
+            1.0,
+          );
+          if (ratio <= 0 || ratio >= 1) continue;
+          final pointX = size.width * ratio;
+          final key = pointX.round();
+          if (!positions.add(key)) continue;
+          final tickRect = Rect.fromCenter(
+            center: Offset(pointX, size.height / 2),
+            width: tickWidth,
+            height: tickHeight,
+          );
+          canvas.drawRRect(
+            RRect.fromRectAndRadius(tickRect, const Radius.circular(1.0)),
+            tickPaint,
+          );
+        }
+      }
     }
     if (!active) return;
     final center = Offset(
@@ -267,7 +312,9 @@ class _ProgressPainter extends CustomPainter {
       oldDelegate.played != played ||
       oldDelegate.buffered != buffered ||
       oldDelegate.active != active ||
-      oldDelegate.enabled != enabled;
+      oldDelegate.enabled != enabled ||
+      oldDelegate.duration != duration ||
+      oldDelegate.climaxSegments != climaxSegments;
 }
 
 String _format(Duration duration) {

@@ -70,26 +70,34 @@ void main() {
     expect(controller.collectedPlaylists.map((item) => item.name), ['收藏歌单']);
   });
 
-  test('identifies playlists containing specific song and prevents duplicate addition', () async {
-    final playlistA = _playlist('p1', name: '歌单A');
-    final playlistB = _playlist('p2', name: '歌单B');
-    final song = _song('s1');
-    final repository = _FakeMusicRepository(
-      playlists: [playlistA, playlistB],
-      favoriteSongs: const [],
-      playlistTracks: {'p1': [song]},
-    );
-    final controller = MusicLibraryController(repository);
+  test(
+    'identifies playlists containing specific song and prevents duplicate addition',
+    () async {
+      final playlistA = _playlist('p1', name: '歌单A');
+      final playlistB = _playlist('p2', name: '歌单B');
+      final song = _song('s1');
+      final repository = _FakeMusicRepository(
+        playlists: [playlistA, playlistB],
+        favoriteSongs: const [],
+        playlistTracks: {
+          'p1': [song],
+        },
+      );
+      final controller = MusicLibraryController(repository);
 
-    final containing = await controller.getPlaylistIdsContainingSong(song, [playlistA, playlistB]);
-    expect(containing, contains('p1'));
-    expect(containing, isNot(contains('p2')));
+      final containing = await controller.getPlaylistIdsContainingSong(song, [
+        playlistA,
+        playlistB,
+      ]);
+      expect(containing, contains('p1'));
+      expect(containing, isNot(contains('p2')));
 
-    expect(
-      () => controller.addToPlaylist(playlistA, song),
-      throwsA(isA<KugouApiException>()),
-    );
-  });
+      expect(
+        () => controller.addToPlaylist(playlistA, song),
+        throwsA(isA<KugouApiException>()),
+      );
+    },
+  );
 
   test(
     'shows non-favorite default collection with created playlists',
@@ -262,8 +270,8 @@ class _FakeMusicRepository implements MusicRepository {
     required this.playlists,
     required List<Song> favoriteSongs,
     Map<String, List<Song>>? playlistTracks,
-  })  : _favoriteSongs = List.of(favoriteSongs),
-        playlistTracks = playlistTracks ?? {};
+  }) : _favoriteSongs = List.of(favoriteSongs),
+       playlistTracks = playlistTracks ?? {};
 
   final List<MusicPlaylist> playlists;
   final List<String> removedSongs = [];
@@ -419,4 +427,10 @@ class _FakeMusicRepository implements MusicRepository {
 
   @override
   Future<List<String>> searchSuggestions(String keyword) async => const [];
+
+  @override
+  Future<List<SongClimaxSegment>> getSongClimax(String hash) async => const [];
+
+  @override
+  Future<String?> getAlbumReleaseDate(String albumId) async => null;
 }

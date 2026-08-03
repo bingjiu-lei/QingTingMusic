@@ -82,7 +82,7 @@ void main() {
     await controller.playSong(songs.first, fromQueue: songs);
     await Future<void>.delayed(const Duration(milliseconds: 750));
     audio.complete();
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
 
     expect(controller.currentSong?.id, 'three');
     expect(audio.opened.map((song) => song.id), ['one', 'three']);
@@ -380,6 +380,33 @@ void main() {
     controller.dispose();
   });
 
+  test('keeps fetched climax segments after the audio source opens', () async {
+    final audio = _SlowOpenAudioPlayerService();
+    final controller = PlayerController(
+      audioService: audio,
+      repository: _ClimaxDemoRepository(),
+    );
+    const song = Song(
+      id: 'one',
+      title: 'one',
+      artist: 'artist',
+      album: 'album',
+      duration: Duration(minutes: 3),
+      audioUrl: 'https://example.com/one.mp3',
+      hash: 'hash-one',
+    );
+
+    final playing = controller.playSong(song);
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.currentSong?.climaxSegments, hasLength(1));
+
+    audio.completeOpen();
+    await playing;
+
+    expect(controller.currentSong?.climaxSegments, hasLength(1));
+    controller.dispose();
+  });
+
   test('shows technical playback notices in developer mode', () async {
     final audio = _FakeAudioPlayerService();
     final controller = PlayerController(
@@ -504,4 +531,23 @@ class _FakePlaybackStateService extends PlaybackStateService {
 
   @override
   Future<void> clear() async {}
+}
+
+class _ClimaxDemoRepository extends DemoMusicRepository {
+  @override
+  Future<List<SongClimaxSegment>> getSongClimax(String hash) async => const [
+    SongClimaxSegment(start: Duration(seconds: 42), end: Duration(seconds: 58)),
+  ];
+}
+
+class _SlowOpenAudioPlayerService extends _FakeAudioPlayerService {
+  final _openGate = Completer<void>();
+
+  @override
+  Future<void> open(Song song) async {
+    await _openGate.future;
+    await super.open(song);
+  }
+
+  void completeOpen() => _openGate.complete();
 }

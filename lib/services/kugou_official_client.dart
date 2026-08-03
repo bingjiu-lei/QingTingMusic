@@ -347,6 +347,31 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         },
         headers: {'x-router': 'openapi.kugou.com', 'kg-tid': '255'},
       ),
+      '/album/detail' => _android(
+        '/kmr/v2/albums',
+        {},
+        cookie,
+        method: 'POST',
+        data: {
+          'data': [
+            {'album_id': params['id'] ?? ''},
+          ],
+          'is_buy': 0,
+          'fields':
+              'album_id,album_name,publish_date,sizable_cover,intro,language,is_publish,heat,type,quality,authors,exclusive,author_name,trans_param',
+        },
+        headers: {'x-router': 'openapi.kugou.com', 'kg-tid': '255'},
+      ),
+      '/song/climax' => _android(
+        '/v1/audio_climax/audio',
+        {
+          'data': jsonEncode([
+            {'hash': params['hash'] ?? ''},
+          ]),
+        },
+        cookie,
+        baseUrl: 'https://expendablekmrcdn.kugou.com',
+      ),
       '/artist/audios' => _public('/api/v3/singer/song', {
         'singerid': params['id'] ?? '',
         'page': params['page'] ?? 1,

@@ -392,7 +392,7 @@ class MusicLibraryController extends ChangeNotifier {
             return SearchCatalogItem(
               id: playlist.id,
               title: playlist.name,
-              subtitle: '${playlist.songCount} 首歌曲',
+              subtitle: '${playlist.songCount} 首',
               category: SearchCategory.playlist,
               imageUrl: playlist.coverUrl,
               listId: playlist.listId,
@@ -413,7 +413,7 @@ class MusicLibraryController extends ChangeNotifier {
             return SearchCatalogItem(
               id: album.sourceListId ?? album.id,
               title: album.name,
-              subtitle: '${album.songCount} 首歌曲',
+              subtitle: '${album.songCount} 首',
               category: SearchCategory.album,
               imageUrl: album.coverUrl,
               listId: album.listId,

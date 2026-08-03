@@ -78,6 +78,8 @@ class _MusicShellState extends State<MusicShell>
   late final RecommendationController recommendationController;
   late final UpdateController updateController;
   final cacheManagementService = CacheManagementService();
+
+  bool? _userSidebarCompact;
   final _developerModeService = DeveloperModeService();
   final _preferences = AppPreferencesService();
   final _windowsMediaBridge = WindowsMediaBridge();
@@ -149,6 +151,7 @@ class _MusicShellState extends State<MusicShell>
       resolveSong: repository.resolvePlayback,
       recentSongsService: RecentSongsService(),
       playbackStateService: PlaybackStateService(),
+      repository: repository,
     )..addListener(_handlePlayerChanged);
     playerController.progress.addListener(_handlePlayerProgress);
     if (Platform.isWindows && widget.enableWindowControls) {
@@ -584,7 +587,7 @@ class _MusicShellState extends State<MusicShell>
     }
     setState(() {
       detailTitle = '每日推荐';
-      detailSubtitle = '今天为你准备了 ${songs.length} 首歌';
+      detailSubtitle = '';
       detailHeaderArtistName = null;
       detailImageUrl = songs
           .map((song) => song.coverUrl?.trim() ?? '')
@@ -759,15 +762,21 @@ class _MusicShellState extends State<MusicShell>
           Future<List<SearchCatalogItem>>.value([]),
       ]);
       if (!mounted) return;
+      final songs = (results[0] as List<Song>)
+          .map(libraryController.withFavoriteState)
+          .toList();
+      final finalItem = item.category == SearchCategory.album
+          ? await _hydrateAlbumReleaseDate(item, songs)
+          : item;
+      if (!mounted) return;
       setState(() {
-        detailSongs = (results[0] as List<Song>)
-            .map(libraryController.withFavoriteState)
-            .toList();
-        detailRelatedItems = results[1] as List<SearchCatalogItem>;
-        detailRelatedPage = 1;
-        detailRelatedHasMore =
-            item.category == SearchCategory.artist &&
-            detailRelatedItems.isNotEmpty;
+        detailCatalogItem = finalItem;
+        detailSongs = songs;
+        if (item.category == SearchCategory.artist) {
+          detailRelatedItems = results[1] as List<SearchCatalogItem>;
+          detailRelatedPage = 1;
+          detailRelatedHasMore = detailRelatedItems.isNotEmpty;
+        }
         detailLoading = false;
       });
     } catch (error) {
@@ -832,7 +841,7 @@ class _MusicShellState extends State<MusicShell>
     setState(() {
       _pushCurrentDetail();
       detailTitle = playlist.name;
-      detailSubtitle = '${playlist.songCount} 首歌曲';
+      detailSubtitle = '${playlist.songCount} 首';
       detailHeaderArtistName = null;
       detailImageUrl = playlist.coverUrl;
       detailSongs = [];
@@ -857,10 +866,19 @@ class _MusicShellState extends State<MusicShell>
     try {
       final songs = await libraryController.loadPlaylist(playlist);
       if (!mounted) return;
+      final baseCatalogItem = detailCatalogItem;
+      final updatedCatalogItem =
+          playlist.kind == MusicPlaylistKind.album && baseCatalogItem != null
+          ? await _hydrateAlbumReleaseDate(baseCatalogItem, songs)
+          : baseCatalogItem;
+      if (!mounted) return;
       setState(() {
+        if (updatedCatalogItem != null) {
+          detailCatalogItem = updatedCatalogItem;
+        }
         detailSongs = songs.map(libraryController.withFavoriteState).toList();
         if (songs.isNotEmpty) {
-          detailSubtitle = '${songs.length} 首歌曲';
+          detailSubtitle = '${songs.length} 首';
         }
         detailLoading = false;
       });
@@ -905,7 +923,7 @@ class _MusicShellState extends State<MusicShell>
       SearchCatalogItem(
         id: id,
         title: cleanName,
-        subtitle: '歌手',
+        subtitle: '',
         category: SearchCategory.artist,
         imageUrl: image,
       ),
@@ -1111,18 +1129,15 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _openAlbumFromSong(Song song) async {
-    var id = song.albumId?.toString() ?? '';
-    String? image = song.coverUrl;
-    if (id.isEmpty) {
-      final matches = await repository.searchCatalog(
-        song.album,
-        SearchCategory.album,
-      );
-      if (matches.isNotEmpty) {
-        id = matches.first.id;
-        image = matches.first.imageUrl;
-      }
+    final matches = await repository.searchCatalog(
+      song.album,
+      SearchCategory.album,
+    );
+    if (matches.isNotEmpty) {
+      await _openCatalog(matches.first);
+      return;
     }
+    var id = song.albumId?.toString() ?? '';
     if (id.isEmpty) return;
     await _openCatalog(
       SearchCatalogItem(
@@ -1130,7 +1145,7 @@ class _MusicShellState extends State<MusicShell>
         title: song.album,
         subtitle: song.artist,
         category: SearchCategory.album,
-        imageUrl: image,
+        imageUrl: song.coverUrl,
         listId: id,
       ),
     );
@@ -1156,12 +1171,67 @@ class _MusicShellState extends State<MusicShell>
     return SearchCatalogItem(
       id: playlist.id,
       title: playlist.name,
-      subtitle: '${playlist.songCount} 首歌曲',
+      subtitle: '${playlist.songCount} 首',
       category: playlist.kind == MusicPlaylistKind.album
           ? SearchCategory.album
           : SearchCategory.playlist,
       imageUrl: playlist.coverUrl,
       listId: playlist.listId,
+      releaseDate: playlist.releaseDate,
+    );
+  }
+
+  Future<SearchCatalogItem> _hydrateAlbumReleaseDate(
+    SearchCatalogItem item,
+    List<Song> songs,
+  ) async {
+    if (item.releaseDate?.trim().isNotEmpty == true) return item;
+
+    String? releaseDate;
+    final albumIds = <String>{
+      for (final song in songs)
+        if (song.albumId != null && song.albumId! > 0) song.albumId.toString(),
+    };
+    for (final albumId in albumIds) {
+      releaseDate = await repository.getAlbumReleaseDate(albumId);
+      if (releaseDate?.trim().isNotEmpty == true) break;
+    }
+
+    SearchCatalogItem? matched;
+    if (releaseDate?.trim().isNotEmpty != true) {
+      try {
+        final matches = await repository.searchCatalog(
+          item.title,
+          SearchCategory.album,
+        );
+        if (matches.isNotEmpty) {
+          matched = matches.firstWhere(
+            (candidate) =>
+                candidate.id == item.id ||
+                (candidate.title == item.title &&
+                    (item.subtitle.isEmpty ||
+                        candidate.subtitle == item.subtitle)),
+            orElse: () => matches.first,
+          );
+          releaseDate = matched.releaseDate;
+          if (releaseDate?.trim().isEmpty != false && matched.id.isNotEmpty) {
+            releaseDate = await repository.getAlbumReleaseDate(matched.id);
+          }
+        }
+      } catch (_) {
+        // 元数据回补失败不影响专辑歌曲正常打开。
+      }
+    }
+    if (releaseDate?.trim().isEmpty != false) return item;
+    return SearchCatalogItem(
+      id: item.id,
+      title: item.title,
+      subtitle: item.subtitle,
+      category: item.category,
+      imageUrl: item.imageUrl ?? matched?.imageUrl,
+      listId: item.listId ?? matched?.listId,
+      ownerId: item.ownerId ?? matched?.ownerId,
+      releaseDate: releaseDate,
     );
   }
 
@@ -1272,7 +1342,8 @@ class _MusicShellState extends State<MusicShell>
       backgroundColor: Colors.transparent,
       body: LayoutBuilder(
         builder: (context, constraints) {
-          final compactSidebar = constraints.maxWidth < 1050;
+          final autoCompact = constraints.maxWidth < 1050;
+          final compactSidebar = _userSidebarCompact ?? autoCompact;
           return DecoratedBox(
             decoration: BoxDecoration(
               color: AppColors.page,
@@ -1318,6 +1389,14 @@ class _MusicShellState extends State<MusicShell>
                             onLogin: _handleAccountEntry,
                             isDark: widget.themeController.isDark,
                             onToggleTheme: widget.themeController.toggle,
+                          ),
+                          SidebarDividerHandle(
+                            compact: compactSidebar,
+                            onToggle: () {
+                              setState(() {
+                                _userSidebarCompact = !compactSidebar;
+                              });
+                            },
                           ),
                           Expanded(child: _selectedPage()),
                         ],
@@ -1494,6 +1573,8 @@ class _MusicShellState extends State<MusicShell>
         title: detailTitle!,
         subtitle: detailSubtitle ?? '',
         imageUrl: detailImageUrl,
+        releaseDate:
+            detailCatalogItem?.releaseDate ?? detailPlaylist?.releaseDate,
         songs: detailSongs,
         relatedItems: detailRelatedItems,
         relatedItemsLoadingMore: detailRelatedLoadingMore,
@@ -1747,60 +1828,60 @@ class _RemoveSongFromPlaylistDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => _PlaylistDialogFrame(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Container(
-                  width: 38,
-                  height: 38,
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                  ),
-                  child: Icon(
-                    Icons.delete_outline_rounded,
-                    color: AppColors.danger,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  '从歌单移除',
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.danger.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Icon(
+                Icons.delete_outline_rounded,
+                color: AppColors.danger,
+                size: 20,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(width: 12),
             Text(
-              '确定要将“$songTitle”从歌单“$playlistName”中移除吗？',
-              style: TextStyle(color: AppColors.muted, height: 1.55),
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(onPressed: onCancel, child: const Text('取消')),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: onRemove,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.danger,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('确认移除'),
-                ),
-              ],
+              '从歌单移除',
+              style: TextStyle(
+                color: AppColors.text,
+                fontSize: 20,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ],
         ),
-      );
+        const SizedBox(height: 16),
+        Text(
+          '确定要将“$songTitle”从歌单“$playlistName”中移除吗？',
+          style: TextStyle(color: AppColors.muted, height: 1.55),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            TextButton(onPressed: onCancel, child: const Text('取消')),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: onRemove,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('确认移除'),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class _DeletePlaylistDialog extends StatelessWidget {

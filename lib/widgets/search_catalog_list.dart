@@ -127,16 +127,24 @@ class _CatalogTileState extends State<_CatalogTile> {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        item.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 12,
+                      if (item.category != SearchCategory.artist ||
+                          (item.subtitle.isNotEmpty && item.subtitle != '歌手')) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          (item.category == SearchCategory.album &&
+                                  item.formattedReleaseDate != null)
+                              ? (item.subtitle == '未知歌手' || item.subtitle.isEmpty
+                                  ? item.formattedReleaseDate!
+                                  : '${item.subtitle}  ·  ${item.formattedReleaseDate}')
+                              : item.subtitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

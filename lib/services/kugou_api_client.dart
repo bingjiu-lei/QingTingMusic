@@ -731,6 +731,7 @@ class KugouApiClient {
       isDefault: playlist.isDefault,
       isMine: playlist.isMine,
       kind: playlist.kind,
+      releaseDate: playlist.releaseDate,
     );
   }
 
@@ -765,6 +766,16 @@ class KugouApiClient {
         : sourceId.isNotEmpty
         ? MusicPlaylistKind.collectedPlaylist
         : MusicPlaylistKind.collectedPlaylist;
+    final releaseDateStr = kind == MusicPlaylistKind.album
+        ? _read(json, [
+            'publish_date',
+            'pubdate',
+            'publish_time',
+            'publishtime',
+            'publishdate',
+            'pub_date',
+          ])
+        : '';
     final playlist = MusicPlaylist(
       id: localId.isNotEmpty ? localId : sourceId,
       listId: localListId.isNotEmpty ? localListId : sourceListId,
@@ -776,6 +787,7 @@ class KugouApiClient {
       isDefault: isDefault,
       isMine: kind == MusicPlaylistKind.createdPlaylist,
       kind: kind,
+      releaseDate: releaseDateStr.isEmpty ? null : releaseDateStr,
     );
     if (playlist.id.isEmpty && playlist.listId.isEmpty) return null;
     return playlist;
@@ -913,6 +925,77 @@ class KugouApiClient {
       if (records.length < pageSize || added == 0) break;
     }
     return songs.values.toList();
+  }
+
+  Future<String?> getAlbumReleaseDate(String albumId) async {
+    if (albumId.isEmpty) return null;
+    try {
+      final response = await _post(
+        '/album/detail',
+        queryParameters: {'id': albumId},
+        data: {'id': albumId},
+      );
+      final records = _findRecords(response.data);
+      if (records.isEmpty) return null;
+      final record = _map(records.first);
+      final releaseDate = _read(record, [
+        'publish_date',
+        'publishDate',
+        'PublishDate',
+        'pubdate',
+        'pub_date',
+        'release_date',
+        'releaseDate',
+      ]);
+      return releaseDate.isEmpty ? null : releaseDate;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<List<SongClimaxSegment>> getSongClimax(String hash) async {
+    if (hash.isEmpty) return const [];
+    try {
+      final response = await _get(
+        '/song/climax',
+        queryParameters: {'hash': hash},
+        bypassCache: true,
+      );
+      // 官方 audio_climax 可能直接返回 data 数组，也可能再包一层
+      // data.data。不要依赖列表在 JSON 中的固定层级。
+      final body = _map(response.data);
+      final root = body['data'] ?? response.data;
+      final records = _list(root).isNotEmpty ? _list(root) : _findRecords(root);
+      final segments = <SongClimaxSegment>[];
+      for (final value in records) {
+        final record = _map(value);
+        final startMs = _toInt(
+          record['start_time'] ?? record['starttime'] ?? record['start'],
+        );
+        final endMs = _toInt(
+          record['end_time'] ?? record['endtime'] ?? record['end'],
+        );
+        if (startMs <= 0) continue;
+        segments.add(
+          SongClimaxSegment(
+            start: Duration(milliseconds: startMs),
+            end: Duration(milliseconds: endMs > startMs ? endMs : startMs),
+          ),
+        );
+      }
+      segments.sort((a, b) => a.start.compareTo(b.start));
+      final unique = <SongClimaxSegment>[];
+      for (final segment in segments) {
+        if (unique.isEmpty ||
+            (segment.start - unique.last.start).abs() >
+                const Duration(milliseconds: 300)) {
+          unique.add(segment);
+        }
+      }
+      return unique;
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<Song>> getCloudSongs() async {
@@ -1416,6 +1499,7 @@ class KugouApiClient {
     String path, {
     Map<String, Object?>? queryParameters,
     bool authenticated = false,
+    Object? data,
   }) async {
     try {
       final officialMode = await _usesOfficialApi();
@@ -1425,12 +1509,14 @@ class KugouApiClient {
           queryParameters: queryParameters,
           method: 'POST',
           bypassCache: true,
+          data: data,
         );
       }
       await _configureEndpoint();
       return await _dio.post<Object?>(
         path,
         queryParameters: queryParameters,
+        data: data,
         options: Options(
           headers: {
             if (authenticated && session.authorization.isNotEmpty)
@@ -1834,7 +1920,7 @@ class KugouApiClient {
       SearchCategory.artist => (
         id: _read(json, ['AuthorId', 'authorid', 'singerid']),
         title: _read(json, ['AuthorName', 'authorname', 'singername']),
-        subtitle: '${_toInt(json['AudioCount'] ?? json['songcount'])} 首歌曲',
+        subtitle: '',
         image: _read(json, ['Avatar', 'avatar', 'img']),
         listId: '',
         ownerId: '',
@@ -1851,7 +1937,7 @@ class KugouApiClient {
           'nickname',
           'username',
           'intro',
-        ], fallback: '${_toInt(json['songcount'] ?? json['song_count'])} 首歌曲'),
+        ], fallback: '${_toInt(json['songcount'] ?? json['song_count'])} 首'),
         image: _read(json, ['img', 'imgurl', 'sizable_cover', 'pic']),
         listId: _read(json, ['listid', 'list_create_listid', 'specialid']),
         ownerId: _read(
@@ -1877,6 +1963,9 @@ class KugouApiClient {
       ),
     };
     if (fields.id.isEmpty || fields.title.isEmpty) return null;
+    final releaseDate = category == SearchCategory.album
+        ? _read(json, ['pubdate', 'publish_date', 'publishtime', 'pub_date'])
+        : '';
     return SearchCatalogItem(
       id: fields.id,
       title: fields.title,
@@ -1887,6 +1976,7 @@ class KugouApiClient {
           : fields.image.replaceAll('{size}', '240'),
       listId: fields.listId.isEmpty ? null : fields.listId,
       ownerId: fields.ownerId.isEmpty ? null : fields.ownerId,
+      releaseDate: releaseDate.isEmpty ? null : releaseDate,
     );
   }
 

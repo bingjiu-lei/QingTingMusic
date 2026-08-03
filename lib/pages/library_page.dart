@@ -535,7 +535,7 @@ class _PlaylistTileState extends State<_PlaylistTile> {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        '${playlist.songCount} 首歌曲',
+                        '${playlist.songCount} 首',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

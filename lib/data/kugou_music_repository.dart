@@ -134,6 +134,16 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<List<SongClimaxSegment>> getSongClimax(String hash) {
+    return apiClient.getSongClimax(hash);
+  }
+
+  @override
+  Future<String?> getAlbumReleaseDate(String albumId) {
+    return apiClient.getAlbumReleaseDate(albumId);
+  }
+
+  @override
   Future<Song> resolvePlayback(Song song) {
     return apiClient.resolvePlayback(song);
   }

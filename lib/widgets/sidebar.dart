@@ -458,3 +458,52 @@ class _DockIcon extends StatelessWidget {
     ),
   );
 }
+
+/// Thin edge divider between sidebar and content area.
+/// Hidden by default; reveals a subtle toggle icon on hover.
+class SidebarDividerHandle extends StatefulWidget {
+  const SidebarDividerHandle({
+    super.key,
+    required this.compact,
+    required this.onToggle,
+  });
+
+  final bool compact;
+  final VoidCallback onToggle;
+
+  @override
+  State<SidebarDividerHandle> createState() => _SidebarDividerHandleState();
+}
+
+class _SidebarDividerHandleState extends State<SidebarDividerHandle> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onToggle,
+        child: SizedBox(
+          width: 8,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: _hovered ? 3 : 1,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: _hovered
+                    ? AppColors.primary.withValues(alpha: 0.50)
+                    : AppColors.divider.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
