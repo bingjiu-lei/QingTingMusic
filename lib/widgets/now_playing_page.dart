@@ -66,6 +66,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   void initState() {
     super.initState();
     widget.controller.addListener(_handleSongChanged);
+    widget.controller.progress.addListener(_handleProgressChanged);
     _handleSongChanged();
   }
 
@@ -74,7 +75,9 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleSongChanged);
+      oldWidget.controller.progress.removeListener(_handleProgressChanged);
       widget.controller.addListener(_handleSongChanged);
+      widget.controller.progress.addListener(_handleProgressChanged);
       _portraitSongKey = null;
       _handleSongChanged();
     }
@@ -83,7 +86,14 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleSongChanged);
+    widget.controller.progress.removeListener(_handleProgressChanged);
     super.dispose();
+  }
+
+  void _handleProgressChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   void _handleSongChanged() {
