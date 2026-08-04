@@ -1128,26 +1128,35 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _openAlbumFromSong(Song song) async {
+    final albumId = song.albumId;
+    if (albumId != null && albumId > 0) {
+      final id = albumId.toString();
+      await _openCatalog(
+        SearchCatalogItem(
+          id: id,
+          title: song.album,
+          subtitle: song.artist,
+          category: SearchCategory.album,
+          imageUrl: song.coverUrl,
+          listId: id,
+        ),
+      );
+      return;
+    }
+
     final matches = await repository.searchCatalog(
       song.album,
       SearchCategory.album,
     );
-    if (matches.isNotEmpty) {
-      await _openCatalog(matches.first);
-      return;
+    final normalizedAlbum = song.album.trim().toLowerCase();
+    SearchCatalogItem? exactMatch;
+    for (final candidate in matches) {
+      if (candidate.title.trim().toLowerCase() == normalizedAlbum) {
+        exactMatch = candidate;
+        break;
+      }
     }
-    var id = song.albumId?.toString() ?? '';
-    if (id.isEmpty) return;
-    await _openCatalog(
-      SearchCatalogItem(
-        id: id,
-        title: song.album,
-        subtitle: song.artist,
-        category: SearchCategory.album,
-        imageUrl: song.coverUrl,
-        listId: id,
-      ),
-    );
+    if (exactMatch != null) await _openCatalog(exactMatch);
   }
 
   Future<void> _toggleCatalogCollection(SearchCatalogItem item) async {
