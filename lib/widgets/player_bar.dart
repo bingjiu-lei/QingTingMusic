@@ -360,10 +360,12 @@ class _ToolSection extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.end,
     children: [
-      if (song != null && _hasPlayableAlbum(song!))
+      if (song != null)
         _ControlIconButton(
-          tooltip: '打开专辑',
-          onPressed: onOpenAlbum == null ? null : () => onOpenAlbum!(song!),
+          tooltip: _hasPlayableAlbum(song!) ? '打开专辑' : '暂无专辑',
+          onPressed: _hasPlayableAlbum(song!) && onOpenAlbum != null
+              ? () => onOpenAlbum!(song!)
+              : null,
           icon: Icons.album_outlined,
         ),
       PlaybackQualityMenu(controller: qualityController, compact: true),

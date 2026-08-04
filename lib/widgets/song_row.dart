@@ -153,9 +153,7 @@ class _SongRowState extends State<SongRow> {
                         color: active
                             ? AppColors.primaryPressed
                             : AppColors.text,
-                        fontWeight: active
-                            ? FontWeight.w700
-                            : FontWeight.w600,
+                        fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                         fontSize: 14,
                       ),
                     ),
@@ -179,18 +177,20 @@ class _SongRowState extends State<SongRow> {
                       final clickable = tap != null;
                       return MouseRegion(
                         cursor: tap == null
-                            ? MouseCursor.defer
+                            ? SystemMouseCursors.basic
                             : SystemMouseCursors.click,
                         child: GestureDetector(
                           onTap: tap,
                           child: Text(
-                            albumName.isEmpty ? '未知专辑' : widget.song.album,
+                            hasAlbum ? widget.song.album : '-',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: clickable
-                                  ? AppColors.primaryPressed
-                                  : AppColors.muted,
+                              color: hasAlbum
+                                  ? clickable
+                                        ? AppColors.primaryPressed
+                                        : AppColors.muted
+                                  : AppColors.faint,
                               fontSize: 12,
                             ),
                           ),
