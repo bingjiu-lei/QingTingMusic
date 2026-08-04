@@ -231,7 +231,8 @@ class MusicLibraryController extends ChangeNotifier {
     final cacheKey = _playlistCacheKey(playlist);
     final albumNeedsFreshOrder = playlist.kind == MusicPlaylistKind.album;
     if (!refresh) {
-      final cached = _playlistTracksInMemory[cacheKey] ??
+      final cached =
+          _playlistTracksInMemory[cacheKey] ??
           await cacheService.loadPlaylistSongs(cacheKey);
       if (cached.isNotEmpty) {
         _playlistTracksInMemory[cacheKey] = cached;
@@ -456,6 +457,7 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   Future<void> addToPlaylist(MusicPlaylist playlist, Song song) async {
+    final cacheKey = _playlistCacheKey(playlist);
     try {
       final existingSongs = await loadPlaylist(playlist);
       if (existingSongs.any((item) => _sameSong(item, song))) {
@@ -465,7 +467,10 @@ class MusicLibraryController extends ChangeNotifier {
       if (e is KugouApiException) rethrow;
     }
     await repository.addSongToPlaylist(playlist, song);
-    await cacheService.clearPlaylistSongs(_playlistCacheKey(playlist));
+    // The server list can be briefly stale after the add request. Drop both
+    // cache layers so the next detail/dialog load reads the latest list.
+    _playlistTracksInMemory.remove(cacheKey);
+    await cacheService.clearPlaylistSongs(cacheKey);
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 
@@ -476,11 +481,11 @@ class MusicLibraryController extends ChangeNotifier {
     final containingIds = <String>{};
     for (final playlist in targetPlaylists) {
       final cacheKey = _playlistCacheKey(playlist);
-      final songs = _playlistTracksInMemory[cacheKey] ??
+      final songs =
+          _playlistTracksInMemory[cacheKey] ??
           cacheService.getPlaylistSongsSync(cacheKey);
       if (songs.any((item) => _sameSong(item, song))) {
-        final key =
-            playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+        final key = playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
         containingIds.add(key);
       }
     }
@@ -491,15 +496,19 @@ class MusicLibraryController extends ChangeNotifier {
     Song song,
     List<MusicPlaylist> targetPlaylists,
   ) async {
-    final containingIds = getPlaylistIdsContainingSongSync(song, targetPlaylists);
+    final containingIds = getPlaylistIdsContainingSongSync(
+      song,
+      targetPlaylists,
+    );
     if (containingIds.isNotEmpty) return containingIds;
     await Future.wait(
       targetPlaylists.map((playlist) async {
         try {
           final songs = await loadPlaylist(playlist);
           if (songs.any((item) => _sameSong(item, song))) {
-            final key =
-                playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+            final key = playlist.listId.isNotEmpty
+                ? playlist.listId
+                : playlist.id;
             containingIds.add(key);
           }
         } catch (_) {}
@@ -510,7 +519,9 @@ class MusicLibraryController extends ChangeNotifier {
 
   Future<void> removeFromPlaylist(MusicPlaylist playlist, Song song) async {
     await repository.removeSongFromPlaylist(playlist, song);
-    await cacheService.clearPlaylistSongs(_playlistCacheKey(playlist));
+    final cacheKey = _playlistCacheKey(playlist);
+    _playlistTracksInMemory.remove(cacheKey);
+    await cacheService.clearPlaylistSongs(cacheKey);
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 

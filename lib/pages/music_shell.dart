@@ -1056,10 +1056,9 @@ class _MusicShellState extends State<MusicShell>
       await libraryController.ensureLoaded(LibrarySection.playlists);
       if (!mounted) return;
       final editable = libraryController.editablePlaylists;
-      final containingIds = libraryController.getPlaylistIdsContainingSongSync(
-        song,
-        editable,
-      );
+      final containingIds = await libraryController
+          .getPlaylistIdsContainingSong(song, editable);
+      if (!mounted) return;
       final selectedPlaylist = await showDialog<MusicPlaylist>(
         context: context,
         builder: (_) => AddToPlaylistDialog(

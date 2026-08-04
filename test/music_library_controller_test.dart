@@ -99,6 +99,30 @@ void main() {
     },
   );
 
+  test('refreshes playlist songs after adding to a cached playlist', () async {
+    final playlist = _playlist('p1', name: '歌单A');
+    final existingSong = _song('existing');
+    final addedSong = _song('added');
+    final repository = _FakeMusicRepository(
+      playlists: [playlist],
+      favoriteSongs: const [],
+      playlistTracks: {
+        'p1': [existingSong],
+      },
+    );
+    final controller = MusicLibraryController(repository);
+
+    await controller.loadPlaylist(playlist);
+    await controller.addToPlaylist(playlist, addedSong);
+
+    final songs = await controller.loadPlaylist(playlist);
+    expect(songs.map((item) => item.id), contains('added'));
+    expect(
+      controller.getPlaylistIdsContainingSongSync(addedSong, [playlist]),
+      contains('p1'),
+    );
+  });
+
   test(
     'shows non-favorite default collection with created playlists',
     () async {
@@ -309,7 +333,12 @@ class _FakeMusicRepository implements MusicRepository {
 
   @override
   Future<void> addSongToPlaylist(MusicPlaylist playlist, Song song) async {
-    _favoriteSongs.add(song);
+    if (playlist.kind == MusicPlaylistKind.favoriteSongs) {
+      _favoriteSongs.add(song);
+      return;
+    }
+    final key = playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
+    playlistTracks.putIfAbsent(key, () => []).add(song);
   }
 
   @override
