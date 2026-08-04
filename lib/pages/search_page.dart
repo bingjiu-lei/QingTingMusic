@@ -51,6 +51,7 @@ class _SearchPageState extends State<SearchPage> {
   void initState() {
     super.initState();
     _textController = TextEditingController(text: widget.controller.keyword);
+    _textController.addListener(_handleTextControllerChanged);
     _focusNode = FocusNode()..addListener(_handleFocusChanged);
   }
 
@@ -60,13 +61,29 @@ class _SearchPageState extends State<SearchPage> {
 
   void _clearSearch() {
     _textController.clear();
-    widget.controller.updateKeyword('');
+    if (widget.controller.keyword.isNotEmpty) {
+      widget.controller.updateKeyword('');
+    }
     _focusNode.requestFocus();
     setState(() {});
   }
 
+  void _handleTextControllerChanged() {
+    // IME 正在组词时，TextEditingValue 会带有非空的 composing 区间。
+    // 此时不能同步搜索状态：Windows 候选窗仍依赖这次组合输入，
+    // 任何搜索状态变更都会让结果区和父级监听器重建，偶发打断候选窗。
+    final value = _textController.value;
+    final composing = value.composing;
+    if (composing.isValid && !composing.isCollapsed) return;
+    if (value.text == widget.controller.keyword) return;
+
+    widget.controller.updateKeyword(value.text);
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
+    _textController.removeListener(_handleTextControllerChanged);
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -80,34 +97,33 @@ class _SearchPageState extends State<SearchPage> {
             _focusNode.requestFocus(),
         const SingleActivator(LogicalKeyboardKey.escape): _clearSearch,
       },
-      child: AnimatedBuilder(
-        animation: widget.controller,
-        builder: (context, _) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(14, 26, 18, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 900),
-                  child: _searchField(),
-                ),
-                const SizedBox(height: 16),
-                Expanded(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 1120),
-                    child: AnimatedSwitcher(
-                      duration: AppMotion.normal,
-                      switchInCurve: AppMotion.curve,
-                      switchOutCurve: Curves.easeInCubic,
-                      child: _content(),
-                    ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 26, 18, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // 输入框在 IME 组合期间必须保持稳定，不随搜索结果、联想状态重建。
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 900),
+              child: _searchField(),
+            ),
+            const SizedBox(height: 16),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1120),
+                child: AnimatedBuilder(
+                  animation: widget.controller,
+                  builder: (context, _) => AnimatedSwitcher(
+                    duration: AppMotion.normal,
+                    switchInCurve: AppMotion.curve,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: _content(),
                   ),
                 ),
-              ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
@@ -147,10 +163,6 @@ class _SearchPageState extends State<SearchPage> {
         autofocus: true,
         textInputAction: TextInputAction.search,
         onTap: () => setState(() {}),
-        onChanged: (value) {
-          widget.controller.updateKeyword(value);
-          setState(() {});
-        },
         onSubmitted: widget.controller.search,
         style: AppTypography.style(15.5, 600, color: AppColors.text),
         decoration: InputDecoration(

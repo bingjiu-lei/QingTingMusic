@@ -166,10 +166,12 @@ class _MusicShellState extends State<MusicShell>
         ),
       );
     }
+    // SearchPage 直接监听 searchController。让搜索输入和联想结果只刷新
+    // 搜索页，避免拼音输入期间由外层 Shell 的整页重建干扰 Windows IME。
     searchController = MusicSearchController(
       repository: repository,
       historyService: SearchHistoryService(),
-    )..addListener(_refresh);
+    );
     libraryController = MusicLibraryController(repository)
       ..addListener(_refresh);
     recommendationController = RecommendationController(repository)
