@@ -48,6 +48,8 @@ class _SongRowState extends State<SongRow> {
     final active = widget.isCurrent;
     final height = widget.compact ? 58.0 : 66.0;
 
+    final isDark = AppColors.isDark;
+
     return MouseRegion(
       cursor: SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hovered = true),
@@ -55,39 +57,38 @@ class _SongRowState extends State<SongRow> {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onDoubleTap: widget.onPlay,
-        child: Container(
-          height: height,
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: active
-                ? AppColors.primary.withValues(
-                    alpha: AppColors.isDark ? 0.20 : 0.10,
-                  )
-                : _hovered
-                ? AppColors.surfaceHover
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(AppRadius.lg),
-            border: Border.all(
-              color: active
-                  ? AppColors.primary.withValues(
-                      alpha: AppColors.isDark ? 0.38 : 0.22,
-                    )
-                  : Colors.transparent,
-              width: 1,
-            ),
-            boxShadow: active
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(
-                        alpha: AppColors.isDark ? 0.16 : 0.08,
-                      ),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Row(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          child: AnimatedScale(
+            scale: _hovered ? 1.01 : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              height: height,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              decoration: BoxDecoration(
+                color: active
+                    ? AppColors.primary.withValues(
+                        alpha: isDark ? 0.20 : 0.10,
+                      )
+                    : _hovered
+                    ? AppColors.primary.withValues(
+                        alpha: isDark ? 0.08 : 0.04,
+                      )
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: active
+                    ? Border.all(
+                        color: AppColors.primary.withValues(
+                          alpha: isDark ? 0.38 : 0.22,
+                        ),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: Row(
             children: [
               SizedBox(
                 width: 42,
@@ -266,8 +267,10 @@ class _SongRowState extends State<SongRow> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }
 
 class SongArtistLine extends StatelessWidget {

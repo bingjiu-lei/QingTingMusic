@@ -480,88 +480,23 @@ class _CatalogGridState extends State<_CatalogGrid> {
       key: widget.storageKey,
       controller: _controller,
       slivers: [
-        SliverGrid(
-          gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 230,
-            mainAxisExtent: 76,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          sliver: SliverGrid(
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 230,
+              mainAxisExtent: 76,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+            ),
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final item = widget.items[index];
+              return _CatalogGridTile(
+                item: item,
+                onTap: widget.onTap,
+              );
+            }, childCount: widget.items.length),
           ),
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final item = widget.items[index];
-            final pixelRatio = MediaQuery.devicePixelRatioOf(context);
-            return Container(
-              decoration: BoxDecoration(
-                color: AppGlass.surface,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                border: Border.all(color: AppGlass.border),
-              ),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(AppRadius.lg),
-                child: InkWell(
-                  onTap: () => widget.onTap(item),
-                  borderRadius: BorderRadius.circular(AppRadius.lg),
-                  hoverColor: AppColors.surfaceHover,
-                  mouseCursor: SystemMouseCursors.click,
-                  child: Padding(
-                    padding: EdgeInsets.all(10),
-                    child: Row(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                          child: Container(
-                            width: 50,
-                            height: 50,
-                            color: AppColors.surfaceMuted,
-                            child: item.imageUrl == null
-                                ? Icon(
-                                    Icons.album_rounded,
-                                    color: AppColors.muted,
-                                  )
-                                : Image.network(
-                                    item.imageUrl!,
-                                    fit: BoxFit.cover,
-                                    cacheWidth: (50 * pixelRatio).round(),
-                                    gaplessPlayback: true,
-                                  ),
-                          ),
-                        ),
-                        SizedBox(width: 11),
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.text,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              Text(
-                                item.formattedReleaseDate ?? item.subtitle,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: AppColors.muted,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }, childCount: widget.items.length),
         ),
         SliverToBoxAdapter(
           child: AnimatedSwitcher(
@@ -615,6 +550,135 @@ class _CatalogGridState extends State<_CatalogGrid> {
       ],
     );
   }
+}
+
+class _CatalogGridTile extends StatefulWidget {
+  const _CatalogGridTile({
+    required this.item,
+    required this.onTap,
+  });
+
+  final SearchCatalogItem item;
+  final ValueChanged<SearchCatalogItem> onTap;
+
+  @override
+  State<_CatalogGridTile> createState() => _CatalogGridTileState();
+}
+
+class _CatalogGridTileState extends State<_CatalogGridTile> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final item = widget.item;
+    final pixelRatio = MediaQuery.devicePixelRatioOf(context);
+    final isDark = AppColors.isDark;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: () => widget.onTap(item),
+        child: AnimatedScale(
+          scale: _pressed
+              ? 0.96
+              : _hovered
+              ? 1.02
+              : 1.0,
+          duration: AppMotion.fast,
+          curve: AppMotion.curve,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
+                  : AppGlass.surface,
+              borderRadius: BorderRadius.circular(AppRadius.lg),
+              border: Border.all(
+                color: _hovered
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.18)
+                    : AppGlass.border,
+              ),
+              boxShadow: _hovered
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(
+                          alpha: isDark ? 0.14 : 0.07,
+                        ),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : (isDark ? null : AppShadows.soft),
+            ),
+          padding: const EdgeInsets.all(10),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(AppRadius.sm),
+                child: Container(
+                  width: 50,
+                  height: 50,
+                  color: AppColors.surfaceMuted,
+                  child: item.imageUrl == null
+                      ? Icon(
+                          Icons.album_rounded,
+                          color: AppColors.muted,
+                        )
+                      : Image.network(
+                          item.imageUrl!,
+                          fit: BoxFit.cover,
+                          cacheWidth: (50 * pixelRatio).round(),
+                          gaplessPlayback: true,
+                        ),
+                ),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _hovered
+                            ? AppColors.primaryPressed
+                            : AppColors.text,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      item.formattedReleaseDate ?? item.subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
 }
 
 class _FacetGrid extends StatelessWidget {

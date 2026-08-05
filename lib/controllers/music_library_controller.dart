@@ -467,10 +467,13 @@ class MusicLibraryController extends ChangeNotifier {
       if (e is KugouApiException) rethrow;
     }
     await repository.addSongToPlaylist(playlist, song);
-    // The server list can be briefly stale after the add request. Drop both
-    // cache layers so the next detail/dialog load reads the latest list.
     _playlistTracksInMemory.remove(cacheKey);
     await cacheService.clearPlaylistSongs(cacheKey);
+    final freshSongs = await repository.getPlaylistSongs(playlist);
+    if (freshSongs.isNotEmpty) {
+      _playlistTracksInMemory[cacheKey] = freshSongs;
+      unawaited(cacheService.savePlaylistSongs(cacheKey, freshSongs));
+    }
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 

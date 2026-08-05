@@ -257,20 +257,30 @@ class _DateBadge extends StatelessWidget {
   const _DateBadge();
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: 44,
-    height: 44,
-    alignment: Alignment.center,
-    decoration: BoxDecoration(
-      color: AppGlass.surfaceStrong,
-      borderRadius: BorderRadius.circular(AppRadius.lg),
-      border: Border.all(color: AppGlass.border),
-    ),
-    child: Text(
-      '${DateTime.now().day}',
-      style: AppTypography.style(18, 800, color: AppColors.primary),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark;
+    return Container(
+      width: 44,
+      height: 44,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isDark
+            ? AppColors.primary.withValues(alpha: 0.18)
+            : AppColors.primary.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: isDark
+              ? AppColors.primary.withValues(alpha: 0.35)
+              : AppColors.primary.withValues(alpha: 0.22),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        '${DateTime.now().day}',
+        style: AppTypography.style(18, 800, color: AppColors.primary),
+      ),
+    );
+  }
 }
 
 class _AuroraBlob extends StatelessWidget {

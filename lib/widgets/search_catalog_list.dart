@@ -31,7 +31,7 @@ class SearchCatalogList extends StatelessWidget {
 
     return ListView.separated(
       key: storageKey,
-      clipBehavior: Clip.none,
+      clipBehavior: Clip.hardEdge,
       padding: const EdgeInsets.fromLTRB(6, 4, 6, 12),
       scrollCacheExtent: const ScrollCacheExtent.pixels(720),
       itemCount: items.length,

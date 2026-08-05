@@ -545,40 +545,42 @@ class _SearchResultsState extends State<_SearchResults> {
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: Stack(
-              children: [
-                _hasVisibleData()
-                    ? ShaderMask(
-                        blendMode: BlendMode.dstIn,
-                        shaderCallback: (bounds) => const LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.white,
-                            Colors.white,
-                            Colors.transparent,
-                          ],
-                          stops: [0, 0.022, 0.965, 1],
-                        ).createShader(bounds),
-                        child: _body(),
-                      )
-                    : _body(),
-                if (controller.isLoading && _hasVisibleData())
-                  const Positioned(
-                    left: 0,
-                    right: 0,
-                    top: 0,
-                    child: LinearProgressIndicator(minHeight: 2),
-                  ),
-                if (controller.category == SearchCategory.song)
-                  ListScrollActions(
-                    controller: _scrollController,
-                    currentIndex: _currentIndex,
-                    itemExtent: 67.0,
-                    scrollPadding: 8.0,
-                  ),
-              ],
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  _hasVisibleData()
+                      ? ShaderMask(
+                          blendMode: BlendMode.dstIn,
+                          shaderCallback: (bounds) => const LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.white,
+                              Colors.white,
+                              Colors.transparent,
+                            ],
+                            stops: [0, 0.022, 0.965, 1],
+                          ).createShader(bounds),
+                          child: _body(),
+                        )
+                      : _body(),
+                  if (controller.isLoading && _hasVisibleData())
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      top: 0,
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
+                  if (controller.category == SearchCategory.song)
+                    ListScrollActions(
+                      controller: _scrollController,
+                      currentIndex: _currentIndex,
+                      itemExtent: 59.0,
+                      scrollPadding: 8.0,
+                    ),
+                ],
+              ),
             ),
           ),
         ],
@@ -630,6 +632,7 @@ class _SearchResultsState extends State<_SearchResults> {
             return SongRow(
               song: song,
               index: index,
+              compact: true,
               isCurrent: widget.currentSong?.id == song.id,
               isPlaying: widget.isPlaying,
               onPlay: () => widget.onPlay(song, controller.results),
@@ -746,10 +749,14 @@ class _Suggestions extends StatelessWidget {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: values.length,
-        itemBuilder: (context, index) => _SuggestionTile(
-          value: values[index],
-          onTap: () => onSelected(values[index]),
-        ),
+        itemBuilder: (context, index) {
+          final value = values[index];
+          return _PromptTile(
+            value: value,
+            icon: Icons.search_rounded,
+            onTap: () => onSelected(value),
+          );
+        },
       ),
     );
   }
@@ -857,49 +864,6 @@ class _RecentSearchEmptyState extends StatelessWidget {
               ],
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SuggestionTile extends StatelessWidget {
-  const _SuggestionTile({required this.value, required this.onTap});
-
-  final String value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        hoverColor: AppColors.surfaceHover.withValues(
-          alpha: AppColors.isDark ? 0.6 : 0.8,
-        ),
-        mouseCursor: SystemMouseCursors.click,
-        child: SizedBox(
-          height: 42,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Row(
-              children: [
-                Icon(Icons.search_rounded, color: AppColors.muted, size: 18),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.style(14, 600, color: AppColors.text),
-                  ),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

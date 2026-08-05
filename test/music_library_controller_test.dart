@@ -73,14 +73,14 @@ void main() {
   test(
     'identifies playlists containing specific song and prevents duplicate addition',
     () async {
-      final playlistA = _playlist('p1', name: '歌单A');
-      final playlistB = _playlist('p2', name: '歌单B');
+      final playlistA = _playlist('ident-p1', name: '歌单A');
+      final playlistB = _playlist('ident-p2', name: '歌单B');
       final song = _song('s1');
       final repository = _FakeMusicRepository(
         playlists: [playlistA, playlistB],
         favoriteSongs: const [],
         playlistTracks: {
-          'p1': [song],
+          'ident-p1': [song],
         },
       );
       final controller = MusicLibraryController(repository);
@@ -89,8 +89,8 @@ void main() {
         playlistA,
         playlistB,
       ]);
-      expect(containing, contains('p1'));
-      expect(containing, isNot(contains('p2')));
+      expect(containing, contains('ident-p1'));
+      expect(containing, isNot(contains('ident-p2')));
 
       expect(
         () => controller.addToPlaylist(playlistA, song),
@@ -100,14 +100,14 @@ void main() {
   );
 
   test('refreshes playlist songs after adding to a cached playlist', () async {
-    final playlist = _playlist('p1', name: '歌单A');
+    final playlist = _playlist('refresh-p1', name: '歌单A');
     final existingSong = _song('existing');
     final addedSong = _song('added');
     final repository = _FakeMusicRepository(
       playlists: [playlist],
       favoriteSongs: const [],
       playlistTracks: {
-        'p1': [existingSong],
+        'refresh-p1': [existingSong],
       },
     );
     final controller = MusicLibraryController(repository);
@@ -119,7 +119,7 @@ void main() {
     expect(songs.map((item) => item.id), contains('added'));
     expect(
       controller.getPlaylistIdsContainingSongSync(addedSong, [playlist]),
-      contains('p1'),
+      contains('refresh-p1'),
     );
   });
 
@@ -317,7 +317,7 @@ class _FakeMusicRepository implements MusicRepository {
       return List.unmodifiable(_favoriteSongs);
     }
     if (playlistTracks.containsKey(playlist.id)) {
-      return List.unmodifiable(playlistTracks[playlist.id]!);
+      return List.of(playlistTracks[playlist.id]!);
     }
     if (playlistTracks.containsKey(playlist.listId)) {
       return List.unmodifiable(playlistTracks[playlist.listId]!);
