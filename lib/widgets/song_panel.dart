@@ -210,7 +210,7 @@ class _SongPanelState extends State<SongPanel> {
                                 : null,
                             controller: _scrollController,
                             physics: const ClampingScrollPhysics(),
-                            padding: const EdgeInsets.fromLTRB(0, 8, 0, 20),
+                            padding: const EdgeInsets.fromLTRB(4, 8, 4, 20),
                             itemCount: visibleSongs.length,
                             itemExtent: itemExtent,
                             scrollCacheExtent: ScrollCacheExtent.pixels(

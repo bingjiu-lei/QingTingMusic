@@ -203,6 +203,13 @@ class _MusicShellState extends State<MusicShell>
       _activeUserId = auth.isLoggedIn ? auth.session.userId : null;
       if (!auth.isLoggedIn) {
         await _resetAccountScopedData();
+        if (mounted && !widget.useDemoData) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !(authController?.isLoggedIn ?? false)) {
+              unawaited(_showLogin());
+            }
+          });
+        }
         return;
       }
     }

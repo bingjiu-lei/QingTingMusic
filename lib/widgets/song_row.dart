@@ -58,7 +58,7 @@ class _SongRowState extends State<SongRow> {
         behavior: HitTestBehavior.opaque,
         onDoubleTap: widget.onPlay,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 1.5),
           child: AnimatedScale(
             scale: _hovered ? 1.01 : 1.0,
             duration: AppMotion.fast,

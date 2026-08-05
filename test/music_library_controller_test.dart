@@ -100,14 +100,14 @@ void main() {
   );
 
   test('refreshes playlist songs after adding to a cached playlist', () async {
-    final playlist = _playlist('refresh-p1', name: '歌单A');
+    final playlist = _playlist('unique-refresh-p1', name: '歌单A');
     final existingSong = _song('existing');
     final addedSong = _song('added');
     final repository = _FakeMusicRepository(
       playlists: [playlist],
       favoriteSongs: const [],
       playlistTracks: {
-        'refresh-p1': [existingSong],
+        'unique-refresh-p1': [existingSong],
       },
     );
     final controller = MusicLibraryController(repository);
@@ -119,7 +119,7 @@ void main() {
     expect(songs.map((item) => item.id), contains('added'));
     expect(
       controller.getPlaylistIdsContainingSongSync(addedSong, [playlist]),
-      contains('refresh-p1'),
+      contains('unique-refresh-p1'),
     );
   });
 
