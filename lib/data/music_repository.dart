@@ -39,6 +39,8 @@ abstract interface class MusicRepository {
     int pageSize = 50,
   });
 
+  Future<List<SearchCatalogItem>> getSimilarArtists(SearchCatalogItem artist);
+
   Future<List<MusicPlaylist>> getUserPlaylists();
 
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist);

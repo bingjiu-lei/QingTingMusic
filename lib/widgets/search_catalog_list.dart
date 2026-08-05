@@ -43,10 +43,7 @@ class SearchCatalogList extends StatelessWidget {
         ),
       ),
       itemBuilder: (context, index) {
-        return _CatalogTile(
-          item: items[index],
-          onSelected: onSelected,
-        );
+        return _CatalogTile(item: items[index], onSelected: onSelected);
       },
     );
   }
@@ -128,14 +125,16 @@ class _CatalogTileState extends State<_CatalogTile> {
                         ),
                       ),
                       if (item.category != SearchCategory.artist ||
-                          (item.subtitle.isNotEmpty && item.subtitle != '歌手')) ...[
+                          (item.subtitle.isNotEmpty &&
+                              item.subtitle != '歌手')) ...[
                         const SizedBox(height: 3),
                         Text(
                           (item.category == SearchCategory.album &&
                                   item.formattedReleaseDate != null)
-                              ? (item.subtitle == '未知歌手' || item.subtitle.isEmpty
-                                  ? item.formattedReleaseDate!
-                                  : '${item.subtitle}  ·  ${item.formattedReleaseDate}')
+                              ? (item.subtitle == '未知歌手' ||
+                                        item.subtitle.isEmpty
+                                    ? item.formattedReleaseDate!
+                                    : '${item.subtitle}  ·  ${item.formattedReleaseDate}')
                               : item.subtitle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -175,6 +174,7 @@ class _CatalogImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageUrl = item.imageUrl?.trim();
     final icon = switch (item.category) {
       SearchCategory.album => Icons.album_rounded,
       SearchCategory.artist => Icons.person_rounded,
@@ -190,11 +190,13 @@ class _CatalogImage extends StatelessWidget {
         width: 44,
         height: 44,
         color: AppColors.surfaceMuted,
-        child: item.imageUrl == null
+        child: imageUrl == null || imageUrl.isEmpty
             ? Icon(icon, color: AppColors.muted, size: 22)
             : Image.network(
-                item.imageUrl!,
+                imageUrl,
                 fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                gaplessPlayback: true,
                 errorBuilder: (_, _, _) =>
                     Icon(icon, color: AppColors.muted, size: 22),
               ),

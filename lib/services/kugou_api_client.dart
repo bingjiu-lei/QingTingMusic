@@ -658,6 +658,35 @@ class KugouApiClient {
         .toList();
   }
 
+  Future<List<SearchCatalogItem>> getSimilarArtists(
+    SearchCatalogItem artist,
+  ) async {
+    if (artist.id.trim().isEmpty) return const [];
+    final response = await _officialRequest(
+      '/artist/similar',
+      method: 'POST',
+      bypassCache: true,
+      data: {
+        'data': [
+          {'author_id': artist.id},
+        ],
+      },
+    );
+    final body = _map(response.data);
+    _throwIfAuthFailed(body);
+    final errorCode = _toInt(body['error_code'] ?? body['ErrorCode']);
+    if (errorCode != 0) {
+      throw KugouApiException(
+        _read(body, ['message', 'msg'], fallback: '相似歌手暂时不可用'),
+      );
+    }
+    return _findRecords(body)
+        .expand((value) => value is List ? value : [value])
+        .map(_similarArtistCatalogItem)
+        .whereType<SearchCatalogItem>()
+        .toList();
+  }
+
   Future<List<MusicPlaylist>> getUserPlaylists() async {
     if (!session.isLoggedIn) throw const AuthenticationRequiredException();
     const pageSize = 100;
@@ -1890,6 +1919,25 @@ class KugouApiClient {
     );
   }
 
+  SearchCatalogItem? _similarArtistCatalogItem(Object? value) {
+    final json = _map(value);
+    var portrait = '';
+    final images = _map(json['imgs']);
+    for (final priority in const ['3', '4', '2']) {
+      for (final value in _list(images[priority])) {
+        portrait = _normalizeArtistImageUrl(
+          _read(_map(value), ['sizable_portrait', 'portrait', 'url']),
+        );
+        if (portrait.isNotEmpty) break;
+      }
+      if (portrait.isNotEmpty) break;
+    }
+    return _catalogItem({
+      ...json,
+      if (portrait.isNotEmpty) 'singer_img': portrait,
+    }, SearchCategory.artist);
+  }
+
   SearchCatalogItem? _catalogItem(Object? value, SearchCategory category) {
     final json = _map(value);
     final fields = switch (category) {
@@ -1918,10 +1966,22 @@ class KugouApiClient {
         ], fallback: '0'),
       ),
       SearchCategory.artist => (
-        id: _read(json, ['AuthorId', 'authorid', 'singerid']),
-        title: _read(json, ['AuthorName', 'authorname', 'singername']),
+        id: _read(json, [
+          'AuthorId',
+          'author_id',
+          'authorid',
+          'singer_id',
+          'singerid',
+        ]),
+        title: _read(json, [
+          'AuthorName',
+          'author_name',
+          'authorname',
+          'singer_name',
+          'singername',
+        ]),
         subtitle: '',
-        image: _read(json, ['Avatar', 'avatar', 'img']),
+        image: _artistImageUrl(json),
         listId: '',
         ownerId: '',
       ),
@@ -1978,6 +2038,42 @@ class KugouApiClient {
       ownerId: fields.ownerId.isEmpty ? null : fields.ownerId,
       releaseDate: releaseDate.isEmpty ? null : releaseDate,
     );
+  }
+
+  String _artistImageUrl(Map<String, Object?> json) {
+    return _normalizeArtistImageUrl(
+      _read(json, [
+        'Avatar',
+        'avatar',
+        'singer_img',
+        'author_pic',
+        'sizable_cover',
+        'img',
+        'pic',
+      ]),
+    );
+  }
+
+  String _normalizeArtistImageUrl(String value) {
+    final url = value.trim();
+    if (url.startsWith('//')) return 'https:$url';
+    final absoluteUrl = url.startsWith('http://')
+        ? 'https://${url.substring(7)}'
+        : url.startsWith('https://')
+        ? url
+        : '';
+    if (absoluteUrl.isNotEmpty) {
+      return absoluteUrl.replaceFirst(
+        RegExp(r'/uploadpic/softhead/\d+/'),
+        '/uploadpic/softhead/400/',
+      );
+    }
+    final match = RegExp(
+      r'^(\d{8})\d+\.(?:jpg|jpeg|png)$',
+      caseSensitive: false,
+    ).firstMatch(url);
+    if (match == null) return '';
+    return 'https://singerimg.kugou.com/uploadpic/softhead/400/${match.group(1)}/$url';
   }
 
   LyricCandidate? _lyricCandidate(Object? response) {

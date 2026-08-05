@@ -6,6 +6,7 @@ import '../models/music_playlist.dart';
 import '../theme/app_theme.dart';
 import '../widgets/album_art.dart';
 import '../widgets/glass.dart';
+import '../widgets/search_catalog_list.dart';
 import '../widgets/song_panel.dart';
 
 enum CollectionDetailKind { playlist, artist, album }
@@ -19,6 +20,7 @@ class CollectionDetailPage extends StatefulWidget {
     required this.imageUrl,
     required this.songs,
     required this.relatedItems,
+    required this.similarArtists,
     required this.relatedItemsLoadingMore,
     required this.relatedItemsCanLoadMore,
     required this.isLoading,
@@ -51,6 +53,7 @@ class CollectionDetailPage extends StatefulWidget {
   final String? imageUrl;
   final List<Song> songs;
   final List<SearchCatalogItem> relatedItems;
+  final List<SearchCatalogItem> similarArtists;
   final bool relatedItemsLoadingMore;
   final bool relatedItemsCanLoadMore;
   final bool isLoading;
@@ -83,7 +86,7 @@ class CollectionDetailPage extends StatefulWidget {
 class _CollectionDetailPageState extends State<CollectionDetailPage> {
   List<String> get tabs => switch (widget.kind) {
     CollectionDetailKind.playlist => ['歌曲'],
-    CollectionDetailKind.artist => ['歌曲', '专辑'],
+    CollectionDetailKind.artist => ['歌曲', '专辑', '相似歌手'],
     CollectionDetailKind.album => ['歌曲'],
   };
 
@@ -173,8 +176,9 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                           );
                         }
                         if (widget.kind == CollectionDetailKind.album) {
-                          final formattedDate =
-                              formatReleaseDate(widget.releaseDate);
+                          final formattedDate = formatReleaseDate(
+                            widget.releaseDate,
+                          );
                           final textStr = formattedDate != null
                               ? '$formattedDate  ·  ${widget.songs.length} 首'
                               : '${widget.songs.length} 首';
@@ -303,6 +307,21 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         canLoadMore: widget.relatedItemsCanLoadMore,
         loadingMore: widget.relatedItemsLoadingMore,
         onLoadMore: widget.onLoadMoreRelatedItems,
+      );
+    }
+    if (widget.kind == CollectionDetailKind.artist && tab == '相似歌手') {
+      if (widget.similarArtists.isEmpty) {
+        return Center(
+          child: Text('暂无相似歌手', style: TextStyle(color: AppColors.muted)),
+        );
+      }
+      return SearchCatalogList(
+        storageKey: PageStorageKey(
+          '${widget.storageKeyPrefix}:similar-artists',
+        ),
+        items: widget.similarArtists,
+        emptyText: '暂无相似歌手',
+        onSelected: widget.onOpenCatalog,
       );
     }
     return _FacetGrid(
@@ -491,10 +510,7 @@ class _CatalogGridState extends State<_CatalogGrid> {
             ),
             delegate: SliverChildBuilderDelegate((context, index) {
               final item = widget.items[index];
-              return _CatalogGridTile(
-                item: item,
-                onTap: widget.onTap,
-              );
+              return _CatalogGridTile(item: item, onTap: widget.onTap);
             }, childCount: widget.items.length),
           ),
         ),
@@ -553,10 +569,7 @@ class _CatalogGridState extends State<_CatalogGrid> {
 }
 
 class _CatalogGridTile extends StatefulWidget {
-  const _CatalogGridTile({
-    required this.item,
-    required this.onTap,
-  });
+  const _CatalogGridTile({required this.item, required this.onTap});
 
   final SearchCatalogItem item;
   final ValueChanged<SearchCatalogItem> onTap;
@@ -620,65 +633,59 @@ class _CatalogGridTileState extends State<_CatalogGridTile> {
                     ]
                   : (isDark ? null : AppShadows.soft),
             ),
-          padding: const EdgeInsets.all(10),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                child: Container(
-                  width: 50,
-                  height: 50,
-                  color: AppColors.surfaceMuted,
-                  child: item.imageUrl == null
-                      ? Icon(
-                          Icons.album_rounded,
-                          color: AppColors.muted,
-                        )
-                      : Image.network(
-                          item.imageUrl!,
-                          fit: BoxFit.cover,
-                          cacheWidth: (50 * pixelRatio).round(),
-                          gaplessPlayback: true,
+            padding: const EdgeInsets.all(10),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                  child: Container(
+                    width: 50,
+                    height: 50,
+                    color: AppColors.surfaceMuted,
+                    child: item.imageUrl == null
+                        ? Icon(Icons.album_rounded, color: AppColors.muted)
+                        : Image.network(
+                            item.imageUrl!,
+                            fit: BoxFit.cover,
+                            cacheWidth: (50 * pixelRatio).round(),
+                            gaplessPlayback: true,
+                          ),
+                  ),
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _hovered
+                              ? AppColors.primaryPressed
+                              : AppColors.text,
+                          fontWeight: FontWeight.w600,
                         ),
-                ),
-              ),
-              const SizedBox(width: 11),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: _hovered
-                            ? AppColors.primaryPressed
-                            : AppColors.text,
-                        fontWeight: FontWeight.w600,
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      item.formattedReleaseDate ?? item.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: AppColors.muted,
-                        fontSize: 12,
+                      const SizedBox(height: 4),
+                      Text(
+                        item.formattedReleaseDate ?? item.subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class _FacetGrid extends StatelessWidget {

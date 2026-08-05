@@ -383,6 +383,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         'pagesize': params['pagesize'] ?? 100,
         'sort': params['sort'] ?? 'new',
       }),
+      '/artist/similar' => _similarArtists(body, cookie),
       '/user/playlist' => _android(
         '/v7/get_all_list',
         {
@@ -848,6 +849,36 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       params: params,
       method: 'GET',
       headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+    );
+  }
+
+  _OfficialRequest _similarArtists(
+    Map<String, Object?> body,
+    Map<String, String> cookie,
+  ) {
+    const clientVersion = 9108;
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return _OfficialRequest(
+      baseUrl: 'http://kmr.service.kugou.com',
+      path: '/v1/author/similar',
+      params: const {},
+      method: 'POST',
+      data: {
+        'clientver': clientVersion,
+        'mid': cookie['KUGOU_API_MID'] ?? randomMid(),
+        'clienttime': clienttime,
+        'key': _signParamsKey(
+          clienttime.toString(),
+          appId: appid,
+          clientVersion: clientVersion,
+        ),
+        'appid': appid,
+        'data': body['data'] ?? const [],
+      },
+      headers: const {
+        'Content-Type': 'application/json',
+        'User-Agent': 'Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi',
+      },
     );
   }
 

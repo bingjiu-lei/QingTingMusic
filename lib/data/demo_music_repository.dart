@@ -98,6 +98,11 @@ class DemoMusicRepository implements MusicRepository {
   }) async => const [];
 
   @override
+  Future<List<SearchCatalogItem>> getSimilarArtists(
+    SearchCatalogItem artist,
+  ) async => const [];
+
+  @override
   Future<List<MusicPlaylist>> getUserPlaylists() async => const [
     MusicPlaylist(
       id: 'demo-favorites',

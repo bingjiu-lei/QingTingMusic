@@ -84,6 +84,11 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<List<SearchCatalogItem>> getSimilarArtists(SearchCatalogItem artist) {
+    return apiClient.getSimilarArtists(artist);
+  }
+
+  @override
   Future<List<MusicPlaylist>> getUserPlaylists() {
     return apiClient.getUserPlaylists();
   }

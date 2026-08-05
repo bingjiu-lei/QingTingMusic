@@ -92,6 +92,7 @@ class _MusicShellState extends State<MusicShell>
   String? detailImageUrl;
   List<Song> detailSongs = [];
   List<SearchCatalogItem> detailRelatedItems = [];
+  List<SearchCatalogItem> detailSimilarArtists = [];
   bool detailLoading = false;
   CollectionDetailKind detailKind = CollectionDetailKind.playlist;
   MusicPlaylist? detailPlaylist;
@@ -534,6 +535,7 @@ class _MusicShellState extends State<MusicShell>
         detailImageUrl = null;
         detailSongs = [];
         detailRelatedItems = [];
+        detailSimilarArtists = [];
         detailRelatedLoadingMore = false;
         detailRelatedHasMore = false;
         detailRelatedPage = 1;
@@ -603,6 +605,7 @@ class _MusicShellState extends State<MusicShell>
           .firstWhere((url) => url.isNotEmpty, orElse: () => '');
       detailSongs = songs;
       detailRelatedItems = const [];
+      detailSimilarArtists = const [];
       detailRelatedLoadingMore = false;
       detailRelatedHasMore = false;
       detailLoading = false;
@@ -747,6 +750,7 @@ class _MusicShellState extends State<MusicShell>
       detailImageUrl = item.imageUrl;
       detailSongs = [];
       detailRelatedItems = [];
+      detailSimilarArtists = [];
       detailRelatedLoadingMore = false;
       detailRelatedHasMore = false;
       detailRelatedPage = 1;
@@ -769,6 +773,12 @@ class _MusicShellState extends State<MusicShell>
           repository.getArtistAlbumsPage(item, page: 1)
         else
           Future<List<SearchCatalogItem>>.value([]),
+        if (item.category == SearchCategory.artist)
+          repository
+              .getSimilarArtists(item)
+              .catchError((_) => <SearchCatalogItem>[])
+        else
+          Future<List<SearchCatalogItem>>.value([]),
       ]);
       if (!mounted) return;
       final songs = (results[0] as List<Song>)
@@ -777,12 +787,17 @@ class _MusicShellState extends State<MusicShell>
       final finalItem = item.category == SearchCategory.album
           ? await _hydrateAlbumReleaseDate(item, songs)
           : item;
+      final artistHeaderImage = item.category == SearchCategory.artist
+          ? await _resolveArtistHeaderImage(finalItem, songs)
+          : finalItem.imageUrl;
       if (!mounted) return;
       setState(() {
         detailCatalogItem = finalItem;
+        detailImageUrl = artistHeaderImage ?? finalItem.imageUrl;
         detailSongs = songs;
         if (item.category == SearchCategory.artist) {
           detailRelatedItems = results[1] as List<SearchCatalogItem>;
+          detailSimilarArtists = results[2] as List<SearchCatalogItem>;
           detailRelatedPage = 1;
           detailRelatedHasMore = detailRelatedItems.isNotEmpty;
         }
@@ -795,6 +810,26 @@ class _MusicShellState extends State<MusicShell>
         context,
       ).showSnackBar(SnackBar(content: Text(error.toString())));
     }
+  }
+
+  Future<String?> _resolveArtistHeaderImage(
+    SearchCatalogItem artist,
+    List<Song> songs,
+  ) async {
+    final knownImage = artist.imageUrl?.trim();
+    if (knownImage != null && knownImage.isNotEmpty) return knownImage;
+    for (final song in songs.take(3)) {
+      try {
+        final portraits = await repository.getArtistPortraits(song);
+        for (final portrait in portraits) {
+          final imageUrl = portrait.trim();
+          if (imageUrl.isNotEmpty) return imageUrl;
+        }
+      } catch (_) {
+        // Keep the default avatar when no upstream portrait is available.
+      }
+    }
+    return null;
   }
 
   Future<void> _loadMoreArtistAlbums() async {
@@ -855,6 +890,7 @@ class _MusicShellState extends State<MusicShell>
       detailImageUrl = playlist.coverUrl;
       detailSongs = [];
       detailRelatedItems = [];
+      detailSimilarArtists = [];
       detailRelatedLoadingMore = false;
       detailRelatedHasMore = false;
       detailRelatedPage = 1;
@@ -1268,6 +1304,7 @@ class _MusicShellState extends State<MusicShell>
         imageUrl: detailImageUrl,
         songs: detailSongs,
         relatedItems: detailRelatedItems,
+        similarArtists: detailSimilarArtists,
         relatedPage: detailRelatedPage,
         relatedHasMore: detailRelatedHasMore,
         relatedLoadingMore: detailRelatedLoadingMore,
@@ -1291,6 +1328,7 @@ class _MusicShellState extends State<MusicShell>
         detailIdentity = null;
         detailStorageKeyPrefix = null;
         detailSelectedTab = 0;
+        detailSimilarArtists = [];
         detailRelatedLoadingMore = false;
         detailRelatedHasMore = false;
         detailRelatedPage = 1;
@@ -1306,6 +1344,7 @@ class _MusicShellState extends State<MusicShell>
       detailImageUrl = previous.imageUrl;
       detailSongs = previous.songs;
       detailRelatedItems = previous.relatedItems;
+      detailSimilarArtists = previous.similarArtists;
       detailRelatedPage = previous.relatedPage;
       detailRelatedHasMore = previous.relatedHasMore;
       detailRelatedLoadingMore = previous.relatedLoadingMore;
@@ -1594,6 +1633,7 @@ class _MusicShellState extends State<MusicShell>
             detailCatalogItem?.releaseDate ?? detailPlaylist?.releaseDate,
         songs: detailSongs,
         relatedItems: detailRelatedItems,
+        similarArtists: detailSimilarArtists,
         relatedItemsLoadingMore: detailRelatedLoadingMore,
         relatedItemsCanLoadMore: detailRelatedHasMore,
         onLoadMoreRelatedItems: _loadMoreArtistAlbums,
@@ -1998,6 +2038,7 @@ class _DetailSnapshot {
     required this.imageUrl,
     required this.songs,
     required this.relatedItems,
+    required this.similarArtists,
     required this.relatedPage,
     required this.relatedHasMore,
     required this.relatedLoadingMore,
@@ -2016,6 +2057,7 @@ class _DetailSnapshot {
   final String? imageUrl;
   final List<Song> songs;
   final List<SearchCatalogItem> relatedItems;
+  final List<SearchCatalogItem> similarArtists;
   final int relatedPage;
   final bool relatedHasMore;
   final bool relatedLoadingMore;
