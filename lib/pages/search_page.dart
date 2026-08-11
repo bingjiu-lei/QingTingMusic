@@ -98,7 +98,7 @@ class _SearchPageState extends State<SearchPage> {
         const SingleActivator(LogicalKeyboardKey.escape): _clearSearch,
       },
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 26, 18, 12),
+        padding: const EdgeInsets.fromLTRB(8, 6, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -516,7 +516,7 @@ class _SearchResultsState extends State<_SearchResults> {
     return GlassSurface(
       radius: AppRadius.xl,
       tint: AppGlass.surfaceStrong,
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 12),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       shadows: AppColors.isDark ? null : AppShadows.soft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

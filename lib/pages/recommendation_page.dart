@@ -31,7 +31,7 @@ class RecommendationPage extends StatelessWidget {
   Widget build(BuildContext context) => AnimatedBuilder(
     animation: controller,
     builder: (context, _) => SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(14, 8, 18, 12),
+      padding: const EdgeInsets.fromLTRB(8, 6, 14, 12),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 1120),

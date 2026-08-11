@@ -84,6 +84,18 @@ class CollectionDetailPage extends StatefulWidget {
 }
 
 class _CollectionDetailPageState extends State<CollectionDetailPage> {
+  final TextEditingController _filterController = TextEditingController();
+  final FocusNode _filterFocusNode = FocusNode();
+  String _filterText = '';
+  bool _filterExpanded = false;
+  bool _reversed = false;
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    _filterFocusNode.dispose();
+    super.dispose();
+  }
   List<String> get tabs => switch (widget.kind) {
     CollectionDetailKind.playlist => ['歌曲'],
     CollectionDetailKind.artist => ['歌曲', '专辑', '相似歌手'],
@@ -106,7 +118,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 18, 12),
+      padding: const EdgeInsets.fromLTRB(8, 6, 14, 12),
       child: Column(
         children: [
           Row(
@@ -253,17 +265,49 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
             ],
           ),
           const SizedBox(height: 14),
-          if (tabs.length > 1) ...[
-            Align(
-              alignment: Alignment.centerLeft,
-              child: GlassTabBar(
+          Row(
+            children: [
+              GlassTabBar(
                 tabs: tabs,
                 selectedIndex: selectedTab,
                 onChanged: widget.onTabChanged,
               ),
-            ),
-            const SizedBox(height: 10),
-          ],
+              const Spacer(),
+              if (tabs[selectedTab] == '歌曲')
+                SongHeaderActions(
+                  songs: _songsForDisplay(),
+                  onPlayAll: _songsForDisplay().isEmpty
+                      ? null
+                      : () => widget.onPlay(
+                            _songsForDisplay().first,
+                            _songsForDisplay(),
+                          ),
+                  filterController: _filterController,
+                  filterFocusNode: _filterFocusNode,
+                  filterExpanded: _filterExpanded,
+                  hasFilter: _filterText.trim().isNotEmpty,
+                  onExpandFilter: () {
+                    setState(() => _filterExpanded = true);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _filterFocusNode.requestFocus();
+                    });
+                  },
+                  onChangedFilter: (val) =>
+                      setState(() => _filterText = val),
+                  onClearFilter: () {
+                    _filterController.clear();
+                    setState(() {
+                      _filterText = '';
+                      _filterExpanded = false;
+                    });
+                    _filterFocusNode.unfocus();
+                  },
+                  reversed: _reversed,
+                  onToggleSort: () => setState(() => _reversed = !_reversed),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Expanded(
             child: widget.isLoading
                 ? const _DetailLoadingPlaceholder()
@@ -285,6 +329,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         currentSong: widget.currentSong,
         isPlaying: widget.isPlaying,
         compactRows: true,
+        filterText: _filterText,
+        reversed: _reversed,
         onPlay: widget.onPlay,
         onLike: widget.onLike,
         onAddToPlaylist: widget.onAddToPlaylist,

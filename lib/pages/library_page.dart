@@ -53,6 +53,18 @@ class LibraryPage extends StatefulWidget {
 }
 
 class _LibraryPageState extends State<LibraryPage> {
+  final TextEditingController _filterController = TextEditingController();
+  final FocusNode _filterFocusNode = FocusNode();
+  String _filterText = '';
+  bool _filterExpanded = false;
+  bool _reversed = false;
+
+  @override
+  void dispose() {
+    _filterController.dispose();
+    _filterFocusNode.dispose();
+    super.dispose();
+  }
   static const tabs = [
     ('歌曲', LibrarySection.songs),
     ('歌单', LibrarySection.playlists),
@@ -65,28 +77,77 @@ class _LibraryPageState extends State<LibraryPage> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 18, 12),
+      padding: const EdgeInsets.fromLTRB(8, 6, 14, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           PageHeader(title: '我的音乐', subtitle: '收藏与个人音乐内容'),
           const SizedBox(height: 10),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: GlassTabBar(
-              tabs: [for (final tab in tabs) tab.$1],
-              selectedIndex: widget.selectedTab,
-              onChanged: (index) {
-                widget.onTabChanged(index);
-                widget.controller.ensureLoaded(tabs[index].$2);
-              },
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: GlassTabBar(
+                    tabs: [for (final tab in tabs) tab.$1],
+                    selectedIndex: widget.selectedTab,
+                    onChanged: (index) {
+                      widget.onTabChanged(index);
+                      widget.controller.ensureLoaded(tabs[index].$2);
+                    },
+                  ),
+                ),
+              ),
+              if (_currentSectionSongs != null) ...[
+                const SizedBox(width: 12),
+                SongHeaderActions(
+                  songs: _currentSectionSongs!,
+                  onPlayAll: _currentSectionSongs!.isEmpty
+                      ? null
+                      : () => widget.onPlay(
+                            _currentSectionSongs!.first,
+                            _currentSectionSongs!,
+                          ),
+                  filterController: _filterController,
+                  filterFocusNode: _filterFocusNode,
+                  filterExpanded: _filterExpanded,
+                  hasFilter: _filterText.trim().isNotEmpty,
+                  onExpandFilter: () {
+                    setState(() => _filterExpanded = true);
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) _filterFocusNode.requestFocus();
+                    });
+                  },
+                  onChangedFilter: (val) => setState(() => _filterText = val),
+                  onClearFilter: () {
+                    _filterController.clear();
+                    setState(() {
+                      _filterText = '';
+                      _filterExpanded = false;
+                    });
+                    _filterFocusNode.unfocus();
+                  },
+                  reversed: _reversed,
+                  onToggleSort: () => setState(() => _reversed = !_reversed),
+                ),
+              ],
+            ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Expanded(child: ClipRect(child: _content())),
         ],
       ),
     );
+  }
+
+  List<Song>? get _currentSectionSongs {
+    final section = tabs[widget.selectedTab].$2;
+    return switch (section) {
+      LibrarySection.songs => widget.controller.sortedFavorites,
+      LibrarySection.cloud => widget.controller.sortedCloudSongs,
+      LibrarySection.recent => widget.recentSongs,
+      _ => null,
+    };
   }
 
   Widget _content() {
@@ -179,6 +240,8 @@ class _LibraryPageState extends State<LibraryPage> {
   }) {
     return SongPanel(
       key: storageKey,
+      filterText: _filterText,
+      reversed: _reversed,
       title: title,
       songs: songs,
       currentSong: widget.currentSong,
