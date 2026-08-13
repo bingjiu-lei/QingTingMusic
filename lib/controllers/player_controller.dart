@@ -432,6 +432,17 @@ class PlayerController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Plays all songs in [songs]. If currently in [PlaybackMode.shuffle], picks
+  /// a random song to start immediately instead of starting from songs.first.
+  Future<bool> playAll(List<Song> songs) async {
+    if (songs.isEmpty) return false;
+    Song startSong = songs.first;
+    if (playbackMode == PlaybackMode.shuffle) {
+      startSong = songs[_random.nextInt(songs.length)];
+    }
+    return playSong(startSong, fromQueue: songs);
+  }
+
   void appendQueue(List<Song> songs) {
     if (songs.isEmpty) return;
     queue = List.unmodifiable(_dedupeSongs([...queue, ...songs]));

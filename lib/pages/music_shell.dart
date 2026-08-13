@@ -587,6 +587,14 @@ class _MusicShellState extends State<MusicShell>
     final queue = sourceQueue.any((item) => item.id == song.id)
         ? sourceQueue
         : [song];
+
+    if (playerController.playbackMode == PlaybackMode.shuffle &&
+        queue.length > 1 &&
+        song.id == queue.first.id) {
+      await playerController.playAll(queue);
+      return;
+    }
+
     await playerController.playSong(song, fromQueue: queue);
   }
 
