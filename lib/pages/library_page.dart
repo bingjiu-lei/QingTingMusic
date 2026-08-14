@@ -20,6 +20,7 @@ class LibraryPage extends StatefulWidget {
     required this.currentSong,
     required this.isPlaying,
     required this.onPlay,
+    required this.onPlayAll,
     required this.onLike,
     required this.onAddToPlaylist,
     required this.onOpenArtist,
@@ -37,6 +38,7 @@ class LibraryPage extends StatefulWidget {
   final Song? currentSong;
   final bool isPlaying;
   final SongPlayRequest onPlay;
+  final ValueChanged<List<Song>> onPlayAll;
   final ValueChanged<Song> onLike;
   final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song> onOpenArtist;
@@ -104,10 +106,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   songs: _currentSectionSongs!,
                   onPlayAll: _currentSectionSongs!.isEmpty
                       ? null
-                      : () => widget.onPlay(
-                            _currentSectionSongs!.first,
-                            _currentSectionSongs!,
-                          ),
+                      : () => widget.onPlayAll(_currentSectionSongs!),
                   filterController: _filterController,
                   filterFocusNode: _filterFocusNode,
                   filterExpanded: _filterExpanded,

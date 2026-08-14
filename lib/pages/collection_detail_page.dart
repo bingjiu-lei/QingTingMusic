@@ -27,6 +27,7 @@ class CollectionDetailPage extends StatefulWidget {
     required this.onBack,
     this.onOpenHeaderArtist,
     required this.onPlay,
+    required this.onPlayAll,
     required this.onLike,
     required this.onAddToPlaylist,
     required this.onOpenArtist,
@@ -60,6 +61,7 @@ class CollectionDetailPage extends StatefulWidget {
   final VoidCallback onBack;
   final VoidCallback? onOpenHeaderArtist;
   final SongPlayRequest onPlay;
+  final ValueChanged<List<Song>> onPlayAll;
   final ValueChanged<Song> onLike;
   final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song>? onRemoveFromPlaylist;
@@ -278,10 +280,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   songs: _songsForDisplay(),
                   onPlayAll: _songsForDisplay().isEmpty
                       ? null
-                      : () => widget.onPlay(
-                            _songsForDisplay().first,
-                            _songsForDisplay(),
-                          ),
+                      : () => widget.onPlayAll(_songsForDisplay()),
                   filterController: _filterController,
                   filterFocusNode: _filterFocusNode,
                   filterExpanded: _filterExpanded,

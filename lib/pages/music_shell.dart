@@ -570,6 +570,18 @@ class _MusicShellState extends State<MusicShell>
     await _playFromQueue(song, sourceQueue);
   }
 
+  /// Dedicated path for the "Play All" button – never used for individual song
+  /// clicks, so shuffle-mode random pick cannot interfere with user intent.
+  Future<void> _playAllSongs(List<Song> songs) async {
+    if (songs.isEmpty) return;
+    final previousMode = _playbackModeBeforeFm;
+    _isFmSession = false;
+    _lastFmSyncSongId = null;
+    _playbackModeBeforeFm = null;
+    if (previousMode != null) playerController.setPlaybackMode(previousMode);
+    await playerController.playAll(songs);
+  }
+
   Future<void> _playFmSong(Song song, List<Song> sourceQueue) async {
     _playbackModeBeforeFm ??= playerController.playbackMode;
     _isFmSession = true;
@@ -587,14 +599,6 @@ class _MusicShellState extends State<MusicShell>
     final queue = sourceQueue.any((item) => item.id == song.id)
         ? sourceQueue
         : [song];
-
-    if (playerController.playbackMode == PlaybackMode.shuffle &&
-        queue.length > 1 &&
-        song.id == queue.first.id) {
-      await playerController.playAll(queue);
-      return;
-    }
-
     await playerController.playSong(song, fromQueue: queue);
   }
 
@@ -1665,6 +1669,7 @@ class _MusicShellState extends State<MusicShell>
             ? () => _openArtistByName(detailHeaderArtistName!)
             : null,
         onPlay: _playSong,
+        onPlayAll: _playAllSongs,
         onLike: _toggleFavorite,
         onAddToPlaylist: _showAddToPlaylist,
         onRemoveFromPlaylist:
@@ -1693,6 +1698,7 @@ class _MusicShellState extends State<MusicShell>
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
         onPlay: _playSong,
+        onPlayAll: _playAllSongs,
         onLike: _toggleFavorite,
         onAddToPlaylist: _showAddToPlaylist,
         onOpenArtist: _openArtistFromSong,
