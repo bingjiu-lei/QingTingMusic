@@ -26,6 +26,7 @@ class SettingsPage extends StatefulWidget {
     required this.themeController,
     this.onEndpointChanged,
     this.onDeveloperModeChanged,
+    this.onNotice,
   });
 
   final UpdateController updateController;
@@ -36,6 +37,7 @@ class SettingsPage extends StatefulWidget {
   final ThemeController themeController;
   final VoidCallback? onEndpointChanged;
   final ValueChanged<bool>? onDeveloperModeChanged;
+  final ValueChanged<String>? onNotice;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -150,9 +152,7 @@ class _SettingsPageState extends State<SettingsPage> {
       if (!mounted) return;
       await Clipboard.setData(const ClipboardData(text: _projectUrl));
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('项目地址已复制')));
+      _showSnack('项目地址已复制');
     }
   }
 
@@ -443,6 +443,11 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showSnack(String message) {
+    final onNotice = widget.onNotice;
+    if (onNotice != null) {
+      onNotice(message);
+      return;
+    }
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),

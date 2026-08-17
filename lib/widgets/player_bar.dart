@@ -8,6 +8,7 @@ import '../controllers/player_controller.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'preparing_dots.dart';
 import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
 import 'song_row.dart';
@@ -487,7 +488,7 @@ class _PrimaryPlayButtonState extends State<_PrimaryPlayButton> {
                 ),
                 child: Center(
                   child: preparing
-                      ? const _PreparingDots()
+                      ? const PreparingDots()
                       : Icon(
                           isPlaying
                               ? Icons.pause_rounded
@@ -503,55 +504,6 @@ class _PrimaryPlayButtonState extends State<_PrimaryPlayButton> {
       ),
     );
   }
-}
-
-class _PreparingDots extends StatefulWidget {
-  const _PreparingDots();
-
-  @override
-  State<_PreparingDots> createState() => _PreparingDotsState();
-}
-
-class _PreparingDotsState extends State<_PreparingDots>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 720),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _controller,
-    builder: (context, child) {
-      final phase = _controller.value;
-      return SizedBox(
-        width: 20,
-        height: 20,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (index) {
-            final offset = (phase + index / 3) % 1;
-            final opacity = 0.32 + (offset < 0.5 ? offset : 1 - offset) * 1.36;
-            return Container(
-              width: 3.5,
-              height: 3.5,
-              margin: const EdgeInsets.symmetric(horizontal: 1.2),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: opacity.clamp(0.2, 1.0)),
-                shape: BoxShape.circle,
-              ),
-            );
-          }),
-        ),
-      );
-    },
-  );
 }
 
 class _ControlIconButton extends StatefulWidget {

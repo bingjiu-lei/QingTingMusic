@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../models/music_playlist.dart';
@@ -5,19 +7,52 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
 
-class AddToPlaylistDialog extends StatelessWidget {
+class AddToPlaylistDialog extends StatefulWidget {
   const AddToPlaylistDialog({
     super.key,
     required this.song,
     required this.playlists,
     this.containingPlaylistIds = const {},
+    this.containingPlaylistIdsFuture,
+    this.onContainingStateLoaded,
     this.onSelected,
   });
 
   final Song song;
   final List<MusicPlaylist> playlists;
   final Set<String> containingPlaylistIds;
+  final Future<Set<String>>? containingPlaylistIdsFuture;
+  final VoidCallback? onContainingStateLoaded;
   final ValueChanged<MusicPlaylist>? onSelected;
+
+  @override
+  State<AddToPlaylistDialog> createState() => _AddToPlaylistDialogState();
+}
+
+class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
+  late Set<String> _containingPlaylistIds;
+  bool _selectionPending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _containingPlaylistIds = {...widget.containingPlaylistIds};
+    final future = widget.containingPlaylistIdsFuture;
+    if (future != null) {
+      unawaited(_loadContainingPlaylistIds(future));
+    }
+  }
+
+  Future<void> _loadContainingPlaylistIds(Future<Set<String>> future) async {
+    try {
+      final containingIds = await future;
+      if (!mounted) return;
+      setState(() => _containingPlaylistIds = {...containingIds});
+      widget.onContainingStateLoaded?.call();
+    } catch (_) {
+      if (mounted) widget.onContainingStateLoaded?.call();
+    }
+  }
 
   String _getPlaylistKey(MusicPlaylist playlist) {
     return playlist.listId.isNotEmpty ? playlist.listId : playlist.id;
@@ -59,14 +94,14 @@ class AddToPlaylistDialog extends StatelessWidget {
               const SizedBox(height: 8),
               Row(
                 children: [
-                  AlbumArt(size: 42, imageUrl: song.coverUrl),
+                  AlbumArt(size: 42, imageUrl: widget.song.coverUrl),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          song.title,
+                          widget.song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -76,7 +111,7 @@ class AddToPlaylistDialog extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          song.artist,
+                          widget.song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
@@ -91,7 +126,7 @@ class AddToPlaylistDialog extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Flexible(
-                child: playlists.isEmpty
+                child: widget.playlists.isEmpty
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 36),
@@ -106,12 +141,13 @@ class AddToPlaylistDialog extends StatelessWidget {
                       )
                     : ListView.separated(
                         shrinkWrap: true,
-                        itemCount: playlists.length,
+                        itemCount: widget.playlists.length,
                         separatorBuilder: (_, _) => const SizedBox(height: 8),
                         itemBuilder: (context, index) {
-                          final playlist = playlists[index];
+                          final playlist = widget.playlists[index];
                           final key = _getPlaylistKey(playlist);
-                          final isAlreadyAdded = containingPlaylistIds.contains(key);
+                          final isAlreadyAdded = _containingPlaylistIds
+                              .contains(key);
 
                           return Material(
                             color: isAlreadyAdded
@@ -120,11 +156,12 @@ class AddToPlaylistDialog extends StatelessWidget {
                             borderRadius: BorderRadius.circular(8),
                             child: InkWell(
                               borderRadius: BorderRadius.circular(8),
-                              onTap: isAlreadyAdded
+                              onTap: isAlreadyAdded || _selectionPending
                                   ? null
                                   : () {
+                                      setState(() => _selectionPending = true);
                                       Navigator.of(context).pop(playlist);
-                                      onSelected?.call(playlist);
+                                      widget.onSelected?.call(playlist);
                                     },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(

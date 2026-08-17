@@ -34,7 +34,9 @@ import '../services/session_expired_service.dart';
 import '../services/windows_media_bridge.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_window_caption.dart';
+import '../widgets/app_notice.dart';
 import '../widgets/add_to_playlist_dialog.dart';
+import '../widgets/async_operation_overlay.dart';
 import '../widgets/login_dialog.dart';
 import '../widgets/now_playing_page.dart';
 import '../widgets/play_queue_panel.dart';
@@ -130,6 +132,12 @@ class _MusicShellState extends State<MusicShell>
   bool _lastShellPlaying = false;
   StreamSubscription<void>? _sessionExpiredSubscription;
   final Set<String> _favoriteUpdates = <String>{};
+  bool _playlistOperationBusy = false;
+  bool _playlistOperationIndicatorVisible = false;
+  String _playlistOperationMessage = '正在准备歌单…';
+  AppNoticeData? _notice;
+  Timer? _noticeTimer;
+  int _noticeId = 0;
 
   @override
   void initState() {
@@ -676,9 +684,7 @@ class _MusicShellState extends State<MusicShell>
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -698,9 +704,7 @@ class _MusicShellState extends State<MusicShell>
       if (detailPlaylist?.listId == playlist.listId && mounted) _popDetail();
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -729,9 +733,7 @@ class _MusicShellState extends State<MusicShell>
     } catch (error) {
       _applyFavoriteState(song, previous);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     } finally {
       _favoriteUpdates.remove(song.id);
     }
@@ -818,9 +820,7 @@ class _MusicShellState extends State<MusicShell>
     } catch (error) {
       if (!mounted) return;
       setState(() => detailLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -871,9 +871,7 @@ class _MusicShellState extends State<MusicShell>
         detailRelatedHasMore = false;
         detailRelatedLoadingMore = false;
       });
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -942,9 +940,7 @@ class _MusicShellState extends State<MusicShell>
     } catch (error) {
       if (!mounted) return;
       setState(() => detailLoading = false);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -1105,6 +1101,12 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _showAddToPlaylist(Song song) async {
+    if (_playlistOperationBusy) return;
+    setState(() {
+      _playlistOperationBusy = true;
+      _playlistOperationIndicatorVisible = true;
+      _playlistOperationMessage = '正在准备歌单…';
+    });
     try {
       if (authController != null && !authController!.isLoggedIn) {
         await _showLogin();
@@ -1113,8 +1115,17 @@ class _MusicShellState extends State<MusicShell>
       await libraryController.ensureLoaded(LibrarySection.playlists);
       if (!mounted) return;
       final editable = libraryController.editablePlaylists;
-      final containingIds = await libraryController
-          .getPlaylistIdsContainingSong(song, editable);
+      final containingIds = libraryController.getPlaylistIdsContainingSongSync(
+        song,
+        editable,
+      );
+      final containingIdsFuture = containingIds.isEmpty && editable.isNotEmpty
+          ? libraryController.getPlaylistIdsContainingSong(song, editable)
+          : null;
+      setState(() {
+        _playlistOperationIndicatorVisible = containingIdsFuture != null;
+        _playlistOperationMessage = '正在检查歌单状态…';
+      });
       if (!mounted) return;
       final selectedPlaylist = await showDialog<MusicPlaylist>(
         context: context,
@@ -1122,31 +1133,62 @@ class _MusicShellState extends State<MusicShell>
           song: song,
           playlists: editable,
           containingPlaylistIds: containingIds,
+          containingPlaylistIdsFuture: containingIdsFuture,
+          onContainingStateLoaded: _hidePlaylistOperationIndicator,
         ),
       );
       if (selectedPlaylist != null && mounted) {
+        setState(() {
+          _playlistOperationIndicatorVisible = true;
+          _playlistOperationMessage = '正在添加到「${selectedPlaylist.name}」…';
+        });
         await _addToPlaylist(selectedPlaylist, song);
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _playlistOperationBusy = false;
+          _playlistOperationIndicatorVisible = false;
+        });
+      }
     }
+  }
+
+  void _showNotice(String message, {AppNoticeKind kind = AppNoticeKind.info}) {
+    if (!mounted || message.trim().isEmpty) return;
+    _noticeTimer?.cancel();
+    final notice = AppNoticeData(
+      id: ++_noticeId,
+      message: message.trim(),
+      kind: kind,
+    );
+    setState(() => _notice = notice);
+    _noticeTimer = Timer(const Duration(milliseconds: 2800), () {
+      if (!mounted || _notice?.id != notice.id) return;
+      setState(() => _notice = null);
+    });
+  }
+
+  void _hidePlaylistOperationIndicator() {
+    if (!mounted ||
+        !_playlistOperationBusy ||
+        _playlistOperationMessage != '正在检查歌单状态…') {
+      return;
+    }
+    setState(() => _playlistOperationIndicatorVisible = false);
   }
 
   Future<void> _addToPlaylist(MusicPlaylist playlist, Song song) async {
     try {
       await libraryController.addToPlaylist(playlist, song);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('已添加到 ${playlist.name}')));
+      _showNotice('已添加到 ${playlist.name}', kind: AppNoticeKind.success);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -1172,15 +1214,14 @@ class _MusicShellState extends State<MusicShell>
         detailSongs = detailSongs.where((item) => item.id != song.id).toList();
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('已从 ${playlist.name} 移除 ${song.title}')),
+        _showNotice(
+          '已从 ${playlist.name} 移除 ${song.title}',
+          kind: AppNoticeKind.success,
         );
       }
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -1221,14 +1262,10 @@ class _MusicShellState extends State<MusicShell>
       final wasCollected = libraryController.isCatalogCollected(item);
       await libraryController.toggleCatalogCollection(item);
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(wasCollected ? '已取消收藏' : '已收藏')));
+      _showNotice(wasCollected ? '已取消收藏' : '已收藏', kind: AppNoticeKind.success);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error.toString())));
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
   }
 
@@ -1371,6 +1408,7 @@ class _MusicShellState extends State<MusicShell>
 
   @override
   void dispose() {
+    _noticeTimer?.cancel();
     _desktopLyricsTimer?.cancel();
     _sessionExpiredSubscription?.cancel();
     widget.themeController.removeListener(_handleThemeChanged);
@@ -1407,20 +1445,25 @@ class _MusicShellState extends State<MusicShell>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: LayoutBuilder(
-          builder: (context, constraints) {
-            final autoCompact = constraints.maxWidth < 1050;
-            final compactSidebar = _userSidebarCompact ?? autoCompact;
-            return DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.page,
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [AppColors.sidebar, AppColors.page],
-                ),
+      backgroundColor: Colors.transparent,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final autoCompact = constraints.maxWidth < 1050;
+          final compactSidebar = _userSidebarCompact ?? autoCompact;
+          return DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.page,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [AppColors.sidebar, AppColors.page],
               ),
+            ),
+            child: AsyncOperationOverlay(
+              active:
+                  _playlistOperationBusy && _playlistOperationIndicatorVisible,
+              message: _playlistOperationMessage,
+              top: 72,
               child: Stack(
                 children: [
                   Column(
@@ -1627,12 +1670,14 @@ class _MusicShellState extends State<MusicShell>
                         ),
                       ),
                     ),
+                  AppNoticeHost(notice: _notice),
                 ],
               ),
-            );
-          },
-        ),
-      );
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _selectedPage() {
@@ -1748,6 +1793,7 @@ class _MusicShellState extends State<MusicShell>
           unawaited(libraryController.ensureLoaded(LibrarySection.songs));
         },
         onDeveloperModeChanged: _setDeveloperMode,
+        onNotice: (message) => _showNotice(message),
       ),
     };
   }
