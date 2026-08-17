@@ -64,6 +64,15 @@ class AudioPlayerService {
 
   bool get isCompleted => _player?.processingState == ProcessingState.completed;
 
+  /// Cancels the current source switch without waiting for a replacement URL.
+  /// The next [open] call gets a new generation and can start immediately.
+  Future<void> cancelPendingOpen() async {
+    _openGeneration++;
+    _localGuardTimer?.cancel();
+    _userPaused = true;
+    await _player?.stop();
+  }
+
   Future<void> open(Song song) async {
     final player = _player;
     if (player == null) return;
@@ -111,6 +120,7 @@ class AudioPlayerService {
       _openedDuration = await player.setAudioSource(
         AudioSource.uri(Uri.file(file.path)),
       );
+      if (generation != _openGeneration || _userPaused) return false;
       unawaited(player.play());
       unawaited(
         Future<void>.delayed(const Duration(milliseconds: 200)).then((_) {
@@ -183,7 +193,9 @@ class AudioPlayerService {
     int generation, {
     Map<String, String>? headers,
   }) async {
+    if (generation != _openGeneration || _userPaused) return;
     await player.stop();
+    if (generation != _openGeneration || _userPaused) return;
     _openedDuration = await player.setAudioSource(
       AudioSource.uri(uri, headers: headers),
     );

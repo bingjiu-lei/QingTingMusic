@@ -226,6 +226,72 @@ void main() {
     },
   );
 
+  test('latest rapid play request wins over a stale resolver', () async {
+    final audio = _FakeAudioPlayerService();
+    final resolveFirst = Completer<void>();
+    final songs = [_song('one'), _song('two')];
+    final controller = PlayerController(
+      audioService: audio,
+      resolveSong: (song) async {
+        if (song.id == 'one') await resolveFirst.future;
+        return song;
+      },
+    );
+
+    final first = controller.playSong(songs.first, fromQueue: songs);
+    await Future<void>.delayed(Duration.zero);
+    final second = controller.playSong(songs.last, fromQueue: songs);
+    await second;
+
+    resolveFirst.complete();
+    await first;
+
+    expect(controller.currentSong?.id, 'two');
+    expect(audio.opened.map((song) => song.id), ['two']);
+    controller.dispose();
+  });
+
+  test('shuffle previous keeps the path across rapid next requests', () async {
+    final audio = _FakeAudioPlayerService();
+    final songs = [_song('one'), _song('two'), _song('three')];
+    final delayedNext = Completer<void>();
+    var delayNext = false;
+    final controller = PlayerController(
+      audioService: audio,
+      resolveSong: (song) async {
+        if (delayNext) {
+          delayNext = false;
+          await delayedNext.future;
+        }
+        return song;
+      },
+    );
+    controller
+      ..cyclePlaybackMode()
+      ..cyclePlaybackMode()
+      ..cyclePlaybackMode();
+    await controller.playSong(songs.first, fromQueue: songs);
+    delayNext = true;
+
+    final firstNext = controller.playNext();
+    await Future<void>.delayed(Duration.zero);
+    final firstTargetId = controller.currentSong?.id;
+    final secondNext = controller.playNext();
+    await secondNext;
+    final secondTargetId = controller.currentSong?.id;
+    delayedNext.complete();
+    await firstNext;
+
+    expect(firstTargetId, isNotNull);
+    expect(secondTargetId, isNotNull);
+    expect(secondTargetId, isNot(firstTargetId));
+    await controller.playPrevious();
+    expect(controller.currentSong?.id, firstTargetId);
+    await controller.playPrevious();
+    expect(controller.currentSong?.id, 'one');
+    controller.dispose();
+  });
+
   test(
     'keeps the playing song visible when the next song cannot resolve',
     () async {

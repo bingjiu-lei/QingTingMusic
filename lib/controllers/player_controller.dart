@@ -111,6 +111,7 @@ class PlayerController extends ChangeNotifier {
   final List<String> _shuffleHistory = [];
   final List<String> _shuffleUpcoming = [];
   bool _hasOpenSource = false;
+  int _playRequestEpoch = 0;
 
   int get queueIndex {
     final song = currentSong;
@@ -186,6 +187,7 @@ class PlayerController extends ChangeNotifier {
     Duration startPosition = Duration.zero,
     bool preserveShufflePath = false,
   }) async {
+    final requestEpoch = ++_playRequestEpoch;
     if (fromQueue != null && fromQueue.isNotEmpty) {
       queue = List.unmodifiable(_dedupeSongs(fromQueue));
     } else if (!queue.any((item) => item.id == song.id)) {
@@ -202,6 +204,11 @@ class PlayerController extends ChangeNotifier {
     final previousWasPlaying = isPlaying || audioService.isPlaying;
 
     try {
+      // Stop an in-flight source switch before resolving the new song. The
+      // resolver itself remains uncancelable, so requestEpoch below ensures a
+      // stale result can never reopen the old song afterward.
+      await audioService.cancelPendingOpen();
+      if (requestEpoch != _playRequestEpoch) return false;
       errorText = null;
       playbackNotice = null;
       _noticeTimer?.cancel();
@@ -221,6 +228,7 @@ class PlayerController extends ChangeNotifier {
         await PlaybackLogService.write('resolve', error, stackTrace);
         rethrow;
       }
+      if (requestEpoch != _playRequestEpoch) return false;
       currentSong = playableSong;
       _showPlaybackNotice(playableSong.playbackNotice);
 
@@ -265,6 +273,7 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       try {
         await audioService.open(playableSong);
+        if (requestEpoch != _playRequestEpoch) return false;
         _hasOpenSource = true;
         final detectedDuration = audioService.currentDuration;
         if (detectedDuration != null && detectedDuration > Duration.zero) {
@@ -303,6 +312,7 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       return true;
     } on AuthenticationRequiredException {
+      if (requestEpoch != _playRequestEpoch) return false;
       _handlePlaybackFailure(
         attemptedSong: song,
         previousSong: previousSong,
@@ -314,6 +324,7 @@ class PlayerController extends ChangeNotifier {
       );
       return false;
     } on KugouApiException catch (error) {
+      if (requestEpoch != _playRequestEpoch) return false;
       _handlePlaybackFailure(
         attemptedSong: song,
         previousSong: previousSong,
@@ -325,6 +336,7 @@ class PlayerController extends ChangeNotifier {
       );
       return false;
     } catch (error) {
+      if (requestEpoch != _playRequestEpoch) return false;
       _handlePlaybackFailure(
         attemptedSong: song,
         previousSong: previousSong,
@@ -371,6 +383,10 @@ class PlayerController extends ChangeNotifier {
       duration = previousDuration;
       isPlaying = true;
       _hasOpenSource = true;
+      // A superseded request pauses the old source immediately. Resume it if
+      // resolving the replacement fails so failure recovery keeps its prior
+      // behavior.
+      unawaited(audioService.play());
     } else {
       currentSong = attemptedSong;
       position = Duration.zero;
@@ -647,7 +663,9 @@ class PlayerController extends ChangeNotifier {
         await _stopAtQueueEnd();
         return;
       }
+      final requestEpoch = _playRequestEpoch + 1;
       final played = await playSong(queue[targetIndex], fromQueue: queue);
+      if (requestEpoch != _playRequestEpoch) return;
       if (played) return;
       sourceIndex = targetIndex;
     }
@@ -677,13 +695,23 @@ class PlayerController extends ChangeNotifier {
       final targetId = _shuffleUpcoming.removeAt(0);
       final target = _songForId(targetId);
       if (target == null) continue;
+      final requestEpoch = _playRequestEpoch + 1;
+      // Record the listening path when the user chooses the target, not after
+      // its network source finishes opening. A superseded rapid request is
+      // still a real navigation step and must remain available to Previous.
+      _shuffleHistory.add(current.id);
       final played = await playSong(
         target,
         fromQueue: queue,
         preserveShufflePath: true,
       );
-      if (!played) continue;
-      _shuffleHistory.add(current.id);
+      if (requestEpoch != _playRequestEpoch) return;
+      if (!played) {
+        if (_shuffleHistory.isNotEmpty && _shuffleHistory.last == current.id) {
+          _shuffleHistory.removeLast();
+        }
+        continue;
+      }
       return;
     }
     await _stopAtQueueEnd();
@@ -704,7 +732,14 @@ class PlayerController extends ChangeNotifier {
       ..remove(targetId)
       ..remove(current.id)
       ..insert(0, current.id);
-    await playSong(target, fromQueue: queue, preserveShufflePath: true);
+    final requestEpoch = _playRequestEpoch + 1;
+    final played = await playSong(
+      target,
+      fromQueue: queue,
+      preserveShufflePath: true,
+    );
+    if (requestEpoch != _playRequestEpoch) return;
+    if (!played) _shuffleHistory.add(targetId);
   }
 
   int? _targetIndex(int currentIndex, int offset, bool autoAdvance) {
