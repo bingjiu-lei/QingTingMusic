@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/app_preferences_service.dart';
@@ -14,6 +16,7 @@ class ThemeController extends ChangeNotifier {
   Color accentColor = defaultAccentColor;
   bool coverAccentEnabled = false;
   Color? _coverAccent;
+  Timer? _themeTransitionTimer;
 
   Future<void> initialize() async {
     isDark = await _preferences.read(_darkModeKey) == true;
@@ -29,9 +32,8 @@ class ThemeController extends ChangeNotifier {
   }
 
   Future<void> toggle() async {
-    isDark = !isDark;
-    AppColors.isDark = isDark;
-    notifyListeners();
+    if (_themeTransitionTimer != null) return;
+    _setDarkModeAnimated(!isDark);
     await _preferences.write(_darkModeKey, isDark);
   }
 
@@ -66,10 +68,46 @@ class ThemeController extends ChangeNotifier {
   Future<void> resetAccentColor() => setAccentColor(defaultAccentColor);
 
   Future<void> setDarkMode(bool value) async {
+    if (_themeTransitionTimer != null) return;
     if (isDark == value) return;
+    _setDarkModeAnimated(value);
+    await _preferences.write(_darkModeKey, value);
+  }
+
+  void _setDarkModeAnimated(bool value) {
+    final previous = isDark;
     isDark = value;
     AppColors.isDark = value;
+    _themeTransitionTimer?.cancel();
+    AppColors.beginThemeTransition(fromDark: previous, toDark: value);
     notifyListeners();
-    await _preferences.write(_darkModeKey, value);
+
+    const duration = Duration(milliseconds: 320);
+    final startedAt = DateTime.now();
+    _themeTransitionTimer = Timer.periodic(const Duration(milliseconds: 16), (
+      timer,
+    ) {
+      final elapsed = DateTime.now().difference(startedAt);
+      final progress = (elapsed.inMicroseconds / duration.inMicroseconds).clamp(
+        0.0,
+        1.0,
+      );
+      AppColors.updateThemeTransition(
+        Curves.easeInOutCubic.transform(progress),
+      );
+      notifyListeners();
+      if (progress >= 1) {
+        timer.cancel();
+        _themeTransitionTimer = null;
+        AppColors.endThemeTransition();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _themeTransitionTimer?.cancel();
+    AppColors.endThemeTransition();
+    super.dispose();
   }
 }

@@ -45,7 +45,8 @@ class _QingTingMusicAppState extends State<QingTingMusicApp> {
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,
         themeMode: themeController.isDark ? ThemeMode.dark : ThemeMode.light,
-        themeAnimationDuration: const Duration(milliseconds: 260),
+        themeAnimationDuration: const Duration(milliseconds: 320),
+        themeAnimationCurve: Curves.easeInOutCubic,
         home: MusicShell(
           enableAudio: widget.enableAudio,
           enableWindowControls: widget.enableWindowControls,

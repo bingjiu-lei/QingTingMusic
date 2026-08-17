@@ -3,35 +3,59 @@ import 'package:flutter/material.dart';
 abstract final class AppColors {
   static bool isDark = false;
   static Color seedColor = const Color(0xFF2788F5);
+  static bool? _transitionFromDark;
+  static bool? _transitionToDark;
+  static double _transitionProgress = 1;
 
   static Color _tint(Color base, Color tint, double opacity) =>
       Color.alphaBlend(tint.withValues(alpha: opacity), base);
+  static Color themed(Color light, Color dark) {
+    final from = _transitionFromDark;
+    final to = _transitionToDark;
+    if (from == null || to == null) return isDark ? dark : light;
+    return Color.lerp(
+      from ? dark : light,
+      to ? dark : light,
+      _transitionProgress,
+    )!;
+  }
 
-  static Color get page => _tint(
-    isDark ? const Color(0xFF101317) : const Color(0xFFF7F9FC),
-    primary,
-    isDark ? 0.025 : 0.018,
-  );
-  static Color get sidebar => _tint(
-    isDark ? const Color(0xFF151A21) : const Color(0xFFF9FBFD),
-    primary,
-    isDark ? 0.055 : 0.035,
-  );
-  static Color get surface =>
-      isDark ? const Color(0xFF181D24) : const Color(0xFFFFFFFF);
+  static void beginThemeTransition({
+    required bool fromDark,
+    required bool toDark,
+  }) {
+    _transitionFromDark = fromDark;
+    _transitionToDark = toDark;
+    _transitionProgress = 0;
+  }
+
+  static void updateThemeTransition(double progress) =>
+      _transitionProgress = progress.clamp(0, 1);
+
+  static void endThemeTransition() {
+    _transitionFromDark = null;
+    _transitionToDark = null;
+    _transitionProgress = 1;
+  }
+
+  static Color get page =>
+      themed(const Color(0xFFF7F9FC), const Color(0xFF101317));
+  static Color get sidebar =>
+      themed(const Color(0xFFF9FBFD), const Color(0xFF151A21));
+  static Color get surface => themed(Colors.white, const Color(0xFF181D24));
   static Color get surfaceElevated =>
-      isDark ? const Color(0xFF202733) : const Color(0xFFFFFFFF);
+      themed(Colors.white, const Color(0xFF202733));
   static Color get surfaceMuted =>
-      isDark ? const Color(0xFF222832) : const Color(0xFFF4F7FB);
+      themed(const Color(0xFFF4F7FB), const Color(0xFF222832));
   static Color get surfaceHover =>
-      isDark ? const Color(0xFF242C38) : const Color(0xFFF1F6FD);
+      themed(const Color(0xFFF1F6FD), const Color(0xFF242C38));
   static Color get surfacePressed =>
-      isDark ? const Color(0xFF1E2631) : const Color(0xFFE8F2FF);
+      themed(const Color(0xFFE8F2FF), const Color(0xFF1E2631));
   // Keep the selected swatch and the real interface color identical. Material's
   // generated primary tone is intentionally avoided here because it muted vivid
   // seeds into a grey-blue/purple in the player controls.
   static Color get primary =>
-      isDark ? Color.lerp(seedColor, Colors.white, 0.20)! : seedColor;
+      themed(seedColor, Color.lerp(seedColor, Colors.white, 0.20)!);
   static Color get primaryPressed => isDark
       ? Color.lerp(primary, Colors.white, 0.24)!
       : Color.lerp(primary, Colors.black, 0.18)!;
@@ -56,15 +80,15 @@ abstract final class AppColors {
     isDark ? 0.18 : 0.10,
   );
   static Color get text =>
-      isDark ? const Color(0xFFF2F5F8) : const Color(0xFF171A1F);
+      themed(const Color(0xFF171A1F), const Color(0xFFF2F5F8));
   static Color get muted =>
-      isDark ? const Color(0xFF9AA6B2) : const Color(0xFF7A8491);
+      themed(const Color(0xFF7A8491), const Color(0xFF9AA6B2));
   static Color get faint =>
-      isDark ? const Color(0xFF6F7B88) : const Color(0xFFA9B1BC);
+      themed(const Color(0xFFA9B1BC), const Color(0xFF6F7B88));
   static Color get divider =>
-      isDark ? const Color(0xFF28303A) : const Color(0xFFE9EDF2);
+      themed(const Color(0xFFE9EDF2), const Color(0xFF28303A));
   static Color get border =>
-      isDark ? const Color(0xFF303945) : const Color(0xFFE7ECF3);
+      themed(const Color(0xFFE7ECF3), const Color(0xFF303945));
   static Color get danger =>
       isDark ? const Color(0xFFFF7373) : const Color(0xFFD94B4B);
   static Color get shadow =>
@@ -92,21 +116,25 @@ abstract final class AppGlass {
   static const double blurChrome = 16;
   static const double blurOverlay = 26;
 
-  static Color get surface => AppColors.isDark
-      ? const Color(0xFF131922).withValues(alpha: 0.92)
-      : Colors.white.withValues(alpha: 0.88);
-  static Color get surfaceStrong => AppColors.isDark
-      ? const Color(0xFF151C26).withValues(alpha: 0.95)
-      : Colors.white.withValues(alpha: 0.94);
-  static Color get surfaceSoft => AppColors.isDark
-      ? const Color(0xFF1C2430).withValues(alpha: 0.70)
-      : const Color(0xFFF4F7FB).withValues(alpha: 0.85);
+  static Color get surface => AppColors.themed(
+    Colors.white.withValues(alpha: 0.88),
+    const Color(0xFF131922).withValues(alpha: 0.92),
+  );
+  static Color get surfaceStrong => AppColors.themed(
+    Colors.white.withValues(alpha: 0.94),
+    const Color(0xFF151C26).withValues(alpha: 0.95),
+  );
+  static Color get surfaceSoft => AppColors.themed(
+    const Color(0xFFF4F7FB).withValues(alpha: 0.85),
+    const Color(0xFF1C2430).withValues(alpha: 0.70),
+  );
   static Color get border => AppColors.border;
-  static Color get highlight => AppColors.isDark
-      ? AppColors.primary.withValues(alpha: 0.08)
-      : Colors.white.withValues(alpha: 0.35);
+  static Color get highlight => AppColors.themed(
+    Colors.white.withValues(alpha: 0.35),
+    AppColors.primary.withValues(alpha: 0.08),
+  );
   static Color get thumb =>
-      AppColors.isDark ? const Color(0xFF242C38) : Colors.white;
+      AppColors.themed(Colors.white, const Color(0xFF242C38));
 }
 
 /// 统一字体层级。NotoSansSC 是应用原有的品牌字体；所有页面都从同一套

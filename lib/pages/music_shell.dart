@@ -1407,226 +1407,232 @@ class _MusicShellState extends State<MusicShell>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          final autoCompact = constraints.maxWidth < 1050;
-          final compactSidebar = _userSidebarCompact ?? autoCompact;
-          return DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.page,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.sidebar, AppColors.page],
-              ),
-            ),
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    AppWindowCaption(
-                      enabled: widget.enableWindowControls,
-                      transparentOverlay: true,
-                    ),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          AppSidebar(
-                            compact: compactSidebar,
-                            selectedIndex: selectedIndex,
-                            onChanged: (index) {
-                              setState(() {
-                                selectedIndex = index;
-                                detailTitle = null;
-                                detailHeaderArtistName = null;
-                                detailPlaylist = null;
-                                detailCatalogItem = null;
-                                detailIdentity = null;
-                                detailStorageKeyPrefix = null;
-                                detailSelectedTab = 0;
-                                detailHistory.clear();
-                                showNowPlayingPage = false;
-                              });
-                            },
-                            loginLabel:
-                                authController?.session.displayName ?? '演示模式',
-                            avatarUrl: authController?.session.avatarUrl ?? '',
-                            isLoggedIn: authController?.isLoggedIn ?? false,
-                            vipTooltip: _vipTooltip,
-                            onLogin: _handleAccountEntry,
-                            isDark: widget.themeController.isDark,
-                            onToggleTheme: widget.themeController.toggle,
-                          ),
-                          SidebarDividerHandle(
-                            compact: compactSidebar,
-                            onToggle: () {
-                              setState(() {
-                                _userSidebarCompact = !compactSidebar;
-                              });
-                            },
-                          ),
-                          Expanded(child: _selectedPage()),
-                        ],
-                      ),
-                    ),
-                    PlayerBar(
-                      controller: playerController,
-                      playbackQualityController: playbackQualityController,
-                      desktopLyricsVisible: _desktopLyricsVisible,
-                      onDesktopLyricsChanged: (value) {
-                        unawaited(_setDesktopLyricsVisible(value));
-                      },
-                      onNowPlayingPressed: playerController.currentSong == null
-                          ? null
-                          : () => setState(() => showNowPlayingPage = true),
-                      onOpenAlbum: _openAlbumFromSong,
-                      onOpenArtist: _openArtistFromSong,
-                      onLike: _toggleFavorite,
-                      onAddToPlaylist: _showAddToPlaylist,
-                      onQueuePressed: () {
-                        setState(() => showQueuePanel = !showQueuePanel);
-                      },
-                    ),
-                  ],
+        backgroundColor: Colors.transparent,
+        body: LayoutBuilder(
+          builder: (context, constraints) {
+            final autoCompact = constraints.maxWidth < 1050;
+            final compactSidebar = _userSidebarCompact ?? autoCompact;
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                color: AppColors.page,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.sidebar, AppColors.page],
                 ),
-                Positioned.fill(
-                  child: IgnorePointer(
-                    ignoring: !showQueuePanel,
-                    child: AnimatedOpacity(
-                      opacity: showQueuePanel ? 1 : 0,
-                      duration: AppMotion.normal,
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () => setState(() => showQueuePanel = false),
-                        child: ColoredBox(
-                          color: AppColors.scrim,
-                          child: Align(
-                            alignment: Alignment.centerRight,
-                            child: AnimatedSwitcher(
-                              duration: AppMotion.slow,
-                              reverseDuration: AppMotion.normal,
-                              switchInCurve: AppMotion.curve,
-                              switchOutCurve: Curves.easeInCubic,
-                              transitionBuilder: (child, animation) =>
-                                  FadeTransition(
-                                    opacity: animation,
-                                    child: SlideTransition(
-                                      position: Tween<Offset>(
-                                        begin: const Offset(0.08, 0),
-                                        end: Offset.zero,
-                                      ).animate(animation),
-                                      child: child,
-                                    ),
-                                  ),
-                              child: showQueuePanel
-                                  ? GestureDetector(
-                                      key: const ValueKey('queue-panel'),
-                                      onTap: () {},
-                                      child: PlayQueuePanel(
-                                        controller: playerController,
-                                        onClose: () => setState(
-                                          () => showQueuePanel = false,
-                                        ),
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    children: [
+                      AppWindowCaption(
+                        enabled: widget.enableWindowControls,
+                        transparentOverlay: true,
+                      ),
+                      Expanded(
+                        child: Row(
+                          children: [
+                            AppSidebar(
+                              compact: compactSidebar,
+                              selectedIndex: selectedIndex,
+                              onChanged: (index) {
+                                setState(() {
+                                  selectedIndex = index;
+                                  detailTitle = null;
+                                  detailHeaderArtistName = null;
+                                  detailPlaylist = null;
+                                  detailCatalogItem = null;
+                                  detailIdentity = null;
+                                  detailStorageKeyPrefix = null;
+                                  detailSelectedTab = 0;
+                                  detailHistory.clear();
+                                  showNowPlayingPage = false;
+                                });
+                              },
+                              loginLabel:
+                                  authController?.session.displayName ?? '演示模式',
+                              avatarUrl:
+                                  authController?.session.avatarUrl ?? '',
+                              isLoggedIn: authController?.isLoggedIn ?? false,
+                              vipTooltip: _vipTooltip,
+                              onLogin: _handleAccountEntry,
+                              isDark: widget.themeController.isDark,
+                              onToggleTheme: widget.themeController.toggle,
+                            ),
+                            SidebarDividerHandle(
+                              compact: compactSidebar,
+                              onToggle: () {
+                                setState(() {
+                                  _userSidebarCompact = !compactSidebar;
+                                });
+                              },
+                            ),
+                            Expanded(child: _selectedPage()),
+                          ],
+                        ),
+                      ),
+                      PlayerBar(
+                        controller: playerController,
+                        playbackQualityController: playbackQualityController,
+                        desktopLyricsVisible: _desktopLyricsVisible,
+                        onDesktopLyricsChanged: (value) {
+                          unawaited(_setDesktopLyricsVisible(value));
+                        },
+                        onNowPlayingPressed:
+                            playerController.currentSong == null
+                            ? null
+                            : () => setState(() => showNowPlayingPage = true),
+                        onOpenAlbum: _openAlbumFromSong,
+                        onOpenArtist: _openArtistFromSong,
+                        onLike: _toggleFavorite,
+                        onAddToPlaylist: _showAddToPlaylist,
+                        onQueuePressed: () {
+                          setState(() => showQueuePanel = !showQueuePanel);
+                        },
+                      ),
+                    ],
+                  ),
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      ignoring: !showQueuePanel,
+                      child: AnimatedOpacity(
+                        opacity: showQueuePanel ? 1 : 0,
+                        duration: AppMotion.normal,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => setState(() => showQueuePanel = false),
+                          child: ColoredBox(
+                            color: AppColors.scrim,
+                            child: Align(
+                              alignment: Alignment.centerRight,
+                              child: AnimatedSwitcher(
+                                duration: AppMotion.slow,
+                                reverseDuration: AppMotion.normal,
+                                switchInCurve: AppMotion.curve,
+                                switchOutCurve: Curves.easeInCubic,
+                                transitionBuilder: (child, animation) =>
+                                    FadeTransition(
+                                      opacity: animation,
+                                      child: SlideTransition(
+                                        position: Tween<Offset>(
+                                          begin: const Offset(0.08, 0),
+                                          end: Offset.zero,
+                                        ).animate(animation),
+                                        child: child,
                                       ),
-                                    )
-                                  : const SizedBox(
-                                      key: ValueKey('queue-panel-hidden'),
                                     ),
+                                child: showQueuePanel
+                                    ? GestureDetector(
+                                        key: const ValueKey('queue-panel'),
+                                        onTap: () {},
+                                        child: PlayQueuePanel(
+                                          controller: playerController,
+                                          onClose: () => setState(
+                                            () => showQueuePanel = false,
+                                          ),
+                                        ),
+                                      )
+                                    : const SizedBox(
+                                        key: ValueKey('queue-panel-hidden'),
+                                      ),
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: IgnorePointer(
-                    ignoring: !showNowPlayingPage,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 320),
-                      reverseDuration: const Duration(milliseconds: 220),
-                      switchInCurve: Curves.easeOutCubic,
-                      switchOutCurve: Curves.easeInCubic,
-                      transitionBuilder: (child, animation) {
-                        final curved = CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOutCubic,
-                          reverseCurve: Curves.easeInCubic,
-                        );
-                        return FadeTransition(
-                          opacity: curved,
-                          child: SlideTransition(
-                            position: Tween<Offset>(
-                              begin: const Offset(0, 0.032),
-                              end: Offset.zero,
-                            ).animate(curved),
-                            child: child,
-                          ),
-                        );
-                      },
-                      child: showNowPlayingPage
-                          ? RepaintBoundary(
-                              key: const ValueKey('now-playing-page'),
-                              child: NowPlayingPage(
-                                controller: playerController,
-                                playbackQualityController:
-                                    playbackQualityController,
-                                onClose: () =>
-                                    setState(() => showNowPlayingPage = false),
-                                loadLyrics: _loadLyricsCached,
-                                onLike: _toggleFavorite,
-                                onAddToPlaylist: _showAddToPlaylist,
-                                onOpenArtist: _openArtistFromNowPlaying,
-                                desktopLyricsVisible: _desktopLyricsVisible,
-                                onDesktopLyricsChanged: (value) {
-                                  unawaited(_setDesktopLyricsVisible(value));
-                                },
-                                showTranslation: _showLyricTranslation,
-                                showTransliteration: _showLyricTransliteration,
-                                onTranslationChanged: (value) {
-                                  setState(() => _showLyricTranslation = value);
-                                  _scheduleDesktopLyricsSync(immediate: true);
-                                },
-                                onTransliterationChanged: (value) {
-                                  setState(
-                                    () => _showLyricTransliteration = value,
-                                  );
-                                  _scheduleDesktopLyricsSync(immediate: true);
-                                },
-                                loadArtistPortraits:
-                                    repository.getArtistPortraits,
-                              ),
-                            )
-                          : const SizedBox.shrink(
-                              key: ValueKey('now-playing-empty'),
-                            ),
-                    ),
-                  ),
-                ),
-                if (showNowPlayingPage)
                   Positioned(
                     left: 0,
                     top: 0,
                     right: 0,
+                    bottom: 0,
                     child: IgnorePointer(
-                      ignoring: !widget.enableWindowControls,
-                      child: AppWindowCaption(
-                        enabled: widget.enableWindowControls,
-                        transparentOverlay: true,
+                      ignoring: !showNowPlayingPage,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 320),
+                        reverseDuration: const Duration(milliseconds: 220),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeInCubic,
+                        transitionBuilder: (child, animation) {
+                          final curved = CurvedAnimation(
+                            parent: animation,
+                            curve: Curves.easeOutCubic,
+                            reverseCurve: Curves.easeInCubic,
+                          );
+                          return FadeTransition(
+                            opacity: curved,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.032),
+                                end: Offset.zero,
+                              ).animate(curved),
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: showNowPlayingPage
+                            ? RepaintBoundary(
+                                key: const ValueKey('now-playing-page'),
+                                child: NowPlayingPage(
+                                  controller: playerController,
+                                  playbackQualityController:
+                                      playbackQualityController,
+                                  onClose: () => setState(
+                                    () => showNowPlayingPage = false,
+                                  ),
+                                  loadLyrics: _loadLyricsCached,
+                                  onLike: _toggleFavorite,
+                                  onAddToPlaylist: _showAddToPlaylist,
+                                  onOpenArtist: _openArtistFromNowPlaying,
+                                  desktopLyricsVisible: _desktopLyricsVisible,
+                                  onDesktopLyricsChanged: (value) {
+                                    unawaited(_setDesktopLyricsVisible(value));
+                                  },
+                                  showTranslation: _showLyricTranslation,
+                                  showTransliteration:
+                                      _showLyricTransliteration,
+                                  onTranslationChanged: (value) {
+                                    setState(
+                                      () => _showLyricTranslation = value,
+                                    );
+                                    _scheduleDesktopLyricsSync(immediate: true);
+                                  },
+                                  onTransliterationChanged: (value) {
+                                    setState(
+                                      () => _showLyricTransliteration = value,
+                                    );
+                                    _scheduleDesktopLyricsSync(immediate: true);
+                                  },
+                                  loadArtistPortraits:
+                                      repository.getArtistPortraits,
+                                ),
+                              )
+                            : const SizedBox.shrink(
+                                key: ValueKey('now-playing-empty'),
+                              ),
                       ),
                     ),
                   ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
+                  if (showNowPlayingPage)
+                    Positioned(
+                      left: 0,
+                      top: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        ignoring: !widget.enableWindowControls,
+                        child: AppWindowCaption(
+                          enabled: widget.enableWindowControls,
+                          transparentOverlay: true,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      );
   }
 
   Widget _selectedPage() {

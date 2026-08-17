@@ -105,7 +105,27 @@ class _Brand extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.lg),
                   child: AnimatedSwitcher(
-                    duration: AppMotion.normal,
+                    duration: const Duration(milliseconds: 260),
+                    reverseDuration: const Duration(milliseconds: 180),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, animation) {
+                      final curve = CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeOutCubic,
+                        reverseCurve: Curves.easeInCubic,
+                      );
+                      return FadeTransition(
+                        opacity: curve,
+                        child: RotationTransition(
+                          turns: Tween<double>(
+                            begin: 0.025,
+                            end: 0,
+                          ).animate(curve),
+                          child: child,
+                        ),
+                      );
+                    },
                     child: Image.asset(
                       isDark
                           ? 'assets/images/app_icon_dark.png'
@@ -204,16 +224,24 @@ class _NavigationItemState extends State<_NavigationItem> {
                 height: 46,
                 decoration: BoxDecoration(
                   color: selected
-                      ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
+                      ? AppColors.primary.withValues(
+                          alpha: isDark ? 0.20 : 0.10,
+                        )
                       : _hovered
-                      ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.05)
+                      ? AppColors.primary.withValues(
+                          alpha: isDark ? 0.08 : 0.05,
+                        )
                       : Colors.transparent,
                   borderRadius: pillRadius,
                   border: Border.all(
                     color: selected
-                        ? AppColors.primary.withValues(alpha: isDark ? 0.38 : 0.22)
+                        ? AppColors.primary.withValues(
+                            alpha: isDark ? 0.38 : 0.22,
+                          )
                         : _hovered
-                        ? AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.10)
+                        ? AppColors.primary.withValues(
+                            alpha: isDark ? 0.14 : 0.10,
+                          )
                         : Colors.transparent,
                     width: 1,
                   ),
@@ -511,4 +539,3 @@ class _SidebarDividerHandleState extends State<SidebarDividerHandle> {
     );
   }
 }
-
