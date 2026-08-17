@@ -108,6 +108,8 @@
 
 - 完成代码修改后默认运行 `.\scripts\verify.ps1`。
 - `.\scripts\verify.ps1` 默认执行格式化、静态检查、核心单测和 Windows 构建，不默认跑全量 Widget 测试，避免持续动画或插件初始化拖住开发。
+- Windows 构建统一使用 `cmd /c "scripts\build_windows.bat --no-pause"`，不要让 AI 直接双击脚本或调用无退出标记的构建命令。脚本以退出码表示结果，并输出可检索的 `[QINGTING_BUILD] STATUS=started|success|failed` 标记；只有出现 `STATUS=success EXIT_CODE=0` 且 `ARTIFACT=` 指向的 exe 存在，才能报告构建成功。
+- `scripts\build_windows.bat` 不带参数时用于手动双击构建：成功后自动打开最新 exe，并通过正常退出关闭构建窗口；失败时保留暂停以便查看错误。`--no-pause` 只用于 AI/自动化构建，构建成功后不自动启动程序。
 - 需要完整 UI 回归时运行 `.\scripts\verify.ps1 -FullTests`；如需限制等待时间，可加 `-FullTestTimeoutSeconds 180`。
 - 只想快速检查代码时可以运行 `.\scripts\verify.ps1 -SkipBuild`。
 - 不要把 `test\widget_test.dart` 或全量 widget 测试作为小 UI 改动的默认验证。当前应用初始化包含窗口管理、音频后端、定时器、登录/更新轮询和持续动画，测试环境容易因为未静止的异步任务卡住。小 UI 改动优先跑 `flutter analyze --no-pub`、相关服务/控制器单测和 `flutter build windows --no-pub`。
