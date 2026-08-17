@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/song.dart';
@@ -40,8 +42,43 @@ class SongRow extends StatefulWidget {
   State<SongRow> createState() => _SongRowState();
 }
 
-class _SongRowState extends State<SongRow> {
+class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
   bool _hovered = false;
+  late final AnimationController _playbackController;
+
+  @override
+  void initState() {
+    super.initState();
+    _playbackController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 920),
+    );
+    _syncPlaybackAnimation();
+  }
+
+  @override
+  void didUpdateWidget(covariant SongRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isCurrent != widget.isCurrent ||
+        oldWidget.isPlaying != widget.isPlaying) {
+      _syncPlaybackAnimation();
+    }
+  }
+
+  void _syncPlaybackAnimation() {
+    if (widget.isCurrent && widget.isPlaying) {
+      _playbackController.repeat();
+    } else {
+      _playbackController.stop();
+      _playbackController.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _playbackController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -116,11 +153,13 @@ class _SongRowState extends State<SongRow> {
                             ),
                           )
                         : active
-                        ? Icon(
-                            Icons.graphic_eq_rounded,
+                        ? AnimatedBuilder(
+                            animation: _playbackController,
                             key: const ValueKey('row-eq'),
-                            color: AppColors.primary,
-                            size: 16,
+                            builder: (context, _) => _PlaybackBars(
+                              isPlaying: widget.isPlaying,
+                              progress: _playbackController.value,
+                            ),
                           )
                         : Text(
                             '${widget.index + 1}'.padLeft(2, '0'),
@@ -271,6 +310,48 @@ class _SongRowState extends State<SongRow> {
   ),
 );
 }
+}
+
+class _PlaybackBars extends StatelessWidget {
+  const _PlaybackBars({required this.isPlaying, required this.progress});
+
+  final bool isPlaying;
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    const phases = [0.0, 2.1, 4.2];
+    const heights = [8.0, 14.0, 10.0];
+    return SizedBox(
+      key: const ValueKey('row-bars'),
+      width: 20,
+      height: 18,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(3, (index) {
+          final wave =
+              (math.sin(progress * math.pi * 2 + phases[index]) + 1) / 2;
+          final scale = isPlaying ? 0.42 + wave * 0.58 : 0.42;
+          return Padding(
+            padding: EdgeInsets.only(right: index == 2 ? 0 : 2),
+            child: Transform.scale(
+              alignment: Alignment.bottomCenter,
+              scaleY: scale,
+              child: Container(
+                width: 2.5,
+                height: heights[index],
+                decoration: BoxDecoration(
+                  color: AppColors.primary,
+                  borderRadius: BorderRadius.circular(AppRadius.pill),
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 }
 
 class SongArtistLine extends StatelessWidget {
