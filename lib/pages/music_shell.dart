@@ -81,7 +81,7 @@ class _MusicShellState extends State<MusicShell>
   late final UpdateController updateController;
   final cacheManagementService = CacheManagementService();
 
-  bool? _userSidebarCompact;
+  bool _sidebarExpanded = true;
   final _developerModeService = DeveloperModeService();
   final _preferences = AppPreferencesService();
   final _windowsMediaBridge = WindowsMediaBridge();
@@ -247,11 +247,23 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _loadWindowPreferences() async {
-    final value = await _preferences.read('closeToTray');
+    final values = await Future.wait<Object?>([
+      _preferences.read('closeToTray'),
+      _preferences.read('sidebarExpanded'),
+    ]);
     if (!mounted) return;
-    final closeToTray = value is bool ? value : false;
-    setState(() => _closeToTray = closeToTray);
+    final closeToTray = values[0] is bool ? values[0] as bool : false;
+    final sidebarExpanded = values[1] is bool ? values[1] as bool : true;
+    setState(() {
+      _closeToTray = closeToTray;
+      _sidebarExpanded = sidebarExpanded;
+    });
     await _applyCloseBehavior(closeToTray);
+  }
+
+  Future<void> _setSidebarExpanded(bool value) async {
+    setState(() => _sidebarExpanded = value);
+    await _preferences.write('sidebarExpanded', value);
   }
 
   Future<void> _loadDesktopLyricsPreferences() async {
@@ -1519,7 +1531,7 @@ class _MusicShellState extends State<MusicShell>
       body: LayoutBuilder(
         builder: (context, constraints) {
           final autoCompact = constraints.maxWidth < 1050;
-          final compactSidebar = _userSidebarCompact ?? autoCompact;
+          final compactSidebar = autoCompact || !_sidebarExpanded;
           return DecoratedBox(
             decoration: BoxDecoration(
               color: AppColors.page,
@@ -1576,8 +1588,14 @@ class _MusicShellState extends State<MusicShell>
                               compact: compactSidebar,
                               onToggle: () {
                                 setState(() {
-                                  _userSidebarCompact = !compactSidebar;
+                                  _sidebarExpanded = compactSidebar;
                                 });
+                                unawaited(
+                                  _preferences.write(
+                                    'sidebarExpanded',
+                                    _sidebarExpanded,
+                                  ),
+                                );
                               },
                             ),
                             Expanded(child: _selectedPage()),
@@ -1857,6 +1875,8 @@ class _MusicShellState extends State<MusicShell>
         onCheckUpdates: () => _checkForUpdates(),
         closeToTray: _closeToTray,
         onCloseToTrayChanged: _setCloseToTray,
+        sidebarExpanded: _sidebarExpanded,
+        onSidebarExpandedChanged: _setSidebarExpanded,
         onEndpointChanged: () {
           libraryController.invalidateLoadedState();
           searchController.invalidateCachedResults();

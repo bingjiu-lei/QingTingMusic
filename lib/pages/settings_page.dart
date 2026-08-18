@@ -22,6 +22,8 @@ class SettingsPage extends StatefulWidget {
     required this.onCheckUpdates,
     required this.closeToTray,
     required this.onCloseToTrayChanged,
+    required this.sidebarExpanded,
+    required this.onSidebarExpandedChanged,
     required this.playbackQualityController,
     required this.themeController,
     this.onEndpointChanged,
@@ -33,6 +35,8 @@ class SettingsPage extends StatefulWidget {
   final VoidCallback onCheckUpdates;
   final bool closeToTray;
   final ValueChanged<bool> onCloseToTrayChanged;
+  final bool sidebarExpanded;
+  final ValueChanged<bool> onSidebarExpandedChanged;
   final PlaybackQualityController playbackQualityController;
   final ThemeController themeController;
   final VoidCallback? onEndpointChanged;
@@ -619,6 +623,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         subtitle: '关闭窗口时继续后台播放，可在托盘退出应用',
                         value: widget.closeToTray,
                         onChanged: widget.onCloseToTrayChanged,
+                      ),
+                      const SizedBox(height: 20),
+                      _SettingSwitchRow(
+                        icon: Icons.view_sidebar_rounded,
+                        title: '展开侧边栏',
+                        subtitle: '点击侧边分割线，即可切换侧边栏的展开状态',
+                        value: widget.sidebarExpanded,
+                        onChanged: widget.onSidebarExpandedChanged,
                       ),
                       Divider(
                         height: 30,
