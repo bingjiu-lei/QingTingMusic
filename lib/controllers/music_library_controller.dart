@@ -397,7 +397,7 @@ class MusicLibraryController extends ChangeNotifier {
               category: SearchCategory.playlist,
               imageUrl: playlist.coverUrl,
               listId: playlist.listId,
-              ownerId: playlist.sourceId,
+              ownerId: playlist.ownerId,
             );
           }
         }
@@ -418,7 +418,7 @@ class MusicLibraryController extends ChangeNotifier {
               category: SearchCategory.album,
               imageUrl: album.coverUrl,
               listId: album.listId,
-              ownerId: album.sourceId,
+              ownerId: album.ownerId,
             );
           }
         }

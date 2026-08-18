@@ -14,6 +14,7 @@ class MusicPlaylist {
     this.coverUrl,
     this.sourceId,
     this.sourceListId,
+    this.ownerId,
     this.isDefault = false,
     this.isMine = false,
     this.kind = MusicPlaylistKind.createdPlaylist,
@@ -27,10 +28,32 @@ class MusicPlaylist {
   final String? coverUrl;
   final String? sourceId;
   final String? sourceListId;
+  final String? ownerId;
   final bool isDefault;
   final bool isMine;
   final MusicPlaylistKind kind;
   final String? releaseDate;
+
+  /// 收藏专辑既有用户侧 listId，也有原专辑 ID；再次收藏必须使用后者。
+  String get sourceAlbumId {
+    final source = sourceListId?.trim() ?? '';
+    if (source.isNotEmpty) return source;
+    return listId.isNotEmpty ? listId : id;
+  }
+
+  /// 收藏歌单再次收藏时，必须使用来源歌单的全局 ID 与 listId，
+  /// 而不能使用用户侧生成的收藏记录 ID。
+  String get sourcePlaylistId {
+    final source = sourceId?.trim() ?? '';
+    if (source.isNotEmpty) return source;
+    return id;
+  }
+
+  String get sourcePlaylistListId {
+    final source = sourceListId?.trim() ?? '';
+    if (source.isNotEmpty) return source;
+    return listId.isNotEmpty ? listId : id;
+  }
 
   String? get formattedReleaseDate => formatReleaseDate(releaseDate);
 
@@ -42,6 +65,7 @@ class MusicPlaylist {
     'coverUrl': coverUrl,
     'sourceId': sourceId,
     'sourceListId': sourceListId,
+    'ownerId': ownerId,
     'isDefault': isDefault,
     'isMine': isMine,
     'kind': kind.name,
@@ -57,6 +81,7 @@ class MusicPlaylist {
       coverUrl: json['coverUrl']?.toString(),
       sourceId: json['sourceId']?.toString(),
       sourceListId: json['sourceListId']?.toString(),
+      ownerId: json['ownerId']?.toString(),
       isDefault: json['isDefault'] == true,
       isMine: json['isMine'] == true,
       kind: MusicPlaylistKind.values.firstWhere(
@@ -94,8 +119,9 @@ String? formatReleaseDate(String? raw) {
     return '${str.substring(0, 4)}-${str.substring(4, 6)}-${str.substring(6, 8)}';
   }
 
-  final dateMatch =
-      RegExp(r'^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})').firstMatch(str);
+  final dateMatch = RegExp(
+    r'^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})',
+  ).firstMatch(str);
   if (dateMatch != null) {
     final year = dateMatch.group(1)!;
     final month = dateMatch.group(2)!.padLeft(2, '0');

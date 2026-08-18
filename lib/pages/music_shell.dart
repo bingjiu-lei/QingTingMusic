@@ -1270,15 +1270,29 @@ class _MusicShellState extends State<MusicShell>
   }
 
   SearchCatalogItem _catalogFromPlaylist(MusicPlaylist playlist) {
+    final isAlbum = playlist.kind == MusicPlaylistKind.album;
+    final isCollectedPlaylist =
+        playlist.kind == MusicPlaylistKind.collectedPlaylist;
+    final catalogId = isAlbum
+        ? playlist.sourceAlbumId
+        : isCollectedPlaylist
+        ? playlist.sourcePlaylistId
+        : playlist.id;
+    final catalogListId = isAlbum
+        ? catalogId
+        : isCollectedPlaylist
+        ? playlist.sourcePlaylistListId
+        : playlist.listId;
     return SearchCatalogItem(
-      id: playlist.id,
+      id: catalogId,
       title: playlist.name,
       subtitle: '${playlist.songCount} 首',
-      category: playlist.kind == MusicPlaylistKind.album
-          ? SearchCategory.album
-          : SearchCategory.playlist,
+      category: isAlbum ? SearchCategory.album : SearchCategory.playlist,
       imageUrl: playlist.coverUrl,
-      listId: playlist.listId,
+      listId: catalogListId,
+      // user/playlist 的 list_create_userid 是用户侧收藏记录的创建者，
+      // 不是专辑歌手。专辑由歌曲元数据或搜索结果补全该字段。
+      ownerId: isAlbum ? null : playlist.ownerId,
       releaseDate: playlist.releaseDate,
     );
   }
@@ -1287,20 +1301,32 @@ class _MusicShellState extends State<MusicShell>
     SearchCatalogItem item,
     List<Song> songs,
   ) async {
-    if (item.releaseDate?.trim().isNotEmpty == true) return item;
-
-    String? releaseDate;
+    var releaseDate = item.releaseDate;
     final albumIds = <String>{
       for (final song in songs)
         if (song.albumId != null && song.albumId! > 0) song.albumId.toString(),
     };
-    for (final albumId in albumIds) {
-      releaseDate = await repository.getAlbumReleaseDate(albumId);
-      if (releaseDate?.trim().isNotEmpty == true) break;
+    final sourceAlbumId = albumIds.isNotEmpty
+        ? albumIds.first
+        : (item.listId?.trim().isNotEmpty == true ? item.listId! : item.id);
+    final songArtistId = songs
+        .map((song) => song.artistId)
+        .firstWhere(
+          (artistId) => artistId != null && artistId > 0,
+          orElse: () => null,
+        )
+        ?.toString();
+    var ownerId = item.ownerId ?? songArtistId;
+
+    if (releaseDate?.trim().isNotEmpty != true) {
+      for (final albumId in albumIds) {
+        releaseDate = await repository.getAlbumReleaseDate(albumId);
+        if (releaseDate?.trim().isNotEmpty == true) break;
+      }
     }
 
     SearchCatalogItem? matched;
-    if (releaseDate?.trim().isNotEmpty != true) {
+    if (releaseDate?.trim().isNotEmpty != true || ownerId?.isNotEmpty != true) {
       try {
         final matches = await repository.searchCatalog(
           item.title,
@@ -1309,13 +1335,14 @@ class _MusicShellState extends State<MusicShell>
         if (matches.isNotEmpty) {
           matched = matches.firstWhere(
             (candidate) =>
-                candidate.id == item.id ||
+                candidate.id == sourceAlbumId ||
                 (candidate.title == item.title &&
                     (item.subtitle.isEmpty ||
                         candidate.subtitle == item.subtitle)),
             orElse: () => matches.first,
           );
-          releaseDate = matched.releaseDate;
+          releaseDate ??= matched.releaseDate;
+          ownerId ??= matched.ownerId;
           if (releaseDate?.trim().isEmpty != false && matched.id.isNotEmpty) {
             releaseDate = await repository.getAlbumReleaseDate(matched.id);
           }
@@ -1324,15 +1351,14 @@ class _MusicShellState extends State<MusicShell>
         // 元数据回补失败不影响专辑歌曲正常打开。
       }
     }
-    if (releaseDate?.trim().isEmpty != false) return item;
     return SearchCatalogItem(
-      id: item.id,
+      id: sourceAlbumId,
       title: item.title,
       subtitle: item.subtitle,
       category: item.category,
       imageUrl: item.imageUrl ?? matched?.imageUrl,
-      listId: item.listId ?? matched?.listId,
-      ownerId: item.ownerId ?? matched?.ownerId,
+      listId: sourceAlbumId,
+      ownerId: ownerId,
       releaseDate: releaseDate,
     );
   }

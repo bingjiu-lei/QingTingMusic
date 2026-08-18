@@ -8,6 +8,53 @@ import 'package:qing_ting_music/models/song.dart';
 import 'package:qing_ting_music/services/kugou_api_client.dart';
 
 void main() {
+  test('preserves catalog owner id in playlist cache data', () {
+    const playlist = MusicPlaylist(
+      id: 'collection-album-100',
+      listId: 'generated-listid',
+      name: '测试专辑',
+      songCount: 10,
+      ownerId: 'artist-1',
+      kind: MusicPlaylistKind.album,
+    );
+
+    final restored = MusicPlaylist.fromJson(playlist.toJson());
+
+    expect(restored.ownerId, 'artist-1');
+    expect(restored.sourceAlbumId, 'generated-listid');
+  });
+
+  test('uses original album id instead of user collection list id', () {
+    const playlist = MusicPlaylist(
+      id: 'collection-local',
+      listId: 'generated-listid',
+      sourceListId: 'album-100',
+      name: '测试专辑',
+      songCount: 10,
+      kind: MusicPlaylistKind.album,
+    );
+
+    expect(playlist.sourceAlbumId, 'album-100');
+  });
+
+  test(
+    'uses original playlist identifiers instead of collection record ids',
+    () {
+      const playlist = MusicPlaylist(
+        id: 'collection-local',
+        listId: 'generated-listid',
+        sourceId: 'global-playlist-100',
+        sourceListId: 'source-listid',
+        name: '测试歌单',
+        songCount: 10,
+        kind: MusicPlaylistKind.collectedPlaylist,
+      );
+
+      expect(playlist.sourcePlaylistId, 'global-playlist-100');
+      expect(playlist.sourcePlaylistListId, 'source-listid');
+    },
+  );
+
   test('removes the final favorite song from local state', () async {
     final favorite = _playlist(
       'favorite',
@@ -233,6 +280,7 @@ void main() {
       listId: 'generated-listid',
       name: '测试专辑',
       songCount: 10,
+      ownerId: 'artist-1',
       sourceListId: 'album-100',
       kind: MusicPlaylistKind.album,
     );
@@ -246,6 +294,7 @@ void main() {
     await controller.toggleCatalogCollection(album);
 
     expect(repository.uncollectedListIds, ['generated-listid']);
+    expect(repository.uncollectedCatalogs.single.ownerId, 'artist-1');
     expect(controller.isCatalogCollected(album), isFalse);
   });
 }
@@ -282,6 +331,7 @@ extension _MusicPlaylistTestCopy on MusicPlaylist {
       coverUrl: coverUrl,
       sourceId: sourceId,
       sourceListId: sourceListId,
+      ownerId: ownerId,
       isDefault: isDefault,
       isMine: isMine,
       kind: kind,
@@ -301,6 +351,7 @@ class _FakeMusicRepository implements MusicRepository {
   final List<String> removedSongs = [];
   final List<SearchCategory> collectedCatalogs = [];
   final List<String> uncollectedListIds = [];
+  final List<SearchCatalogItem> uncollectedCatalogs = [];
   final List<Song> _favoriteSongs;
   final Map<String, List<Song>> playlistTracks;
   int playlistRequests = 0;
@@ -417,6 +468,7 @@ class _FakeMusicRepository implements MusicRepository {
 
   @override
   Future<void> uncollectCatalog(SearchCatalogItem item) async {
+    uncollectedCatalogs.add(item);
     uncollectedListIds.add(item.listId ?? item.id);
     playlists.removeWhere((playlist) => playlist.listId == item.listId);
   }
