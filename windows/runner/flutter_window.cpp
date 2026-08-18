@@ -21,13 +21,14 @@ constexpr UINT kDesktopLyricsMovedNotify = 4106;
 constexpr wchar_t kDesktopLyricClass[] = L"QingTingDesktopLyric";
 constexpr UINT_PTR kDesktopLyricTimer = 1;
 constexpr UINT kDesktopLyricFrameMs = 25;
-constexpr int kDesktopLyricControlCount = 5;
+constexpr int kDesktopLyricControlCount = 7;
 constexpr int kDesktopLyricUnlockControl = 100;
 constexpr double kDesktopLyricMinFontSize = 20.0;
 constexpr double kDesktopLyricMaxFontSize = 44.0;
 constexpr double kDesktopLyricToolbarHeight = 43.0;
 constexpr double kDesktopLyricTitleGap = 4.0;
 constexpr double kDesktopLyricBottomPadding = 20.0;
+constexpr UINT kDesktopLyricsFontSizeChangedNotify = 4107;
 
 struct DesktopLyricState {
   HWND window = nullptr;
@@ -62,6 +63,7 @@ struct DesktopLyricState {
   bool click_through = false;
   bool cursor_inside = false;
   bool unlock_hot = false;
+  ULONGLONG locked_hover_until = 0;
   ULONG_PTR gdiplus_token = 0;
   HDC buffer_dc = nullptr;
   HBITMAP buffer_bitmap = nullptr;
@@ -80,7 +82,12 @@ RECT LyricControlRect(HWND hwnd, const RECT& client, int index) {
   const float scale = LyricScale(hwnd);
   const int button = static_cast<int>(32 * scale);
   const int gap = static_cast<int>(8 * scale);
-  constexpr int count = 4;
+  if (g_lyric.locked && index == 5) {
+    const int left = (client.right - button) / 2;
+    const int top = static_cast<int>(7 * scale);
+    return {left, top, left + button, top + button};
+  }
+  constexpr int count = kDesktopLyricControlCount;
   const int total = button * count + gap * (count - 1);
   const int left = (client.right - total) / 2 + index * (button + gap);
   const int top = static_cast<int>(7 * scale);
@@ -90,7 +97,11 @@ RECT LyricControlRect(HWND hwnd, const RECT& client, int index) {
 int HitLyricControl(HWND hwnd, POINT point) {
   RECT client;
   GetClientRect(hwnd, &client);
-  for (int index = 0; index < 4; ++index) {
+  if (g_lyric.locked) {
+    RECT target = LyricControlRect(hwnd, client, 5);
+    return PtInRect(&target, point) ? 5 : -1;
+  }
+  for (int index = 0; index < kDesktopLyricControlCount; ++index) {
     RECT target = LyricControlRect(hwnd, client, index);
     if (PtInRect(&target, point)) return index;
   }
@@ -186,7 +197,7 @@ void RenderDesktopLyricWindow(HWND hwnd) {
   graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAliasGridFit);
   const float scale = LyricScale(hwnd);
 
-  if (g_lyric.hover_amount > 0.01) {
+  if (!g_lyric.locked && g_lyric.hover_amount > 0.01) {
     const BYTE panel_alpha = static_cast<BYTE>(142 * g_lyric.hover_amount);
     Gdiplus::GraphicsPath panel;
     AddRoundedRectPath(
@@ -212,12 +223,19 @@ void RenderDesktopLyricWindow(HWND hwnd) {
   format.SetLineAlignment(Gdiplus::StringAlignmentCenter);
   format.SetTrimming(Gdiplus::StringTrimmingEllipsisCharacter);
   format.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
-  const float toolbar_height = 43.0f * scale;
+  const float toolbar_height =
+      static_cast<float>(kDesktopLyricToolbarHeight) * scale;
+  const float title_height = static_cast<float>(
+      (std::max)(46.0, g_lyric.font_size * 1.30) * scale);
   Gdiplus::RectF title_rect(26.0f * scale, toolbar_height,
-                            width - 52.0f * scale, 46.0f * scale);
-  Gdiplus::RectF secondary_rect(28.0f * scale, toolbar_height + 43.0f * scale,
+                            width - 52.0f * scale, title_height);
+  Gdiplus::RectF secondary_rect(
+      28.0f * scale,
+      toolbar_height + title_height +
+          static_cast<float>(kDesktopLyricTitleGap) * scale,
                                 width - 56.0f * scale, 30.0f * scale);
-  Gdiplus::Font title_font(active_family, 28.0f * scale,
+  Gdiplus::Font title_font(active_family,
+                           static_cast<float>(g_lyric.font_size) * scale,
                            Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
   Gdiplus::RectF measured;
   graphics.MeasureString(g_lyric.text.c_str(), -1, &title_font,
@@ -257,7 +275,8 @@ void RenderDesktopLyricWindow(HWND hwnd) {
     secondary_format.SetTrimming(
         Gdiplus::StringTrimmingEllipsisCharacter);
     secondary_format.SetFormatFlags(Gdiplus::StringFormatFlagsNoWrap);
-    Gdiplus::Font secondary_font(active_family, 17.0f * scale,
+    Gdiplus::Font secondary_font(
+        active_family, static_cast<float>(g_lyric.font_size * 0.60) * scale,
                                  Gdiplus::FontStyleRegular,
                                  Gdiplus::UnitPixel);
     Gdiplus::SolidBrush secondary_brush(Gdiplus::Color(220, 188, 197, 211));
@@ -275,10 +294,12 @@ void RenderDesktopLyricWindow(HWND hwnd) {
     Gdiplus::FontFamily icon_family(L"Segoe MDL2 Assets");
     Gdiplus::Font icon_font(&icon_family, 16.0f * scale,
                             Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-    const wchar_t* glyphs[4] = {
+    const wchar_t* glyphs[kDesktopLyricControlCount] = {
         L"\xE892", g_lyric.playing ? L"\xE769" : L"\xE768", L"\xE893",
+        L"\xE738", L"\xE710", g_lyric.locked ? L"\xE72E" : L"\xE785",
         L"\xE8BB"};
-    for (int index = 0; index < 4; ++index) {
+    for (int index = 0; index < kDesktopLyricControlCount; ++index) {
+      if (g_lyric.locked && index != 5) continue;
       const RECT source = LyricControlRect(hwnd, client, index);
       Gdiplus::RectF button(static_cast<float>(source.left),
                             static_cast<float>(source.top),
@@ -384,12 +405,14 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
         g_lyric.tracking_mouse = true;
       }
       g_lyric.hovered = true;
+      if (g_lyric.locked)
+        g_lyric.locked_hover_until = GetTickCount64() + 720;
       const int hot_control = HitLyricControl(hwnd, point);
       if (hot_control != g_lyric.hot_control) {
         g_lyric.hot_control = hot_control;
         RenderDesktopLyricWindow(hwnd);
       }
-      if (g_lyric.drag_pending || g_lyric.dragging) {
+      if (!g_lyric.locked && (g_lyric.drag_pending || g_lyric.dragging)) {
         POINT cursor;
         GetCursorPos(&cursor);
         const int dx = cursor.x - g_lyric.drag_start.x;
@@ -410,6 +433,8 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
     case WM_MOUSELEAVE:
       g_lyric.tracking_mouse = false;
       g_lyric.hovered = false;
+      if (g_lyric.locked)
+        g_lyric.locked_hover_until = GetTickCount64() + 720;
       g_lyric.hot_control = -1;
       return 0;
     case WM_SETCURSOR: {
@@ -426,7 +451,7 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
       SetCapture(hwnd);
       POINT point = {GET_X_LPARAM(lparam), GET_Y_LPARAM(lparam)};
       g_lyric.pressed_control = HitLyricControl(hwnd, point);
-      if (g_lyric.pressed_control < 0) {
+      if (!g_lyric.locked && g_lyric.pressed_control < 0) {
         g_lyric.drag_pending = true;
         g_lyric.dragging = false;
         GetCursorPos(&g_lyric.drag_start);
@@ -450,7 +475,22 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
         PostMessage(g_lyric.owner, WM_COMMAND, kPlayButton, 0);
       if (activate && action == 2 && g_lyric.owner)
         PostMessage(g_lyric.owner, WM_COMMAND, kNextButton, 0);
-      if (activate && action == 3) {
+      if (activate && (action == 3 || action == 4)) {
+        const double delta = action == 3 ? -2.0 : 2.0;
+        g_lyric.font_size = std::clamp(
+            g_lyric.font_size + delta, kDesktopLyricMinFontSize,
+            kDesktopLyricMaxFontSize);
+        if (g_lyric.owner)
+          PostMessage(g_lyric.owner, WM_COMMAND,
+                      kDesktopLyricsFontSizeChangedNotify, 0);
+      }
+      if (activate && action == 5) {
+        g_lyric.locked = !g_lyric.locked;
+        if (g_lyric.owner)
+          PostMessage(g_lyric.owner, WM_COMMAND, kDesktopLyricsLockChangedNotify,
+                      static_cast<LPARAM>(g_lyric.locked));
+      }
+      if (activate && action == 6) {
         ShowWindow(hwnd, SW_HIDE);
         KillTimer(hwnd, kDesktopLyricTimer);
         if (g_lyric.owner)
@@ -459,9 +499,26 @@ LRESULT CALLBACK DesktopLyricProc(HWND hwnd, UINT message, WPARAM wparam,
       RenderDesktopLyricWindow(hwnd);
       return 0;
     }
+    case WM_MOUSEWHEEL: {
+      if ((GET_KEYSTATE_WPARAM(wparam) & MK_CONTROL) == 0) return 0;
+      const int direction = GET_WHEEL_DELTA_WPARAM(wparam) > 0 ? 1 : -1;
+      g_lyric.font_size = std::clamp(g_lyric.font_size + direction * 2.0,
+                                     kDesktopLyricMinFontSize,
+                                     kDesktopLyricMaxFontSize);
+      if (g_lyric.owner) {
+        PostMessage(g_lyric.owner, WM_COMMAND,
+                    kDesktopLyricsFontSizeChangedNotify, 0);
+      }
+      RenderDesktopLyricWindow(hwnd);
+      return 0;
+    }
     case WM_TIMER: {
-      const double target = g_lyric.hovered ? 1.0 : 0.0;
-      const double step = g_lyric.hovered ? 0.16 : 0.20;
+      // A locked lyric window keeps its compact control strip available, as
+      // in EchoMusic. Unlocking restores the normal hover-to-reveal behavior.
+      const bool keep_locked_unlock_button =
+          g_lyric.locked && GetTickCount64() < g_lyric.locked_hover_until;
+      const double target = g_lyric.hovered || keep_locked_unlock_button ? 1.0 : 0.0;
+      const double step = g_lyric.hovered || keep_locked_unlock_button ? 0.12 : 0.10;
       const double previous_hover = g_lyric.hover_amount;
       if (g_lyric.hover_amount < target)
         g_lyric.hover_amount = std::min(target, g_lyric.hover_amount + step);
@@ -607,6 +664,12 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
       if (LOWORD(wparam) == kNextButton) SendMediaAction("next");
       if (LOWORD(wparam) == kDesktopLyricsCloseButton)
         SendMediaAction("desktopLyricsClosed");
+      if (LOWORD(wparam) == kDesktopLyricsLockChangedNotify)
+        SendMediaActionWithValue("desktopLyricsLockChanged",
+                                 flutter::EncodableValue(g_lyric.locked));
+      if (LOWORD(wparam) == kDesktopLyricsFontSizeChangedNotify)
+        SendMediaActionWithValue("desktopLyricsFontSizeChanged",
+                                 flutter::EncodableValue(g_lyric.font_size));
       break;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
@@ -652,6 +715,25 @@ void FlutterWindow::SetupMediaChannel() {
               KillTimer(lyric, kDesktopLyricTimer);
             }
           }
+          result->Success();
+          return;
+        }
+        if (call.method_name() == "setDesktopLyricsLocked") {
+          if (const auto* value = std::get_if<bool>(call.arguments()))
+            g_lyric.locked = *value;
+          if (g_lyric.window) RenderDesktopLyricWindow(g_lyric.window);
+          result->Success();
+          return;
+        }
+        if (call.method_name() == "setDesktopLyricsFontSize") {
+          double value = g_lyric.font_size;
+          if (const auto* number = std::get_if<double>(call.arguments()))
+            value = *number;
+          else if (const auto* integer = std::get_if<int32_t>(call.arguments()))
+            value = static_cast<double>(*integer);
+          g_lyric.font_size = std::clamp(value, kDesktopLyricMinFontSize,
+                                         kDesktopLyricMaxFontSize);
+          if (g_lyric.window) RenderDesktopLyricWindow(g_lyric.window);
           result->Success();
           return;
         }
@@ -785,6 +867,13 @@ void FlutterWindow::UpdateThumbar() {
 
 void FlutterWindow::SendMediaAction(const char* action) {
   if (media_channel_) media_channel_->InvokeMethod(action, nullptr);
+}
+
+void FlutterWindow::SendMediaActionWithValue(
+    const char* action, const flutter::EncodableValue& value) {
+  if (media_channel_)
+    media_channel_->InvokeMethod(
+        action, std::make_unique<flutter::EncodableValue>(value));
 }
 
 void FlutterWindow::DisposeWindowsMedia() {

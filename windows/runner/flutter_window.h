@@ -46,6 +46,8 @@ class FlutterWindow : public Win32Window {
   void SetupThumbar();
   void UpdateThumbar();
   void SendMediaAction(const char* action);
+  void SendMediaActionWithValue(const char* action,
+                                const flutter::EncodableValue& value);
   void DisposeWindowsMedia();
 };
 

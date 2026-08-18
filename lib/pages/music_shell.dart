@@ -109,6 +109,8 @@ class _MusicShellState extends State<MusicShell>
   bool _showLyricTranslation = true;
   bool _showLyricTransliteration = false;
   bool _desktopLyricsVisible = false;
+  bool _desktopLyricsLocked = false;
+  double _desktopLyricsFontSize = 28;
   Timer? _desktopLyricsTimer;
   bool _desktopLyricsSyncing = false;
   String? _lastCoverAccentSongId;
@@ -172,8 +174,22 @@ class _MusicShellState extends State<MusicShell>
           onDesktopLyricsClosed: () async {
             if (mounted) setState(() => _desktopLyricsVisible = false);
           },
+          onDesktopLyricsLockChanged: (locked) async {
+            if (!mounted) return;
+            setState(() => _desktopLyricsLocked = locked);
+            await _preferences.write('desktopLyricsLocked', locked);
+          },
+          onDesktopLyricsFontSizeChanged: (fontSize) async {
+            if (!mounted) return;
+            final value = fontSize.clamp(20.0, 44.0);
+            setState(() => _desktopLyricsFontSize = value);
+            await _preferences.write('desktopLyricsFontSize', value);
+          },
         ),
       );
+    }
+    if (Platform.isWindows && widget.enableWindowControls) {
+      unawaited(_loadDesktopLyricsPreferences());
     }
     // SearchPage 直接监听 searchController。让搜索输入和联想结果只刷新
     // 搜索页，避免拼音输入期间由外层 Shell 的整页重建干扰 Windows IME。
@@ -236,6 +252,30 @@ class _MusicShellState extends State<MusicShell>
     final closeToTray = value is bool ? value : false;
     setState(() => _closeToTray = closeToTray);
     await _applyCloseBehavior(closeToTray);
+  }
+
+  Future<void> _loadDesktopLyricsPreferences() async {
+    final values = await Future.wait<Object?>([
+      _preferences.read('desktopLyricsLocked'),
+      _preferences.read('desktopLyricsFontSize'),
+    ]);
+    final locked = values[0] is bool ? values[0] as bool : false;
+    final rawFontSize = values[1];
+    final fontSize = rawFontSize is num
+        ? rawFontSize.toDouble().clamp(20.0, 44.0)
+        : 28.0;
+    if (!mounted) return;
+    setState(() {
+      _desktopLyricsLocked = locked;
+      _desktopLyricsFontSize = fontSize;
+    });
+    try {
+      await _windowsMediaBridge.setDesktopLyricsLocked(locked);
+      await _windowsMediaBridge.setDesktopLyricsFontSize(fontSize);
+    } catch (_) {
+      // The native window may not have been created yet; the next explicit
+      // desktop-lyrics toggle will push the persisted values again.
+    }
   }
 
   void _handleThemeChanged() {
@@ -1008,6 +1048,10 @@ class _MusicShellState extends State<MusicShell>
     if (_desktopLyricsVisible == visible) return;
     setState(() => _desktopLyricsVisible = visible);
     try {
+      await _windowsMediaBridge.setDesktopLyricsLocked(_desktopLyricsLocked);
+      await _windowsMediaBridge.setDesktopLyricsFontSize(
+        _desktopLyricsFontSize,
+      );
       await _windowsMediaBridge
           .setDesktopLyricsVisible(visible)
           .timeout(const Duration(milliseconds: 800));

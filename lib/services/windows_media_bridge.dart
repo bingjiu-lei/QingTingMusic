@@ -12,6 +12,9 @@ class WindowsMediaBridge {
     required Future<void> Function() onTogglePlay,
     required Future<void> Function() onNext,
     required Future<void> Function() onDesktopLyricsClosed,
+    required Future<void> Function(bool locked) onDesktopLyricsLockChanged,
+    required Future<void> Function(double fontSize)
+    onDesktopLyricsFontSizeChanged,
   }) async {
     if (!Platform.isWindows) return;
     _channel.setMethodCallHandler((call) async {
@@ -24,6 +27,15 @@ class WindowsMediaBridge {
           await onNext();
         case 'desktopLyricsClosed':
           await onDesktopLyricsClosed();
+        case 'desktopLyricsLockChanged':
+          final locked = call.arguments is bool
+              ? call.arguments as bool
+              : false;
+          await onDesktopLyricsLockChanged(locked);
+        case 'desktopLyricsFontSizeChanged':
+          final value = call.arguments;
+          final fontSize = value is num ? value.toDouble() : 28.0;
+          await onDesktopLyricsFontSizeChanged(fontSize);
       }
     });
     await _channel.invokeMethod<void>('initialize');
@@ -45,6 +57,16 @@ class WindowsMediaBridge {
   Future<void> setDesktopLyricsVisible(bool visible) async {
     if (!Platform.isWindows) return;
     await _channel.invokeMethod<void>('showDesktopLyrics', visible);
+  }
+
+  Future<void> setDesktopLyricsLocked(bool locked) async {
+    if (!Platform.isWindows) return;
+    await _channel.invokeMethod<void>('setDesktopLyricsLocked', locked);
+  }
+
+  Future<void> setDesktopLyricsFontSize(double fontSize) async {
+    if (!Platform.isWindows) return;
+    await _channel.invokeMethod<void>('setDesktopLyricsFontSize', fontSize);
   }
 
   Future<void> updateDesktopLyrics({
