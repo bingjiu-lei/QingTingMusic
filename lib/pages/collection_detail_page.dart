@@ -125,23 +125,17 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         children: [
           Row(
             children: [
-              SizedBox(
-                width: 46,
-                height: 46,
-                child: IconButton(
-                  tooltip: '返回',
-                  mouseCursor: SystemMouseCursors.click,
-                  onPressed: widget.onBack,
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppGlass.surface,
-                    hoverColor: AppColors.surfaceHover,
-                    side: BorderSide(color: AppGlass.border),
-                    shape: const CircleBorder(),
-                  ),
-                  icon: Icon(Icons.arrow_back_rounded, size: 22),
-                ),
+              CircularHoverButton(
+                icon: Icons.arrow_back_rounded,
+                tooltip: '返回',
+                onTap: widget.onBack,
+                size: 42,
+                iconSize: 22,
+                backgroundColor: AppGlass.surface,
+                hoverBackgroundColor: AppColors.surfaceHover,
+                shadowColor: AppColors.shadow,
               ),
-              SizedBox(width: 10),
+              const SizedBox(width: 12),
               AlbumArt(size: 80, imageUrl: widget.imageUrl),
               const SizedBox(width: 16),
               Expanded(
@@ -212,53 +206,84 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       },
                     ),
                     const SizedBox(height: 10),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 8,
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        if (widget.collectionItem != null)
-                          IconButton(
-                            tooltip: widget.isCollected ? '取消收藏' : '收藏',
-                            onPressed: widget.onToggleCollection,
-                            style: IconButton.styleFrom(
-                              minimumSize: const Size(40, 40),
-                              fixedSize: const Size(40, 40),
-                              foregroundColor: widget.isCollected
-                                  ? AppColors.favorite
-                                  : AppColors.muted,
-                              backgroundColor: AppColors.surfaceMuted
-                                  .withValues(alpha: 0.42),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (_songsForDisplay().isNotEmpty)
+                              PlayAllHeaderButton(
+                                onTap: () =>
+                                    widget.onPlayAll(_songsForDisplay()),
+                                songCount: _songsForDisplay().length,
+                                size: 36,
                               ),
-                            ),
-                            icon: Icon(
-                              widget.isCollected
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              size: 18,
-                            ),
-                          ),
-                        if (widget.onDeletePlaylist != null)
-                          IconButton(
-                            tooltip: '删除歌单',
-                            onPressed: widget.onDeletePlaylist,
-                            mouseCursor: SystemMouseCursors.click,
-                            style: IconButton.styleFrom(
-                              minimumSize: const Size(40, 40),
-                              fixedSize: const Size(40, 40),
-                              foregroundColor: AppColors.muted,
-                              backgroundColor: AppColors.surfaceMuted
-                                  .withValues(alpha: 0.42),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
+                            if (widget.collectionItem != null)
+                              CircularHoverButton(
+                                icon: widget.isCollected
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                tooltip: widget.isCollected ? '取消收藏' : '收藏',
+                                onTap: widget.onToggleCollection,
+                                size: 36,
+                                iconSize: 18,
+                                iconColor: widget.isCollected
+                                    ? AppColors.favorite
+                                    : AppColors.muted,
+                                hoverIconColor: widget.isCollected
+                                    ? AppColors.favorite
+                                    : AppColors.text,
+                                shadowColor: widget.isCollected
+                                    ? AppColors.favorite
+                                    : null,
                               ),
-                            ),
-                            icon: const Icon(
-                              Icons.delete_outline_rounded,
-                              size: 18,
-                            ),
+                            if (widget.onDeletePlaylist != null)
+                              CircularHoverButton(
+                                icon: Icons.delete_outline_rounded,
+                                tooltip: '删除歌单',
+                                onTap: widget.onDeletePlaylist,
+                                size: 36,
+                                iconSize: 18,
+                                iconColor: AppColors.muted,
+                                hoverIconColor: AppColors.danger,
+                                shadowColor: AppColors.danger,
+                              ),
+                          ],
+                        ),
+                        if (tabs.length <= 1 && _songsForDisplay().isNotEmpty) ...[
+                          const Spacer(),
+                          SongHeaderActions(
+                            songs: _songsForDisplay(),
+                            showPlayAll: false,
+                            onPlayAll: null,
+                            filterController: _filterController,
+                            filterFocusNode: _filterFocusNode,
+                            filterExpanded: _filterExpanded,
+                            hasFilter: _filterText.trim().isNotEmpty,
+                            onExpandFilter: () {
+                              setState(() => _filterExpanded = true);
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (mounted) _filterFocusNode.requestFocus();
+                              });
+                            },
+                            onChangedFilter: (val) =>
+                                setState(() => _filterText = val),
+                            onClearFilter: () {
+                              _filterController.clear();
+                              setState(() {
+                                _filterText = '';
+                                _filterExpanded = false;
+                              });
+                              _filterFocusNode.unfocus();
+                            },
+                            reversed: _reversed,
+                            onToggleSort: () =>
+                                setState(() => _reversed = !_reversed),
                           ),
+                        ],
                       ],
                     ),
                   ],
@@ -266,46 +291,50 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
               ),
             ],
           ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              GlassTabBar(
-                tabs: tabs,
-                selectedIndex: selectedTab,
-                onChanged: widget.onTabChanged,
-              ),
-              const Spacer(),
-              if (tabs[selectedTab] == '歌曲')
-                SongHeaderActions(
-                  songs: _songsForDisplay(),
-                  onPlayAll: _songsForDisplay().isEmpty
-                      ? null
-                      : () => widget.onPlayAll(_songsForDisplay()),
-                  filterController: _filterController,
-                  filterFocusNode: _filterFocusNode,
-                  filterExpanded: _filterExpanded,
-                  hasFilter: _filterText.trim().isNotEmpty,
-                  onExpandFilter: () {
-                    setState(() => _filterExpanded = true);
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      if (mounted) _filterFocusNode.requestFocus();
-                    });
-                  },
-                  onChangedFilter: (val) =>
-                      setState(() => _filterText = val),
-                  onClearFilter: () {
-                    _filterController.clear();
-                    setState(() {
-                      _filterText = '';
-                      _filterExpanded = false;
-                    });
-                    _filterFocusNode.unfocus();
-                  },
-                  reversed: _reversed,
-                  onToggleSort: () => setState(() => _reversed = !_reversed),
+          if (tabs.length > 1) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                GlassTabBar(
+                  tabs: tabs,
+                  selectedIndex: selectedTab,
+                  onChanged: widget.onTabChanged,
                 ),
-            ],
-          ),
+                const Spacer(),
+                if (tabs[selectedTab] == '歌曲')
+                  SongHeaderActions(
+                    songs: _songsForDisplay(),
+                    showPlayAll: false,
+                    onPlayAll: _songsForDisplay().isEmpty
+                        ? null
+                        : () => widget.onPlayAll(_songsForDisplay()),
+                    filterController: _filterController,
+                    filterFocusNode: _filterFocusNode,
+                    filterExpanded: _filterExpanded,
+                    hasFilter: _filterText.trim().isNotEmpty,
+                    onExpandFilter: () {
+                      setState(() => _filterExpanded = true);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted) _filterFocusNode.requestFocus();
+                      });
+                    },
+                    onChangedFilter: (val) =>
+                        setState(() => _filterText = val),
+                    onClearFilter: () {
+                      _filterController.clear();
+                      setState(() {
+                        _filterText = '';
+                        _filterExpanded = false;
+                      });
+                      _filterFocusNode.unfocus();
+                    },
+                    reversed: _reversed,
+                    onToggleSort: () =>
+                        setState(() => _reversed = !_reversed),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           Expanded(
             child: widget.isLoading

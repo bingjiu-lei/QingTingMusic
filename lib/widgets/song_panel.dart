@@ -214,6 +214,7 @@ class SongHeaderActions extends StatelessWidget {
     required this.onClearFilter,
     required this.reversed,
     required this.onToggleSort,
+    this.showPlayAll = true,
   });
 
   final List<Song> songs;
@@ -227,6 +228,7 @@ class SongHeaderActions extends StatelessWidget {
   final VoidCallback onClearFilter;
   final bool reversed;
   final VoidCallback onToggleSort;
+  final bool showPlayAll;
 
   @override
   Widget build(BuildContext context) {
@@ -234,8 +236,10 @@ class SongHeaderActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (songs.isNotEmpty) ...[
-          _PlayAllGlowButton(onTap: onPlayAll),
-          const SizedBox(width: 8),
+          if (showPlayAll) ...[
+            PlayAllHeaderButton(onTap: onPlayAll, size: 32),
+            const SizedBox(width: 8),
+          ],
           _ListFilterField(
             controller: filterController,
             focusNode: filterFocusNode,
@@ -259,63 +263,134 @@ class SongHeaderActions extends StatelessWidget {
   }
 }
 
-class _PlayAllGlowButton extends StatefulWidget {
-  const _PlayAllGlowButton({required this.onTap});
+class PlayAllHeaderButton extends StatelessWidget {
+  const PlayAllHeaderButton({
+    super.key,
+    required this.onTap,
+    this.size = 36.0,
+    this.songCount,
+  });
+
   final VoidCallback? onTap;
+  final double size;
+  final int? songCount;
 
   @override
-  State<_PlayAllGlowButton> createState() => _PlayAllGlowButtonState();
+  Widget build(BuildContext context) {
+    return CircularHoverButton(
+      icon: Icons.play_arrow_rounded,
+      tooltip: songCount != null ? '播放全部 ($songCount首)' : '播放全部',
+      onTap: onTap,
+      size: size,
+      iconSize: size * 0.55,
+      iconColor: AppColors.primary,
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
+    );
+  }
 }
 
-class _PlayAllGlowButtonState extends State<_PlayAllGlowButton> {
+class CircularHoverButton extends StatefulWidget {
+  const CircularHoverButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.size = 36.0,
+    this.iconSize,
+    this.iconColor,
+    this.hoverIconColor,
+    this.backgroundColor,
+    this.hoverBackgroundColor,
+    this.shadowColor,
+    this.selected = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final double size;
+  final double? iconSize;
+  final Color? iconColor;
+  final Color? hoverIconColor;
+  final Color? backgroundColor;
+  final Color? hoverBackgroundColor;
+  final Color? shadowColor;
+  final bool selected;
+
+  @override
+  State<CircularHoverButton> createState() => _CircularHoverButtonState();
+}
+
+class _CircularHoverButtonState extends State<CircularHoverButton> {
   bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onTap != null;
     final isDark = AppColors.isDark;
+    final size = widget.size;
+    final iconSize = widget.iconSize ?? (size * 0.52);
+
+    final defaultBg = widget.backgroundColor ??
+        (widget.selected
+            ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+            : AppColors.surfaceMuted.withValues(alpha: isDark ? 0.40 : 0.55));
+
+    final hoverBg = widget.hoverBackgroundColor ??
+        (widget.selected
+            ? AppColors.primary.withValues(alpha: isDark ? 0.26 : 0.18)
+            : AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08));
+
+    final defaultColor = widget.iconColor ??
+        (widget.selected ? AppColors.primary : AppColors.muted);
+    final hoverColor = widget.hoverIconColor ??
+        (widget.selected ? AppColors.primary : AppColors.primary);
 
     return Tooltip(
-      message: '播放全部',
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 300),
       child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
         child: GestureDetector(
           onTap: widget.onTap,
-          child: AnimatedContainer(
+          child: AnimatedScale(
+            scale: enabled && _hovered ? 1.08 : 1.0,
             duration: AppMotion.fast,
             curve: AppMotion.curve,
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: enabled
-                  ? (_hovered
-                      ? AppColors.primary.withValues(alpha: 0.88)
-                      : AppColors.primary)
-                  : AppColors.muted,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: Colors.white.withValues(alpha: 0.3),
-                width: 1,
-              ),
-              boxShadow: enabled
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(
-                          alpha: isDark ? 0.50 : 0.35,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: enabled
+                    ? (_hovered ? hoverBg : defaultBg)
+                    : AppColors.muted.withValues(alpha: 0.15),
+                boxShadow: enabled && _hovered
+                    ? [
+                        BoxShadow(
+                          color: (widget.shadowColor ?? AppColors.primary)
+                              .withValues(
+                            alpha: isDark ? 0.25 : 0.12,
+                          ),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
                         ),
-                        blurRadius: _hovered ? 14 : 9,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.play_arrow_rounded,
-                size: 18,
-                color: Colors.white,
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: Icon(
+                  widget.icon,
+                  size: iconSize,
+                  color: enabled
+                      ? (_hovered ? hoverColor : defaultColor)
+                      : AppColors.muted,
+                ),
               ),
             ),
           ),
@@ -333,39 +408,22 @@ class _ListSortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: reversed ? '切换为原顺序' : '切换为倒序',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          hoverColor: AppColors.surfaceHover,
-          mouseCursor: SystemMouseCursors.click,
-          child: AnimatedContainer(
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: reversed
-                  ? AppColors.selected.withValues(
-                      alpha: AppColors.isDark ? 0.72 : 0.92,
-                    )
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-            child: Icon(
-              reversed
-                  ? Icons.south_rounded
-                  : Icons.format_list_numbered_rounded,
-              size: reversed ? 16 : 17,
-              color: reversed ? AppColors.primary : AppColors.muted,
-            ),
-          ),
-        ),
-      ),
+    return CircularHoverButton(
+      icon: reversed
+          ? Icons.south_rounded
+          : Icons.format_list_numbered_rounded,
+      tooltip: reversed ? '切换为原顺序' : '切换为倒序',
+      onTap: onTap,
+      size: 36,
+      iconSize: 18,
+      selected: reversed,
+      iconColor: reversed ? AppColors.primary : AppColors.muted,
+      hoverIconColor: AppColors.primary,
+      backgroundColor: reversed
+          ? AppColors.selected.withValues(
+              alpha: AppColors.isDark ? 0.72 : 0.92,
+            )
+          : null,
     );
   }
 }
@@ -394,80 +452,89 @@ class _ListFilterField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final showField = expanded || hasFilter;
+    if (!showField) {
+      return CircularHoverButton(
+        icon: Icons.search_rounded,
+        tooltip: '筛选当前列表',
+        onTap: onExpand,
+        size: 36,
+        iconSize: 18,
+      );
+    }
+
     return AnimatedContainer(
       duration: AppMotion.normal,
       curve: AppMotion.curve,
-      width: showField ? 160 : 32,
-      height: 32,
-      child: showField
-          ? TextField(
-              focusNode: focusNode,
-              controller: controller,
-              onChanged: onChanged,
-              onSubmitted: onSubmitted,
-              cursorColor: AppColors.primary,
-              cursorHeight: 15,
-              style: TextStyle(
-                color: AppColors.text,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-              decoration: InputDecoration(
-                prefixIcon: Icon(Icons.search_rounded, size: 16),
-                suffixIcon: hasFilter
-                    ? IconButton(
-                        tooltip: '清除',
-                        onPressed: onClear,
-                        icon: Icon(Icons.close_rounded, size: 15),
-                      )
-                    : null,
-                filled: true,
-                fillColor: AppColors.isDark
-                    ? AppColors.surfaceMuted.withValues(alpha: 0.42)
-                    : const Color(0xFFF8FAFD),
-                contentPadding: EdgeInsets.zero,
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(
-                    color: AppColors.border.withValues(alpha: 0.72),
-                  ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(
-                    color: AppColors.border.withValues(alpha: 0.72),
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  borderSide: BorderSide(
-                    color: AppColors.primary.withValues(alpha: 0.48),
-                    width: 1,
-                  ),
-                ),
-              ),
-            )
-          : Tooltip(
-              message: '筛选当前列表',
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                child: InkWell(
-                  onTap: onExpand,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  hoverColor: AppColors.surfaceHover,
-                  mouseCursor: SystemMouseCursors.click,
-                  child: Center(
-                    child: Icon(
-                      Icons.search_rounded,
-                      size: 17,
-                      color: AppColors.muted,
-                    ),
-                  ),
-                ),
-              ),
+      width: 172,
+      height: 36,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow.withValues(
+              alpha: AppColors.isDark ? 0.25 : 0.08,
             ),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        focusNode: focusNode,
+        controller: controller,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        cursorColor: AppColors.primary,
+        cursorHeight: 15,
+        style: TextStyle(
+          color: AppColors.text,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+        decoration: InputDecoration(
+          prefixIcon: Icon(
+            Icons.search_rounded,
+            size: 16,
+            color: AppColors.primary,
+          ),
+          suffixIcon: hasFilter
+              ? IconButton(
+                  tooltip: '清除',
+                  onPressed: onClear,
+                  icon: Icon(
+                    Icons.close_rounded,
+                    size: 15,
+                    color: AppColors.muted,
+                  ),
+                )
+              : null,
+          filled: true,
+          fillColor: AppColors.isDark
+              ? AppColors.surfaceMuted.withValues(alpha: 0.60)
+              : const Color(0xFFF8FAFD),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+          isDense: true,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            borderSide: BorderSide(
+              color: AppColors.border.withValues(alpha: 0.72),
+            ),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            borderSide: BorderSide(
+              color: AppColors.border.withValues(alpha: 0.72),
+            ),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            borderSide: BorderSide(
+              color: AppColors.primary.withValues(alpha: 0.65),
+              width: 1.2,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

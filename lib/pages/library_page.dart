@@ -83,8 +83,28 @@ class _LibraryPageState extends State<LibraryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          PageHeader(title: '我的音乐', subtitle: '收藏与个人音乐内容'),
-          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(
+                '我的音乐',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 25,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (_currentSectionSongs != null &&
+                  _currentSectionSongs!.isNotEmpty) ...[
+                const SizedBox(width: 14),
+                PlayAllHeaderButton(
+                  onTap: () => widget.onPlayAll(_currentSectionSongs!),
+                  songCount: _currentSectionSongs!.length,
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             children: [
               Expanded(
@@ -104,6 +124,7 @@ class _LibraryPageState extends State<LibraryPage> {
                 const SizedBox(width: 12),
                 SongHeaderActions(
                   songs: _currentSectionSongs!,
+                  showPlayAll: false,
                   onPlayAll: _currentSectionSongs!.isEmpty
                       ? null
                       : () => widget.onPlayAll(_currentSectionSongs!),

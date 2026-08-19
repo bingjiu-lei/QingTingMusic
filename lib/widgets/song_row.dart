@@ -178,7 +178,7 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                 emphasized: active,
                 imageUrl: widget.song.coverUrl,
               ),
-              SizedBox(width: 12),
+              const SizedBox(width: 12),
               Expanded(
                 flex: 2,
                 child: Column(
@@ -197,7 +197,7 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                         fontSize: 14,
                       ),
                     ),
-                    SizedBox(height: 3),
+                    const SizedBox(height: 3),
                     SongArtistLine(
                       song: widget.song,
                       onArtist: widget.onArtist,
@@ -228,8 +228,8 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                             style: TextStyle(
                               color: hasAlbum
                                   ? clickable
-                                        ? AppColors.primaryPressed
-                                        : AppColors.muted
+                                      ? AppColors.primaryPressed
+                                      : AppColors.muted
                                   : AppColors.faint,
                               fontSize: 12,
                             ),
@@ -239,77 +239,173 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                     },
                   ),
                 ),
-              if (widget.onLike != null)
-                SizedBox(
-                  width: 38,
-                  child: IconButton(
-                    tooltip: widget.song.liked ? '取消收藏' : '收藏',
-                    onPressed: widget.onLike,
-                    icon: Icon(
-                      widget.song.liked
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: widget.song.liked
-                          ? AppColors.favorite
-                          : AppColors.faint,
-                      size: 19,
+                  if (widget.onLike != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: _RowActionButton(
+                        icon: widget.song.liked
+                            ? Icons.favorite_rounded
+                            : Icons.favorite_border_rounded,
+                        tooltip: widget.song.liked ? '取消收藏' : '收藏',
+                        onTap: widget.onLike,
+                        iconColor: widget.song.liked
+                            ? AppColors.favorite
+                            : AppColors.faint,
+                        hoverIconColor: widget.song.liked
+                            ? AppColors.favorite
+                            : AppColors.text,
+                        shadowColor: widget.song.liked ? AppColors.favorite : null,
+                        size: 30,
+                        iconSize: 18,
+                      ),
                     ),
-                  ),
-                ),
-              if (widget.onAddToPlaylist != null)
-                SizedBox(
-                  width: 34,
-                  child: IgnorePointer(
-                    ignoring: !_hovered,
-                    child: AnimatedOpacity(
-                      opacity: _hovered ? 1 : 0,
-                      duration: const Duration(milliseconds: 120),
-                      child: IconButton(
-                        tooltip: '添加到歌单',
-                        onPressed: widget.onAddToPlaylist,
-                        icon: Icon(
-                          Icons.playlist_add_rounded,
-                          color: AppColors.muted,
-                          size: 19,
+                  if (widget.onAddToPlaylist != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: IgnorePointer(
+                        ignoring: !_hovered,
+                        child: AnimatedOpacity(
+                          opacity: _hovered ? 1 : 0,
+                          duration: const Duration(milliseconds: 120),
+                          child: _RowActionButton(
+                            tooltip: '添加到歌单',
+                            onTap: widget.onAddToPlaylist,
+                            icon: Icons.playlist_add_rounded,
+                            iconColor: AppColors.muted,
+                            hoverIconColor: AppColors.primary,
+                            shadowColor: AppColors.primary,
+                            size: 30,
+                            iconSize: 18,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              if (widget.onRemoveFromPlaylist != null)
-                SizedBox(
-                  width: 34,
-                  child: IgnorePointer(
-                    ignoring: !_hovered,
-                    child: AnimatedOpacity(
-                      opacity: _hovered ? 1 : 0,
-                      duration: const Duration(milliseconds: 120),
-                      child: IconButton(
-                        tooltip: '从歌单移除',
-                        onPressed: widget.onRemoveFromPlaylist,
-                        icon: Icon(
-                          Icons.delete_outline_rounded,
-                          color: AppColors.muted,
-                          size: 18,
+                  if (widget.onRemoveFromPlaylist != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: IgnorePointer(
+                        ignoring: !_hovered,
+                        child: AnimatedOpacity(
+                          opacity: _hovered ? 1 : 0,
+                          duration: const Duration(milliseconds: 120),
+                          child: _RowActionButton(
+                            tooltip: '从歌单移除',
+                            onTap: widget.onRemoveFromPlaylist,
+                            icon: Icons.delete_outline_rounded,
+                            iconColor: AppColors.muted,
+                            hoverIconColor: AppColors.danger,
+                            shadowColor: AppColors.danger,
+                            size: 30,
+                            iconSize: 17,
+                          ),
                         ),
                       ),
                     ),
+                  const SizedBox(width: 8),
+                  Text(
+                    formatDuration(widget.song.duration),
+                    style: AppTypography.timeCode(12, color: AppColors.muted),
                   ),
-                ),
-              SizedBox(width: 8),
-              Text(
-                formatDuration(widget.song.duration),
-                style: AppTypography.timeCode(12, color: AppColors.muted),
+                  const SizedBox(width: 8),
+                ],
               ),
-              SizedBox(width: 8),
-            ],
+            ),
           ),
         ),
       ),
-    ),
-  ),
-);
+    );
+  }
 }
+
+class _RowActionButton extends StatefulWidget {
+  const _RowActionButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.size = 30.0,
+    this.iconSize = 18.0,
+    this.iconColor,
+    this.hoverIconColor,
+    this.shadowColor,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final double size;
+  final double iconSize;
+  final Color? iconColor;
+  final Color? hoverIconColor;
+  final Color? shadowColor;
+
+  @override
+  State<_RowActionButton> createState() => _RowActionButtonState();
+}
+
+class _RowActionButtonState extends State<_RowActionButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onTap != null;
+    final isDark = AppColors.isDark;
+    final size = widget.size;
+
+    return Tooltip(
+      message: widget.tooltip,
+      waitDuration: const Duration(milliseconds: 300),
+      child: MouseRegion(
+        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedScale(
+            scale: enabled && _hovered ? 1.12 : 1.0,
+            duration: AppMotion.fast,
+            curve: AppMotion.curve,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              curve: AppMotion.curve,
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: enabled && _hovered
+                    ? AppColors.surfaceHover.withValues(
+                        alpha: isDark ? 0.85 : 0.95,
+                      )
+                    : Colors.transparent,
+                boxShadow: enabled && _hovered
+                    ? [
+                        BoxShadow(
+                          color: (widget.shadowColor ?? AppColors.shadow)
+                              .withValues(
+                            alpha: isDark ? 0.30 : 0.10,
+                          ),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: Icon(
+                  widget.icon,
+                  size: widget.iconSize,
+                  color: enabled
+                      ? (_hovered
+                          ? (widget.hoverIconColor ?? AppColors.text)
+                          : (widget.iconColor ?? AppColors.muted))
+                      : AppColors.muted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _PlaybackBars extends StatelessWidget {
