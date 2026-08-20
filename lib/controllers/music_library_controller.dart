@@ -80,11 +80,12 @@ class MusicLibraryController extends ChangeNotifier {
 
   Future<void> initialize() async {
     final snapshot = await cacheService.load();
-    playlists = snapshot.playlists;
+    playlists = _resolvePlaylistCovers(snapshot.playlists);
     favorites = snapshot.favorites;
     cloudSongs = snapshot.cloudSongs;
     followedArtists = snapshot.artists;
     albums = snapshot.albums;
+    _prefetchCreatedPlaylistsCovers(playlists);
     notifyListeners();
   }
 
@@ -126,6 +127,7 @@ class MusicLibraryController extends ChangeNotifier {
           final nextPlaylists = await _loadPlaylists(refresh: refresh);
           if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
             playlists = nextPlaylists;
+            _prefetchCreatedPlaylistsCovers(playlists);
           }
           final favorite = _favoriteFrom(nextPlaylists);
           final nextFavorites = favorite == null
@@ -141,6 +143,7 @@ class MusicLibraryController extends ChangeNotifier {
           );
           if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
             playlists = nextPlaylists;
+            _prefetchCreatedPlaylistsCovers(playlists);
           }
         case LibrarySection.albums:
           final nextPlaylists = await _loadPlaylists(
@@ -193,13 +196,98 @@ class MusicLibraryController extends ChangeNotifier {
   Future<List<MusicPlaylist>> _loadPlaylists({
     required bool refresh,
     bool allowCache = true,
-  }) {
+  }) async {
     if (!refresh && allowCache && playlists.isNotEmpty) {
-      return Future.value(playlists);
+      return _resolvePlaylistCovers(playlists);
     }
-    return _playlistRequest ??= repository.getUserPlaylists().whenComplete(() {
+    final raw = await (_playlistRequest ??= repository.getUserPlaylists().whenComplete(() {
       _playlistRequest = null;
-    });
+    }));
+    return _resolvePlaylistCovers(raw);
+  }
+
+  List<MusicPlaylist> _resolvePlaylistCovers(List<MusicPlaylist> list) {
+    final result = <MusicPlaylist>[];
+    for (final playlist in list) {
+      if (!playlist.hasCustomCover &&
+          (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+              playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+        final cacheKey = _playlistCacheKey(playlist);
+        final cached = _playlistTracksInMemory[cacheKey] ??
+            cacheService.getPlaylistSongsSync(cacheKey);
+        if (cached.isNotEmpty &&
+            cached.first.coverUrl != null &&
+            cached.first.coverUrl!.isNotEmpty) {
+          result.add(playlist.copyWith(coverUrl: cached.first.coverUrl));
+          continue;
+        }
+        final existing = playlists.where(
+          (p) =>
+              (p.id.isNotEmpty && p.id == playlist.id) ||
+              (p.listId.isNotEmpty && p.listId == playlist.listId),
+        ).firstOrNull;
+        if (existing != null &&
+            existing.coverUrl != null &&
+            existing.coverUrl!.isNotEmpty) {
+          result.add(playlist.copyWith(coverUrl: existing.coverUrl));
+          continue;
+        }
+      }
+      result.add(playlist);
+    }
+    return result;
+  }
+
+  void _prefetchCreatedPlaylistsCovers(List<MusicPlaylist> list) {
+    for (final playlist in list) {
+      if (!playlist.hasCustomCover &&
+          (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+              playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+        final cacheKey = _playlistCacheKey(playlist);
+        if (_playlistTracksInMemory.containsKey(cacheKey)) continue;
+        unawaited(() async {
+          try {
+            final cached = await cacheService.loadPlaylistSongs(cacheKey);
+            if (cached.isNotEmpty) {
+              _playlistTracksInMemory[cacheKey] = cached;
+              if (cached.first.coverUrl != null &&
+                  cached.first.coverUrl!.isNotEmpty) {
+                _updatePlaylistCover(playlist, cached.first.coverUrl);
+              }
+              return;
+            }
+            final songs = await repository.getPlaylistSongs(playlist);
+            if (songs.isNotEmpty) {
+              _playlistTracksInMemory[cacheKey] = songs;
+              unawaited(cacheService.savePlaylistSongs(cacheKey, songs));
+              if (songs.first.coverUrl != null &&
+                  songs.first.coverUrl!.isNotEmpty) {
+                _updatePlaylistCover(playlist, songs.first.coverUrl);
+              }
+            }
+          } catch (_) {}
+        }());
+      }
+    }
+  }
+
+  void _updatePlaylistCover(MusicPlaylist target, String? newCover) {
+    if (newCover == null || newCover.trim().isEmpty) return;
+    var updated = false;
+    playlists = playlists.map((p) {
+      if (p.id == target.id ||
+          (p.listId.isNotEmpty && p.listId == target.listId)) {
+        if (p.coverUrl != newCover) {
+          updated = true;
+          return p.copyWith(coverUrl: newCover);
+        }
+      }
+      return p;
+    }).toList();
+    if (updated) {
+      unawaited(_saveCache());
+      notifyListeners();
+    }
   }
 
   MusicPlaylist? _favoriteFrom(List<MusicPlaylist> values) {
@@ -236,6 +324,14 @@ class MusicLibraryController extends ChangeNotifier {
           await cacheService.loadPlaylistSongs(cacheKey);
       if (cached.isNotEmpty) {
         _playlistTracksInMemory[cacheKey] = cached;
+        if (!playlist.hasCustomCover &&
+            (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+                playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+          final firstCover = cached.first.coverUrl;
+          if (firstCover != null && firstCover.isNotEmpty) {
+            _updatePlaylistCover(playlist, firstCover);
+          }
+        }
         if (albumNeedsFreshOrder) {
           try {
             final songs = await repository.getPlaylistSongs(playlist);
@@ -256,6 +352,14 @@ class MusicLibraryController extends ChangeNotifier {
     if (songs.isNotEmpty || refresh) {
       _playlistTracksInMemory[cacheKey] = songs;
       unawaited(cacheService.savePlaylistSongs(cacheKey, songs));
+      if (!playlist.hasCustomCover &&
+          (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+              playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+        final firstCover = songs.isNotEmpty ? songs.first.coverUrl : null;
+        if (firstCover != null && firstCover.isNotEmpty) {
+          _updatePlaylistCover(playlist, firstCover);
+        }
+      }
     }
     return songs;
   }
@@ -473,6 +577,14 @@ class MusicLibraryController extends ChangeNotifier {
     if (freshSongs.isNotEmpty) {
       _playlistTracksInMemory[cacheKey] = freshSongs;
       unawaited(cacheService.savePlaylistSongs(cacheKey, freshSongs));
+      if (!playlist.hasCustomCover &&
+          (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+              playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+        final firstCover = freshSongs.first.coverUrl;
+        if (firstCover != null && firstCover.isNotEmpty) {
+          _updatePlaylistCover(playlist, firstCover);
+        }
+      }
     }
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
@@ -525,6 +637,19 @@ class MusicLibraryController extends ChangeNotifier {
     final cacheKey = _playlistCacheKey(playlist);
     _playlistTracksInMemory.remove(cacheKey);
     await cacheService.clearPlaylistSongs(cacheKey);
+    final freshSongs = await repository.getPlaylistSongs(playlist);
+    if (freshSongs.isNotEmpty) {
+      _playlistTracksInMemory[cacheKey] = freshSongs;
+      unawaited(cacheService.savePlaylistSongs(cacheKey, freshSongs));
+      if (!playlist.hasCustomCover &&
+          (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+              playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+        final firstCover = freshSongs.first.coverUrl;
+        if (firstCover != null && firstCover.isNotEmpty) {
+          _updatePlaylistCover(playlist, firstCover);
+        }
+      }
+    }
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 
@@ -557,6 +682,14 @@ class MusicLibraryController extends ChangeNotifier {
       final songs = await repository.getPlaylistSongs(playlist);
       if (songs.isNotEmpty) {
         await cacheService.savePlaylistSongs(cacheKey, songs);
+        if (!playlist.hasCustomCover &&
+            (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+                playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+          final firstCover = songs.first.coverUrl;
+          if (firstCover != null && firstCover.isNotEmpty) {
+            _updatePlaylistCover(playlist, firstCover);
+          }
+        }
       }
     } catch (_) {}
   }

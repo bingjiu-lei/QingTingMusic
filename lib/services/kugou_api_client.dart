@@ -806,6 +806,12 @@ class KugouApiClient {
             'pub_date',
           ])
         : '';
+    final hasCustomCoverFlag = kind == MusicPlaylistKind.collectedPlaylist ||
+        kind == MusicPlaylistKind.album ||
+        _toInt(json['is_custom_pic']) == 1 ||
+        (json['custom_pic'] != null &&
+            json['custom_pic'].toString().trim().isNotEmpty &&
+            json['custom_pic'].toString().trim() != '0');
     final playlist = MusicPlaylist(
       id: localId.isNotEmpty ? localId : sourceId,
       listId: localListId.isNotEmpty ? localListId : sourceListId,
@@ -819,6 +825,7 @@ class KugouApiClient {
       isMine: kind == MusicPlaylistKind.createdPlaylist,
       kind: kind,
       releaseDate: releaseDateStr.isEmpty ? null : releaseDateStr,
+      hasCustomCover: hasCustomCoverFlag,
     );
     if (playlist.id.isEmpty && playlist.listId.isEmpty) return null;
     return playlist;

@@ -19,6 +19,7 @@ class MusicPlaylist {
     this.isMine = false,
     this.kind = MusicPlaylistKind.createdPlaylist,
     this.releaseDate,
+    this.hasCustomCover = false,
   });
 
   final String id;
@@ -33,6 +34,39 @@ class MusicPlaylist {
   final bool isMine;
   final MusicPlaylistKind kind;
   final String? releaseDate;
+  final bool hasCustomCover;
+
+  MusicPlaylist copyWith({
+    String? id,
+    String? listId,
+    String? name,
+    int? songCount,
+    String? coverUrl,
+    String? sourceId,
+    String? sourceListId,
+    String? ownerId,
+    bool? isDefault,
+    bool? isMine,
+    MusicPlaylistKind? kind,
+    String? releaseDate,
+    bool? hasCustomCover,
+  }) {
+    return MusicPlaylist(
+      id: id ?? this.id,
+      listId: listId ?? this.listId,
+      name: name ?? this.name,
+      songCount: songCount ?? this.songCount,
+      coverUrl: coverUrl ?? this.coverUrl,
+      sourceId: sourceId ?? this.sourceId,
+      sourceListId: sourceListId ?? this.sourceListId,
+      ownerId: ownerId ?? this.ownerId,
+      isDefault: isDefault ?? this.isDefault,
+      isMine: isMine ?? this.isMine,
+      kind: kind ?? this.kind,
+      releaseDate: releaseDate ?? this.releaseDate,
+      hasCustomCover: hasCustomCover ?? this.hasCustomCover,
+    );
+  }
 
   /// 收藏专辑既有用户侧 listId，也有原专辑 ID；再次收藏必须使用后者。
   String get sourceAlbumId {
@@ -70,6 +104,7 @@ class MusicPlaylist {
     'isMine': isMine,
     'kind': kind.name,
     'releaseDate': releaseDate,
+    'hasCustomCover': hasCustomCover,
   };
 
   factory MusicPlaylist.fromJson(Map<String, Object?> json) {
@@ -89,6 +124,7 @@ class MusicPlaylist {
         orElse: () => MusicPlaylistKind.createdPlaylist,
       ),
       releaseDate: json['releaseDate']?.toString(),
+      hasCustomCover: json['hasCustomCover'] == true,
     );
   }
 }

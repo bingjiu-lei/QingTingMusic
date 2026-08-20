@@ -135,7 +135,14 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                 shadowColor: AppColors.primary,
               ),
               const SizedBox(width: 12),
-              AlbumArt(size: 80, imageUrl: widget.imageUrl),
+              AlbumArt(
+                size: 80,
+                imageUrl: (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
+                    ? widget.imageUrl
+                    : (widget.songs.isNotEmpty
+                        ? widget.songs.first.coverUrl
+                        : null),
+              ),
               const SizedBox(width: 16),
               Expanded(
                 child: Column(

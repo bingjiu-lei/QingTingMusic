@@ -986,6 +986,14 @@ class _MusicShellState extends State<MusicShell>
         detailSongs = songs.map(libraryController.withFavoriteState).toList();
         if (songs.isNotEmpty) {
           detailSubtitle = '${songs.length} 首';
+          if (!playlist.hasCustomCover &&
+              (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+                  playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+            final firstCover = songs.first.coverUrl;
+            if (firstCover != null && firstCover.isNotEmpty) {
+              detailImageUrl = firstCover;
+            }
+          }
         }
         detailLoading = false;
       });

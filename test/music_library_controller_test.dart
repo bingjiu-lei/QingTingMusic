@@ -6,6 +6,7 @@ import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/search_catalog_item.dart';
 import 'package:qing_ting_music/models/song.dart';
 import 'package:qing_ting_music/services/kugou_api_client.dart';
+import 'package:qing_ting_music/services/music_library_cache_service.dart';
 
 void main() {
   test('preserves catalog owner id in playlist cache data', () {
@@ -66,7 +67,7 @@ void main() {
       playlists: [favorite],
       favoriteSongs: [song],
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
 
     await controller.ensureLoaded(LibrarySection.playlists, refresh: true);
     await controller.ensureLoaded(LibrarySection.songs, refresh: true);
@@ -86,7 +87,7 @@ void main() {
       playlists: [fresh],
       favoriteSongs: const [],
     );
-    final controller = MusicLibraryController(repository)..playlists = [cached];
+    final controller = _controller(repository)..playlists = [cached];
 
     await controller.ensureLoaded(LibrarySection.playlists);
 
@@ -109,7 +110,7 @@ void main() {
       playlists: [created, collected],
       favoriteSongs: const [],
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
 
     await controller.ensureLoaded(LibrarySection.playlists, refresh: true);
 
@@ -130,7 +131,7 @@ void main() {
           'ident-p1': [song],
         },
       );
-      final controller = MusicLibraryController(repository);
+      final controller = _controller(repository);
 
       final containing = await controller.getPlaylistIdsContainingSong(song, [
         playlistA,
@@ -157,7 +158,7 @@ void main() {
         'unique-refresh-p1': [existingSong],
       },
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
 
     await controller.loadPlaylist(playlist);
     await controller.addToPlaylist(playlist, addedSong);
@@ -187,7 +188,7 @@ void main() {
         playlists: [defaultCollection, favoriteSongs],
         favoriteSongs: const [],
       );
-      final controller = MusicLibraryController(repository);
+      final controller = _controller(repository);
 
       await controller.ensureLoaded(LibrarySection.playlists, refresh: true);
 
@@ -208,7 +209,7 @@ void main() {
       playlists: [],
       favoriteSongs: const [],
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
 
     await controller.toggleCatalogCollection(playlist);
 
@@ -237,7 +238,7 @@ void main() {
       playlists: [collectedPlaylist],
       favoriteSongs: const [],
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
     await controller.ensureLoaded(LibrarySection.playlists, refresh: true);
 
     await controller.toggleCatalogCollection(playlist);
@@ -259,7 +260,7 @@ void main() {
       playlists: [],
       favoriteSongs: const [],
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
 
     await controller.toggleCatalogCollection(album);
 
@@ -288,7 +289,7 @@ void main() {
       playlists: [collectedAlbum],
       favoriteSongs: const [],
     );
-    final controller = MusicLibraryController(repository);
+    final controller = _controller(repository);
     await controller.ensureLoaded(LibrarySection.albums, refresh: true);
 
     await controller.toggleCatalogCollection(album);
@@ -321,23 +322,44 @@ MusicPlaylist _playlist(
   kind: kind,
 );
 
-extension _MusicPlaylistTestCopy on MusicPlaylist {
-  MusicPlaylist copyWith({int? songCount}) {
-    return MusicPlaylist(
-      id: id,
-      listId: listId,
-      name: name,
-      songCount: songCount ?? this.songCount,
-      coverUrl: coverUrl,
-      sourceId: sourceId,
-      sourceListId: sourceListId,
-      ownerId: ownerId,
-      isDefault: isDefault,
-      isMine: isMine,
-      kind: kind,
-    );
+class _FakeMusicLibraryCacheService extends MusicLibraryCacheService {
+  MusicLibrarySnapshot _snapshot = const MusicLibrarySnapshot();
+  final Map<String, List<Song>> _tracks = {};
+
+  @override
+  Future<MusicLibrarySnapshot> load() async => _snapshot;
+
+  @override
+  Future<void> save(MusicLibrarySnapshot snapshot) async {
+    _snapshot = snapshot;
+  }
+
+  @override
+  Future<List<Song>> loadPlaylistSongs(String cacheKey) async {
+    return _tracks[cacheKey] ?? const [];
+  }
+
+  @override
+  List<Song> getPlaylistSongsSync(String cacheKey) {
+    return _tracks[cacheKey] ?? const [];
+  }
+
+  @override
+  Future<void> savePlaylistSongs(String cacheKey, List<Song> songs) async {
+    _tracks[cacheKey] = List.of(songs);
+  }
+
+  @override
+  Future<void> clearPlaylistSongs(String cacheKey) async {
+    _tracks.remove(cacheKey);
   }
 }
+
+MusicLibraryController _controller(MusicRepository repository) =>
+    MusicLibraryController(
+      repository,
+      cacheService: _FakeMusicLibraryCacheService(),
+    );
 
 class _FakeMusicRepository implements MusicRepository {
   _FakeMusicRepository({

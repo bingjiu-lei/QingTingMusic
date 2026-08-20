@@ -54,6 +54,7 @@ class MusicLibraryCacheService {
   }
 
   Future<MusicLibrarySnapshot> load() async {
+    await _getAllPlaylistSongsMap();
     if (!await _file.exists()) return const MusicLibrarySnapshot();
     try {
       final json =
