@@ -35,21 +35,75 @@ class _LoginDialogState extends State<LoginDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark;
     return AnimatedBuilder(
       animation: widget.controller,
       builder: (context, _) => Dialog(
-        backgroundColor: AppColors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: SizedBox(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        elevation: 0,
+        child: Container(
           width: 420,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          decoration: BoxDecoration(
+            color: isDark
+                ? const Color(0xFF161B22).withValues(alpha: 0.96)
+                : Colors.white.withValues(alpha: 0.98),
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
+            border: Border.all(
+              color: isDark
+                  ? AppColors.primary.withValues(alpha: 0.15)
+                  : AppColors.border,
+              width: 1,
+            ),
+            boxShadow: isDark
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.45),
+                      blurRadius: 36,
+                      offset: const Offset(0, 16),
+                    ),
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      blurRadius: 28,
+                      offset: const Offset(0, -2),
+                    ),
+                  ]
+                : AppShadows.popover,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppRadius.xxl),
+            child: Stack(
               children: [
-                _Header(onClose: () => Navigator.of(context).pop()),
-                const SizedBox(height: 18),
-                _content(),
+                Positioned(
+                  top: -60,
+                  right: -40,
+                  child: Container(
+                    width: 160,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AppColors.primary.withValues(
+                            alpha: isDark ? 0.10 : 0.06,
+                          ),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _Header(onClose: () => Navigator.of(context).pop()),
+                      const SizedBox(height: 18),
+                      _content(),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),

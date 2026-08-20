@@ -13,6 +13,7 @@ import '../services/app_storage_service.dart';
 import '../services/cache_management_service.dart';
 import '../services/developer_mode_service.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/page_header.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -209,58 +210,35 @@ class _SettingsPageState extends State<SettingsPage> {
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
-            return AlertDialog(
-              backgroundColor: AppColors.surface,
-              title: Text(
-                '开发者模式',
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '输入口令后会显示后端接口、更新代理和诊断日志等调试工具。',
-                      style: TextStyle(color: AppColors.muted, fontSize: 13),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: passphraseController,
-                      obscureText: true,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        hintText: '开发者口令',
-                        errorText: errorText.isEmpty ? null : errorText,
-                        prefixIcon: const Icon(Icons.key_rounded, size: 20),
-                        filled: true,
-                        fillColor: AppColors.page,
-                        border: const OutlineInputBorder(
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
-                      onSubmitted: (_) {
-                        _submitDeveloperPassphrase(
-                          dialogContext,
-                          setDialogState,
-                          passphraseController.text,
-                          (value) => errorText = value,
-                        );
-                      },
-                    ),
-                  ],
-                ),
+            return AppDialog(
+              icon: Icons.vpn_key_rounded,
+              title: '开发者模式',
+              subtitle: '输入口令后会显示后端接口、更新代理和诊断日志等调试工具。',
+              maxWidth: 400,
+              content: AppDialogTextField(
+                controller: passphraseController,
+                obscureText: true,
+                autofocus: true,
+                hintText: '开发者口令',
+                errorText: errorText.isEmpty ? null : errorText,
+                prefixIcon: Icons.key_rounded,
+                onSubmitted: (_) {
+                  _submitDeveloperPassphrase(
+                    dialogContext,
+                    setDialogState,
+                    passphraseController.text,
+                    (value) => errorText = value,
+                  );
+                },
               ),
               actions: [
-                TextButton(
+                AppDialogButton.ghost(
+                  label: '取消',
                   onPressed: () => Navigator.of(dialogContext).pop(false),
-                  child: const Text('取消'),
                 ),
-                FilledButton(
+                const SizedBox(width: 8),
+                AppDialogButton.primary(
+                  label: '开启',
                   onPressed: () {
                     _submitDeveloperPassphrase(
                       dialogContext,
@@ -269,7 +247,6 @@ class _SettingsPageState extends State<SettingsPage> {
                       (value) => errorText = value,
                     );
                   },
-                  child: const Text('开启'),
                 ),
               ],
             );
@@ -343,24 +320,13 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       barrierDismissible: true,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 32,
-            vertical: 24,
-          ),
-          contentPadding: const EdgeInsets.fromLTRB(24, 22, 24, 8),
-          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-          title: Text(
-            '免责声明与版权声明',
-            style: TextStyle(
-              color: AppColors.text,
-              fontSize: 20,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
+        return AppDialog(
+          maxWidth: 620,
+          icon: Icons.gavel_rounded,
+          title: '免责声明与版权声明',
+          showCloseButton: true,
           content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
+            constraints: const BoxConstraints(maxHeight: 420),
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -394,11 +360,10 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
-          actionsPadding: const EdgeInsets.fromLTRB(24, 8, 24, 20),
           actions: [
-            FilledButton(
+            AppDialogButton.primary(
+              label: '我知道了',
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('我知道了'),
             ),
           ],
         );
@@ -411,11 +376,13 @@ class _SettingsPageState extends State<SettingsPage> {
       context: context,
       barrierDismissible: true,
       builder: (context) {
-        return AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: Text(title, style: TextStyle(color: AppColors.text)),
+        return AppDialog(
+          maxWidth: 680,
+          icon: Icons.article_outlined,
+          title: title,
+          showCloseButton: true,
           content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 420),
+            constraints: const BoxConstraints(maxHeight: 420),
             child: SingleChildScrollView(
               child: SelectableText(
                 content,
@@ -428,17 +395,19 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
           ),
           actions: [
-            TextButton(
+            AppDialogButton.ghost(
+              label: '复制',
+              icon: Icons.copy_rounded,
               onPressed: () {
                 Clipboard.setData(ClipboardData(text: content));
                 Navigator.of(context).pop();
                 _showSnack('内容已复制');
               },
-              child: const Text('复制'),
             ),
-            FilledButton(
+            const SizedBox(width: 8),
+            AppDialogButton.primary(
+              label: '关闭',
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('关闭'),
             ),
           ],
         );
@@ -466,81 +435,83 @@ class _SettingsPageState extends State<SettingsPage> {
     final selected = await showDialog<Color>(
       context: context,
       builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.surface,
-          title: Text(
-            '自定义主题色',
-            style: TextStyle(
-              color: AppColors.text,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          content: SizedBox(
-            width: 380,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedContainer(
-                  duration: AppMotion.fast,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: color.toColor(),
-                    borderRadius: BorderRadius.circular(AppRadius.xl),
-                  ),
-                  alignment: Alignment.center,
-                  child: const Text(
-                    '晴听音乐',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
+        builder: (context, setDialogState) => AppDialog(
+          maxWidth: 400,
+          icon: Icons.palette_outlined,
+          title: '自定义主题色',
+          subtitle: '拖动滑块调整界面主色调',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedContainer(
+                duration: AppMotion.fast,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: color.toColor(),
+                  borderRadius: BorderRadius.circular(AppRadius.lg),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color.toColor().withValues(alpha: 0.3),
+                      blurRadius: 16,
+                      offset: const Offset(0, 4),
                     ),
+                  ],
+                ),
+                alignment: Alignment.center,
+                child: const Text(
+                  '晴听音乐',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
                   ),
                 ),
-                const SizedBox(height: 18),
-                _ColorSlider(
-                  label: '色相',
-                  value: color.hue,
-                  max: 360,
-                  gradient: const LinearGradient(
-                    colors: [
-                      Colors.red,
-                      Colors.yellow,
-                      Colors.green,
-                      Colors.cyan,
-                      Colors.blue,
-                      Colors.purple,
-                      Colors.red,
-                    ],
-                  ),
-                  onChanged: (value) =>
-                      setDialogState(() => color = color.withHue(value)),
+              ),
+              const SizedBox(height: 18),
+              _ColorSlider(
+                label: '色相',
+                value: color.hue,
+                max: 360,
+                gradient: const LinearGradient(
+                  colors: [
+                    Colors.red,
+                    Colors.yellow,
+                    Colors.green,
+                    Colors.cyan,
+                    Colors.blue,
+                    Colors.purple,
+                    Colors.red,
+                  ],
                 ),
-                _ColorSlider(
-                  label: '浓度',
-                  value: color.saturation,
-                  max: 1,
-                  onChanged: (value) =>
-                      setDialogState(() => color = color.withSaturation(value)),
-                ),
-                _ColorSlider(
-                  label: '明度',
-                  value: color.value,
-                  max: 1,
-                  onChanged: (value) =>
-                      setDialogState(() => color = color.withValue(value)),
-                ),
-              ],
-            ),
+                onChanged: (value) =>
+                    setDialogState(() => color = color.withHue(value)),
+              ),
+              _ColorSlider(
+                label: '浓度',
+                value: color.saturation,
+                max: 1,
+                onChanged: (value) =>
+                    setDialogState(() => color = color.withSaturation(value)),
+              ),
+              _ColorSlider(
+                label: '明度',
+                value: color.value,
+                max: 1,
+                onChanged: (value) =>
+                    setDialogState(() => color = color.withValue(value)),
+              ),
+            ],
           ),
           actions: [
-            TextButton(
+            AppDialogButton.ghost(
+              label: '取消',
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('取消'),
             ),
-            FilledButton(
+            const SizedBox(width: 8),
+            AppDialogButton.primary(
+              label: '应用',
               onPressed: () => Navigator.of(dialogContext).pop(color.toColor()),
-              child: const Text('应用'),
             ),
           ],
         ),

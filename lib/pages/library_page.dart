@@ -410,22 +410,12 @@ class _PlaylistSectionTitleState extends State<_PlaylistSectionTitle> {
             child: AnimatedOpacity(
               opacity: _visible ? 1 : 0,
               duration: AppMotion.fast,
-              child: Tooltip(
-                message: '新建歌单',
-                child: IconButton(
-                  onPressed: widget.onCreate,
-                  mouseCursor: SystemMouseCursors.click,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(32, 32),
-                    fixedSize: const Size(32, 32),
-                    foregroundColor: AppColors.muted,
-                    backgroundColor: AppColors.surfaceMuted,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                    ),
-                  ),
-                ),
+              child: AppIconButton.filled(
+                tooltip: '新建歌单',
+                icon: Icons.add_rounded,
+                size: 26,
+                iconSize: 17,
+                onPressed: widget.onCreate,
               ),
             ),
           ),

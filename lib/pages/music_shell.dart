@@ -33,6 +33,7 @@ import '../services/playback_state_service.dart';
 import '../services/session_expired_service.dart';
 import '../services/windows_media_bridge.dart';
 import '../theme/app_theme.dart';
+import '../widgets/app_dialog.dart';
 import '../widgets/app_window_caption.dart';
 import '../widgets/app_notice.dart';
 import '../widgets/add_to_playlist_dialog.dart';
@@ -1909,29 +1910,6 @@ class _MusicShellState extends State<MusicShell>
   }
 }
 
-class _PlaylistDialogFrame extends StatelessWidget {
-  const _PlaylistDialogFrame({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Dialog(
-    backgroundColor: Colors.transparent,
-    insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-    child: Container(
-      width: 420,
-      padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceElevated,
-        borderRadius: BorderRadius.circular(AppRadius.xl),
-        border: Border.all(color: AppColors.border),
-        boxShadow: AppShadows.popover,
-      ),
-      child: child,
-    ),
-  );
-}
-
 class _CreatePlaylistDialog extends StatelessWidget {
   const _CreatePlaylistDialog({
     required this.controller,
@@ -1948,90 +1926,42 @@ class _CreatePlaylistDialog extends StatelessWidget {
   final VoidCallback onCreate;
 
   @override
-  Widget build(BuildContext context) => _PlaylistDialogFrame(
-    child: Column(
+  Widget build(BuildContext context) => AppDialog(
+    icon: Icons.playlist_add_rounded,
+    title: '新建歌单',
+    subtitle: '给这组音乐一个名字',
+    content: Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          '新建歌单',
-          style: TextStyle(
-            color: AppColors.text,
-            fontSize: 20,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          '给这组音乐一个名字',
-          style: TextStyle(color: AppColors.muted, fontSize: 13),
-        ),
-        const SizedBox(height: 18),
-        TextField(
+        AppDialogTextField(
           controller: controller,
           autofocus: true,
           maxLength: 40,
-          style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w600),
-          decoration: const InputDecoration(counterText: ''),
+          hintText: '输入歌单名称',
           onSubmitted: (_) => onCreate(),
         ),
         const SizedBox(height: 12),
-        Material(
-          color: AppColors.surfaceMuted,
-          borderRadius: BorderRadius.circular(AppRadius.md),
-          child: InkWell(
-            onTap: () => onPrivacyChanged(!isPrivate),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-            mouseCursor: SystemMouseCursors.click,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
-              child: Row(
-                children: [
-                  Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(AppRadius.sm),
-                    ),
-                    child: Icon(
-                      isPrivate ? Icons.lock_rounded : Icons.public_rounded,
-                      size: 16,
-                      color: AppColors.muted,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '设为私密歌单',
-                          style: TextStyle(
-                            color: AppColors.text,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Switch(value: isPrivate, onChanged: onPrivacyChanged),
-                ],
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(onPressed: onCancel, child: const Text('取消')),
-            const SizedBox(width: 8),
-            FilledButton(onPressed: onCreate, child: const Text('创建')),
-          ],
+        AppDialogSwitchTile(
+          icon: isPrivate ? Icons.lock_rounded : Icons.public_rounded,
+          title: '设为私密歌单',
+          subtitle: isPrivate ? '仅自己可见' : '公开歌单',
+          value: isPrivate,
+          onChanged: onPrivacyChanged,
         ),
       ],
     ),
+    actions: [
+      AppDialogButton.ghost(
+        label: '取消',
+        onPressed: onCancel,
+      ),
+      const SizedBox(width: 8),
+      AppDialogButton.primary(
+        label: '创建',
+        onPressed: onCreate,
+      ),
+    ],
   );
 }
 
@@ -2049,60 +1979,15 @@ class _RemoveSongFromPlaylistDialog extends StatelessWidget {
   final VoidCallback onRemove;
 
   @override
-  Widget build(BuildContext context) => _PlaylistDialogFrame(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.danger.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: Icon(
-                Icons.delete_outline_rounded,
-                color: AppColors.danger,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '从歌单移除',
-              style: TextStyle(
-                color: AppColors.text,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          '确定要将“$songTitle”从歌单“$playlistName”中移除吗？',
-          style: TextStyle(color: AppColors.muted, height: 1.55),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(onPressed: onCancel, child: const Text('取消')),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed: onRemove,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.danger,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('确认移除'),
-            ),
-          ],
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => AppConfirmDialog(
+    icon: Icons.delete_outline_rounded,
+    isDanger: true,
+    title: '从歌单移除',
+    content: '确定要将“$songTitle”从歌单“$playlistName”中移除吗？',
+    cancelLabel: '取消',
+    confirmLabel: '确认移除',
+    onCancel: onCancel,
+    onConfirm: onRemove,
   );
 }
 
@@ -2118,57 +2003,15 @@ class _DeletePlaylistDialog extends StatelessWidget {
   final VoidCallback onDelete;
 
   @override
-  Widget build(BuildContext context) => _PlaylistDialogFrame(
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 38,
-              height: 38,
-              decoration: BoxDecoration(
-                color: AppColors.danger.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-              ),
-              child: Icon(
-                Icons.delete_outline_rounded,
-                color: AppColors.danger,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              '删除歌单',
-              style: TextStyle(
-                color: AppColors.text,
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          '“$playlistName”将从你的音乐库移除，此操作无法恢复',
-          style: TextStyle(color: AppColors.muted, height: 1.55),
-        ),
-        const SizedBox(height: 20),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            TextButton(onPressed: onCancel, child: const Text('取消')),
-            const SizedBox(width: 8),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-              onPressed: onDelete,
-              child: const Text('删除'),
-            ),
-          ],
-        ),
-      ],
-    ),
+  Widget build(BuildContext context) => AppConfirmDialog(
+    icon: Icons.delete_forever_rounded,
+    isDanger: true,
+    title: '删除歌单',
+    content: '“$playlistName”将从你的音乐库移除，此操作无法恢复',
+    cancelLabel: '取消',
+    confirmLabel: '确认删除',
+    onCancel: onCancel,
+    onConfirm: onDelete,
   );
 }
 
