@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_theme.dart';
+import 'app_icon_button.dart';
 
 class AppSidebar extends StatelessWidget {
   const AppSidebar({
@@ -472,18 +473,18 @@ class _DockIcon extends StatelessWidget {
   final bool selected;
 
   @override
-  Widget build(BuildContext context) => IconButton(
+  Widget build(BuildContext context) => AppIconButton.ghost(
     tooltip: tooltip,
+    icon: icon,
     onPressed: onPressed,
-    icon: Icon(icon, size: 18),
-    style: IconButton.styleFrom(
-      minimumSize: const Size(36, 36),
-      fixedSize: const Size(36, 36),
-      foregroundColor: selected ? AppColors.primary : AppColors.muted,
-      backgroundColor: selected ? AppColors.selected : Colors.transparent,
-      hoverColor: AppColors.selected,
-      shape: const CircleBorder(),
-    ),
+    selected: selected,
+    size: 36,
+    iconSize: 18,
+    selectedColor: AppColors.primary,
+    selectedBackgroundColor: AppColors.selected,
+    iconColor: AppColors.muted,
+    hoverIconColor: AppColors.primary,
+    shadowColor: AppColors.primary,
   );
 }
 

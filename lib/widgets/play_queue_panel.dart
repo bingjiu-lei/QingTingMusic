@@ -4,6 +4,7 @@ import '../controllers/player_controller.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'app_icon_button.dart';
 import 'smooth_mouse_scroll.dart';
 import 'song_row.dart';
 
@@ -141,17 +142,24 @@ class _PlayQueuePanelState extends State<PlayQueuePanel> {
                         ],
                       ),
                     ),
-                    IconButton(
+                    AppIconButton.ghost(
                       tooltip: '清空队列',
+                      icon: Icons.delete_outline_rounded,
                       onPressed: queue.isEmpty
                           ? null
                           : widget.controller.clearQueue,
-                      icon: const Icon(Icons.delete_outline_rounded),
+                      size: 36,
+                      iconSize: 18,
+                      hoverIconColor: AppColors.danger,
+                      shadowColor: AppColors.danger,
                     ),
-                    IconButton(
+                    const SizedBox(width: 4),
+                    AppIconButton.ghost(
                       tooltip: '关闭',
+                      icon: Icons.close_rounded,
                       onPressed: widget.onClose,
-                      icon: const Icon(Icons.close_rounded),
+                      size: 36,
+                      iconSize: 18,
                     ),
                   ],
                 ),
@@ -301,10 +309,14 @@ class _QueueTileState extends State<_QueueTile> {
                 AnimatedOpacity(
                   opacity: _hovered ? 1 : 0,
                   duration: const Duration(milliseconds: 120),
-                  child: IconButton(
+                  child: AppIconButton.ghost(
                     tooltip: '移出队列',
+                    icon: Icons.close_rounded,
                     onPressed: widget.onRemove,
-                    icon: const Icon(Icons.close_rounded, size: 17),
+                    size: 28,
+                    iconSize: 15,
+                    hoverIconColor: AppColors.danger,
+                    shadowColor: AppColors.danger,
                   ),
                 ),
               ],

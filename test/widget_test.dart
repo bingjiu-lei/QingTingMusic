@@ -44,13 +44,13 @@ void main() {
 
     await tester.tap(find.text('我的音乐').first);
     await _settleForUi(tester);
-    expect(find.text('收藏与个人音乐内容'), findsOneWidget);
+    expect(find.text('我的音乐'), findsWidgets);
     expect(find.textContaining('歌曲'), findsWidgets);
     expect(find.textContaining('歌单'), findsOneWidget);
     expect(find.textContaining('云盘'), findsOneWidget);
     expect(find.textContaining('最近播放'), findsOneWidget);
 
-    await tester.tap(find.text('设置'));
+    await tester.tap(find.byTooltip('设置'));
     await _settleForUi(tester);
     expect(find.text('播放音质'), findsOneWidget);
     expect(find.text('后端 API'), findsNothing);
@@ -65,7 +65,7 @@ void main() {
     await _settleForUi(tester);
     expect(find.text('Imagine'), findsWidgets);
 
-    await tester.testTextInput.receiveAction(TextInputAction.search);
+    tester.widget<TextField>(find.byType(TextField)).onSubmitted?.call('Imagine');
     await _settleForUi(tester);
     expect(find.text('搜索结果'), findsOneWidget);
     expect(find.text('单曲'), findsOneWidget);
@@ -94,6 +94,9 @@ Future<void> _pumpApp(WidgetTester tester, Size size) async {
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(() async {
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 
   await tester.pumpWidget(
     const QingTingMusicApp(

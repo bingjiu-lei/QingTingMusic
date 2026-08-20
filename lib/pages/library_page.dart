@@ -8,7 +8,6 @@ import '../models/search_catalog_item.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass.dart';
-import '../widgets/page_header.dart';
 import '../widgets/search_catalog_list.dart';
 import '../widgets/song_panel.dart';
 
@@ -509,7 +508,6 @@ class _PlaylistTile extends StatefulWidget {
 
 class _PlaylistTileState extends State<_PlaylistTile> {
   bool _hovered = false;
-  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -521,49 +519,28 @@ class _PlaylistTileState extends State<_PlaylistTile> {
     final child = MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
         onTap: () => widget.onOpen(playlist),
         child: AnimatedScale(
-          scale: _pressed
-              ? 0.96
-              : _hovered
-              ? 1.02
-              : 1.0,
-          duration: AppMotion.fast,
-          curve: AppMotion.curve,
+          scale: _hovered ? 1.015 : 1.0,
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOutQuad,
           child: AnimatedContainer(
-            duration: AppMotion.fast,
+            duration: const Duration(milliseconds: 90),
+            curve: Curves.easeOutQuad,
             decoration: BoxDecoration(
               color: _hovered
-                  ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.04)
                   : AppGlass.surface,
               borderRadius: BorderRadius.circular(AppRadius.lg),
               border: Border.all(
                 color: _hovered
-                    ? AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.18)
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12)
                     : AppGlass.border,
               ),
-              boxShadow: _hovered
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(
-                          alpha: isDark ? 0.12 : 0.06,
-                        ),
-                        blurRadius: 10,
-                        offset: const Offset(0, 3),
-                      ),
-                    ]
-                  : AppColors.isDark
-                  ? null
-                  : AppShadows.soft,
+              boxShadow: isDark ? null : AppShadows.soft,
             ),
             padding: const EdgeInsets.all(10),
             child: Row(
@@ -571,9 +548,9 @@ class _PlaylistTileState extends State<_PlaylistTile> {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                   child: AnimatedScale(
-                    scale: _hovered ? 1.05 : 1.0,
-                    duration: AppMotion.fast,
-                    curve: AppMotion.curve,
+                    scale: _hovered ? 1.03 : 1.0,
+                    duration: const Duration(milliseconds: 90),
+                    curve: Curves.easeOutQuad,
                     child: Container(
                       width: 52,
                       height: 52,

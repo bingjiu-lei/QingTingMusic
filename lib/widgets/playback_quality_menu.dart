@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../controllers/playback_quality_controller.dart';
 import '../theme/app_theme.dart';
+import 'app_icon_button.dart';
 
 class PlaybackQualityMenu extends StatelessWidget {
   const PlaybackQualityMenu({
@@ -70,59 +71,47 @@ class PlaybackQualityMenu extends StatelessWidget {
               )
               .toList(),
           builder: (context, menuController, _) {
-            return Tooltip(
-              message: '播放音质：${controller.quality.label}',
-              child: Material(
-                color: Colors.transparent,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: () => menuController.isOpen
-                      ? menuController.close()
-                      : menuController.open(),
-                  mouseCursor: SystemMouseCursors.click,
-                  customBorder: const CircleBorder(),
-                  hoverColor: AppColors.primary.withValues(alpha: 0.08),
-                  child: Container(
-                    width: compact ? 38 : 42,
-                    height: compact ? 38 : 42,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: controller.quality == PlaybackQuality.standard
-                          ? Colors.transparent
-                          : AppColors.selected,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        Icon(
-                          Icons.graphic_eq_rounded,
-                          size: 20,
-                          color: controller.quality == PlaybackQuality.standard
-                              ? AppColors.muted
-                              : AppColors.primary,
-                        ),
-                        if (controller.quality != PlaybackQuality.standard)
-                          Positioned(
-                            right: 5,
-                            bottom: 5,
-                            child: Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                color: AppColors.primary,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: AppColors.playerSurface,
-                                  width: 1.2,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
+            final isNotStandard =
+                controller.quality != PlaybackQuality.standard;
+            return AppIconButton.ghost(
+              tooltip: '播放音质：${controller.quality.label}',
+              onPressed: () => menuController.isOpen
+                  ? menuController.close()
+                  : menuController.open(),
+              size: compact ? 38 : 42,
+              iconSize: 20,
+              selected: isNotStandard,
+              selectedColor: AppColors.primary,
+              selectedBackgroundColor: AppColors.selected,
+              iconColor: AppColors.muted,
+              hoverIconColor: AppColors.primary,
+              shadowColor: AppColors.primary,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Icon(
+                    Icons.graphic_eq_rounded,
+                    size: 20,
+                    color: isNotStandard ? AppColors.primary : AppColors.muted,
                   ),
-                ),
+                  if (isNotStandard)
+                    Positioned(
+                      right: 4,
+                      bottom: 4,
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.playerSurface,
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             );
           },

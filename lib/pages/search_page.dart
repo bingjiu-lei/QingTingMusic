@@ -20,6 +20,7 @@ class SearchPage extends StatefulWidget {
     required this.currentSong,
     required this.isPlaying,
     required this.onPlay,
+    required this.onPlayAll,
     required this.onLogin,
     required this.onOpenCatalog,
     required this.onLike,
@@ -32,6 +33,7 @@ class SearchPage extends StatefulWidget {
   final Song? currentSong;
   final bool isPlaying;
   final SongPlayRequest onPlay;
+  final ValueChanged<List<Song>> onPlayAll;
   final VoidCallback onLogin;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final ValueChanged<Song> onLike;
@@ -223,6 +225,7 @@ class _SearchPageState extends State<SearchPage> {
         currentSong: widget.currentSong,
         isPlaying: widget.isPlaying,
         onPlay: widget.onPlay,
+        onPlayAll: widget.onPlayAll,
         onLogin: widget.onLogin,
         onOpenCatalog: widget.onOpenCatalog,
         onLike: widget.onLike,
@@ -362,10 +365,11 @@ class _PromptTileState extends State<_PromptTile> {
               : _hovered
               ? 1.01
               : 1.0,
-          duration: AppMotion.fast,
-          curve: AppMotion.curve,
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOutQuad,
           child: AnimatedContainer(
-            duration: AppMotion.fast,
+            duration: const Duration(milliseconds: 90),
+            curve: Curves.easeOutQuad,
             height: 46,
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -468,6 +472,7 @@ class _SearchResults extends StatefulWidget {
     required this.currentSong,
     required this.isPlaying,
     required this.onPlay,
+    required this.onPlayAll,
     required this.onLogin,
     required this.onOpenCatalog,
     required this.onLike,
@@ -480,6 +485,7 @@ class _SearchResults extends StatefulWidget {
   final Song? currentSong;
   final bool isPlaying;
   final SongPlayRequest onPlay;
+  final ValueChanged<List<Song>> onPlayAll;
   final VoidCallback onLogin;
   final ValueChanged<SearchCatalogItem> onOpenCatalog;
   final ValueChanged<Song> onLike;
@@ -521,17 +527,30 @@ class _SearchResultsState extends State<_SearchResults> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Text('搜索结果', style: AppTypography.panelTitle),
-              const Spacer(),
-              if (controller.isLoading)
-                const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-            ],
+          SizedBox(
+            height: 36,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text('搜索结果', style: AppTypography.panelTitle),
+                if (controller.category == SearchCategory.song &&
+                    controller.results.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  PlayAllHeaderButton(
+                    onTap: () => widget.onPlayAll(controller.results),
+                    songCount: controller.results.length,
+                    size: 36,
+                  ),
+                ],
+                const Spacer(),
+                if (controller.isLoading)
+                  const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+              ],
+            ),
           ),
           const SizedBox(height: 10),
           GlassTabBar(

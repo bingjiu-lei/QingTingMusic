@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'app_icon_button.dart';
 
 class SongRow extends StatefulWidget {
   const SongRow({
@@ -126,31 +127,28 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                     : null,
               ),
               child: Row(
-            children: [
-              SizedBox(
-                width: 42,
-                child: Center(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 120),
+                children: [
+                  SizedBox(
+                    width: 42,
+                    child: Center(
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 120),
                     child: _hovered
-                        ? IconButton(
+                        ? AppIconButton.ghost(
                             key: const ValueKey('row-play'),
                             tooltip: active && widget.isPlaying
                                 ? '暂停'
                                 : '播放这首歌',
                             onPressed: widget.onPlay,
-                            constraints: const BoxConstraints.tightFor(
-                              width: 34,
-                              height: 34,
-                            ),
-                            padding: EdgeInsets.zero,
-                            icon: Icon(
-                              active && widget.isPlaying
-                                  ? Icons.pause_rounded
-                                  : Icons.play_arrow_rounded,
-                              color: AppColors.primary,
-                              size: 20,
-                            ),
+                            icon: active && widget.isPlaying
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            size: 32,
+                            iconSize: 20,
+                            iconColor: AppColors.primary,
+                            hoverIconColor: AppColors.primary,
+                            shadowColor: AppColors.primary,
+                            scaleFactor: 1.10,
                           )
                         : active
                         ? AnimatedBuilder(
@@ -242,21 +240,20 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                   if (widget.onLike != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: _RowActionButton(
+                      child: AppIconButton.ghost(
                         icon: widget.song.liked
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         tooltip: widget.song.liked ? '取消收藏' : '收藏',
-                        onTap: widget.onLike,
-                        iconColor: widget.song.liked
-                            ? AppColors.favorite
-                            : AppColors.faint,
-                        hoverIconColor: widget.song.liked
-                            ? AppColors.favorite
-                            : AppColors.text,
-                        shadowColor: widget.song.liked ? AppColors.favorite : null,
-                        size: 30,
+                        onPressed: widget.onLike,
+                        size: 32,
                         iconSize: 18,
+                        selected: widget.song.liked,
+                        selectedColor: AppColors.favorite,
+                        selectedBackgroundColor: Colors.transparent,
+                        iconColor: AppColors.faint,
+                        hoverIconColor: AppColors.favorite,
+                        shadowColor: AppColors.favorite,
                       ),
                     ),
                   if (widget.onAddToPlaylist != null)
@@ -267,15 +264,15 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                         child: AnimatedOpacity(
                           opacity: _hovered ? 1 : 0,
                           duration: const Duration(milliseconds: 120),
-                          child: _RowActionButton(
+                          child: AppIconButton.ghost(
                             tooltip: '添加到歌单',
-                            onTap: widget.onAddToPlaylist,
+                            onPressed: widget.onAddToPlaylist,
                             icon: Icons.playlist_add_rounded,
+                            size: 32,
+                            iconSize: 18,
                             iconColor: AppColors.muted,
                             hoverIconColor: AppColors.primary,
                             shadowColor: AppColors.primary,
-                            size: 30,
-                            iconSize: 18,
                           ),
                         ),
                       ),
@@ -288,15 +285,15 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                         child: AnimatedOpacity(
                           opacity: _hovered ? 1 : 0,
                           duration: const Duration(milliseconds: 120),
-                          child: _RowActionButton(
+                          child: AppIconButton.ghost(
                             tooltip: '从歌单移除',
-                            onTap: widget.onRemoveFromPlaylist,
+                            onPressed: widget.onRemoveFromPlaylist,
                             icon: Icons.delete_outline_rounded,
+                            size: 32,
+                            iconSize: 17,
                             iconColor: AppColors.muted,
                             hoverIconColor: AppColors.danger,
                             shadowColor: AppColors.danger,
-                            size: 30,
-                            iconSize: 17,
                           ),
                         ),
                       ),
@@ -308,97 +305,6 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                   ),
                   const SizedBox(width: 8),
                 ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RowActionButton extends StatefulWidget {
-  const _RowActionButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.size = 30.0,
-    this.iconSize = 18.0,
-    this.iconColor,
-    this.hoverIconColor,
-    this.shadowColor,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final double size;
-  final double iconSize;
-  final Color? iconColor;
-  final Color? hoverIconColor;
-  final Color? shadowColor;
-
-  @override
-  State<_RowActionButton> createState() => _RowActionButtonState();
-}
-
-class _RowActionButtonState extends State<_RowActionButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
-    final isDark = AppColors.isDark;
-    final size = widget.size;
-
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 300),
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: enabled && _hovered ? 1.12 : 1.0,
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: enabled && _hovered
-                    ? AppColors.surfaceHover.withValues(
-                        alpha: isDark ? 0.85 : 0.95,
-                      )
-                    : Colors.transparent,
-                boxShadow: enabled && _hovered
-                    ? [
-                        BoxShadow(
-                          color: (widget.shadowColor ?? AppColors.shadow)
-                              .withValues(
-                            alpha: isDark ? 0.30 : 0.10,
-                          ),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Icon(
-                  widget.icon,
-                  size: widget.iconSize,
-                  color: enabled
-                      ? (_hovered
-                          ? (widget.hoverIconColor ?? AppColors.text)
-                          : (widget.iconColor ?? AppColors.muted))
-                      : AppColors.muted,
-                ),
               ),
             ),
           ),

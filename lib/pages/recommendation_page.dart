@@ -7,6 +7,7 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import '../widgets/album_art.dart';
 import '../widgets/glass.dart';
+import '../widgets/preparing_dots.dart';
 import '../widgets/song_panel.dart';
 
 const double _heroHeight = 210;
@@ -85,21 +86,15 @@ class RecommendationPage extends StatelessWidget {
                   children: [
                     Text('今天先听这几首', style: AppTypography.panelTitle),
                     const Spacer(),
-                    Tooltip(
-                      message: '查看全部',
-                      child: IconButton(
-                        onPressed: onOpenDaily,
-                        tooltip: '查看全部',
-                        icon: const Icon(Icons.arrow_forward_rounded, size: 19),
-                        style: IconButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                          backgroundColor: AppColors.primary.withValues(
-                            alpha: AppColors.isDark ? 0.14 : 0.09,
-                          ),
-                          hoverColor: AppColors.primary.withValues(alpha: 0.16),
-                          shape: const CircleBorder(),
-                        ),
-                      ),
+                    AppIconButton.filled(
+                      tooltip: '查看全部',
+                      icon: Icons.arrow_forward_rounded,
+                      onPressed: onOpenDaily,
+                      size: 36,
+                      iconSize: 19,
+                      iconColor: AppColors.primary,
+                      hoverIconColor: AppColors.primary,
+                      shadowColor: AppColors.primary,
                     ),
                   ],
                 ),
@@ -566,14 +561,14 @@ class _FmProfileRow extends StatelessWidget {
   );
 }
 
-class _GlassRoundButton extends StatefulWidget {
+class _GlassRoundButton extends StatelessWidget {
   const _GlassRoundButton({
     required this.loading,
     required this.tooltip,
     required this.onPressed,
     this.icon = Icons.play_arrow_rounded,
     this.filled = true,
-    this.size = 38,
+    this.size = 42,
   });
 
   final bool loading;
@@ -584,117 +579,36 @@ class _GlassRoundButton extends StatefulWidget {
   final double size;
 
   @override
-  State<_GlassRoundButton> createState() => _GlassRoundButtonState();
-}
-
-class _GlassRoundButtonState extends State<_GlassRoundButton> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final enabled = !widget.loading;
-    final scale = !enabled
-        ? 1.0
-        : _pressed
-        ? 0.97
-        : _hovered
-        ? 1.02
-        : 1.0;
-    final Color background;
-    final Color foreground;
-    if (widget.filled) {
-      background = !enabled
-          ? AppColors.primary.withValues(alpha: 0.38)
-          : _pressed
-          ? AppColors.primaryPressed
-          : AppColors.primary;
-      foreground = Colors.white;
-    } else {
-      background = AppColors.primary.withValues(
-        alpha: !enabled
-            ? 0.06
-            : (_hovered || _pressed)
-            ? 0.16
-            : 0.10,
+    if (filled) {
+      return AppIconButton.filled(
+        tooltip: loading ? '正在准备' : tooltip,
+        icon: icon,
+        onPressed: loading ? null : onPressed,
+        size: size,
+        iconSize: 25,
+        backgroundColor: AppColors.primary,
+        hoverBackgroundColor: AppColors.primaryPressed,
+        iconColor: Colors.white,
+        hoverIconColor: Colors.white,
+        shadowColor: AppColors.primary,
+        alwaysGlow: true,
+        scaleFactor: 1.08,
+        child: loading ? const PreparingDots(color: Colors.white) : null,
       );
-      foreground = enabled ? AppColors.primary : AppColors.faint;
     }
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() {
-          _hovered = false;
-          _pressed = false;
-        }),
-        child: GestureDetector(
-          onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
-          onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
-          onTapCancel: () => setState(() => _pressed = false),
-          onTap: enabled ? widget.onPressed : null,
-          child: AnimatedScale(
-            scale: scale,
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                color: background,
-                borderRadius: BorderRadius.circular(AppRadius.pill),
-                border: widget.filled && enabled
-                    ? Border.all(
-                        color: Colors.white.withValues(
-                          alpha: _hovered ? 0.52 : 0.32,
-                        ),
-                        width: 1,
-                      )
-                    : Border.all(
-                        color: AppColors.isDark
-                            ? Colors.white.withValues(
-                                alpha: _hovered ? 0.20 : 0.10,
-                              )
-                            : Colors.white.withValues(
-                                alpha: _hovered ? 0.85 : 0.60,
-                              ),
-                        width: 1,
-                      ),
-                boxShadow: widget.filled && enabled
-                    ? [
-                        BoxShadow(
-                          color: AppColors.primary.withValues(
-                            alpha: AppColors.isDark ? 0.40 : 0.28,
-                          ),
-                          blurRadius: _hovered ? 16 : 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: widget.loading
-                    ? SizedBox(
-                        width: 15,
-                        height: 15,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: foreground,
-                        ),
-                      )
-                    : Icon(
-                        widget.icon,
-                        size: widget.size >= 38 ? 20 : 18,
-                        color: foreground,
-                      ),
-              ),
-            ),
-          ),
-        ),
-      ),
+
+    return AppIconButton.filled(
+      tooltip: tooltip,
+      icon: icon,
+      onPressed: loading ? null : onPressed,
+      size: size,
+      iconSize: size * 0.55,
+      iconColor: AppColors.primary,
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
+      scaleFactor: 1.08,
+      child: loading ? PreparingDots(color: AppColors.primary) : null,
     );
   }
 }
@@ -764,8 +678,8 @@ class _PreviewTileState extends State<_PreviewTile> {
             : _hovered
             ? 1.02
             : 1.0,
-        duration: AppMotion.fast,
-        curve: AppMotion.curve,
+        duration: const Duration(milliseconds: 90),
+        curve: Curves.easeOutQuad,
         child: GlassSurface(
           radius: AppRadius.xl,
           tint: _hovered ? AppGlass.surfaceStrong : AppGlass.surface,

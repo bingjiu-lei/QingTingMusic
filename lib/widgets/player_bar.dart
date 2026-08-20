@@ -8,6 +8,7 @@ import '../controllers/player_controller.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'app_icon_button.dart';
 import 'preparing_dots.dart';
 import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
@@ -464,7 +465,7 @@ class _PrimaryPlayButtonState extends State<_PrimaryPlayButton> {
             onTapCancel: () => setState(() => _pressed = false),
             onTap: enabled && !preparing ? widget.onPressed : null,
             child: AnimatedScale(
-              scale: _pressed ? 0.94 : (_hovered && enabled ? 1.07 : 1.0),
+              scale: _pressed ? 0.94 : (_hovered && enabled ? 1.08 : 1.0),
               duration: AppMotion.fast,
               curve: AppMotion.curve,
               child: AnimatedContainer(
@@ -478,10 +479,12 @@ class _PrimaryPlayButtonState extends State<_PrimaryPlayButton> {
                       ? [
                           BoxShadow(
                             color: AppColors.primary.withValues(
-                              alpha: isDark ? 0.28 : 0.18,
+                              alpha: isDark
+                                  ? (_hovered ? 0.48 : 0.32)
+                                  : (_hovered ? 0.35 : 0.22),
                             ),
-                            blurRadius: _hovered ? 10 : 6,
-                            offset: const Offset(0, 2),
+                            blurRadius: _hovered ? 14 : 8,
+                            offset: Offset(0, _hovered ? 3 : 2),
                           ),
                         ]
                       : null,
@@ -506,90 +509,44 @@ class _PrimaryPlayButtonState extends State<_PrimaryPlayButton> {
   }
 }
 
-class _ControlIconButton extends StatefulWidget {
+class _ControlIconButton extends StatelessWidget {
   const _ControlIconButton({
     required this.tooltip,
     required this.onPressed,
     this.icon,
-    this.child,
     this.iconSize = 21,
     this.selected = false,
     this.size = 42,
     this.selectedColor,
     this.selectedBackgroundColor,
+    this.child,
   });
 
   final String tooltip;
   final VoidCallback? onPressed;
   final IconData? icon;
-  final Widget? child;
   final double iconSize;
   final bool selected;
   final double size;
   final Color? selectedColor;
   final Color? selectedBackgroundColor;
-
-  @override
-  State<_ControlIconButton> createState() => _ControlIconButtonState();
-}
-
-class _ControlIconButtonState extends State<_ControlIconButton> {
-  bool _hovered = false;
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null;
-    final selected = widget.selected;
-    final isDark = AppColors.isDark;
-
-    final foregroundColor = !enabled
-        ? AppColors.faint.withValues(alpha: 0.42)
-        : selected
-        ? widget.selectedColor ?? AppColors.primary
-        : _hovered
-        ? AppColors.text
-        : AppColors.muted;
-
-    final backgroundColor = selected
-        ? widget.selectedBackgroundColor ??
-              AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
-        : _hovered && enabled
-        ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
-        : Colors.transparent;
-
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          child: AnimatedScale(
-            scale: _hovered && enabled ? 1.05 : 1.0,
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: backgroundColor,
-              ),
-              child: Center(
-                child:
-                    widget.child ??
-                    Icon(
-                      widget.icon ?? Icons.circle_outlined,
-                      size: widget.iconSize,
-                      color: foregroundColor,
-                    ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AppIconButton.ghost(
+      tooltip: tooltip,
+      onPressed: onPressed,
+      icon: icon,
+      iconSize: iconSize,
+      selected: selected,
+      size: size,
+      selectedColor: selectedColor,
+      selectedBackgroundColor: selectedBackgroundColor,
+      iconColor: AppColors.muted,
+      hoverIconColor: selected ? (selectedColor ?? AppColors.primary) : AppColors.primary,
+      shadowColor: selected ? (selectedColor ?? AppColors.primary) : AppColors.primary,
+      child: child,
     );
   }
 }
@@ -610,7 +567,7 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   Timer? _showTimer;
   Timer? _hideTimer;
   bool _anchorHovered = false;
-  bool _panelHovered = false;
+  bool _popoverHovered = false;
   double _lastAudibleVolume = 0.78;
 
   @override
@@ -624,77 +581,68 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   void dispose() {
     _showTimer?.cancel();
     _hideTimer?.cancel();
-    _removeOverlay();
+    _overlayEntry?.remove();
+    _overlayEntry = null;
     super.dispose();
   }
 
-  void _showOverlay() {
-    _showTimer?.cancel();
-    _hideTimer?.cancel();
-    if (_overlayEntry != null) {
-      _overlayEntry?.markNeedsBuild();
-      return;
-    }
-    _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        width: 64,
-        height: 168,
-        child: CompositedTransformFollower(
-          link: _layerLink,
-          showWhenUnlinked: false,
-          targetAnchor: Alignment.topCenter,
-          followerAnchor: Alignment.bottomCenter,
-          offset: const Offset(0, -8),
-          child: Material(
-            type: MaterialType.transparency,
-            child: MouseRegion(
-              onEnter: (_) {
-                _panelHovered = true;
-                _hideTimer?.cancel();
-              },
-              onExit: (_) {
-                _panelHovered = false;
-                _scheduleHide();
-              },
-              child: _VolumePopover(
-                volume: widget.volume,
-                onChanged: (value) {
-                  widget.onChanged(value);
-                  _overlayEntry?.markNeedsBuild();
-                },
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-    Overlay.of(context).insert(_overlayEntry!);
-  }
-
   void _scheduleShow() {
-    _showTimer?.cancel();
     _hideTimer?.cancel();
-    _showTimer = Timer(const Duration(milliseconds: 160), () {
-      if (_anchorHovered || _panelHovered) _showOverlay();
+    if (_overlayEntry != null) return;
+    _showTimer?.cancel();
+    _showTimer = Timer(const Duration(milliseconds: 140), () {
+      if (!mounted || (!_anchorHovered && !_popoverHovered)) return;
+      _showPopover();
     });
   }
 
   void _scheduleHide() {
     _showTimer?.cancel();
     _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(milliseconds: 320), () {
-      if (!_anchorHovered && !_panelHovered) _removeOverlay();
+    _hideTimer = Timer(const Duration(milliseconds: 180), () {
+      if (!mounted) return;
+      if (!_anchorHovered && !_popoverHovered) {
+        _overlayEntry?.remove();
+        _overlayEntry = null;
+      }
     });
   }
 
-  void _removeOverlay() {
-    _showTimer?.cancel();
+  void _showPopover() {
     _overlayEntry?.remove();
-    _overlayEntry = null;
+    final entry = OverlayEntry(
+      builder: (context) => Positioned(
+        width: 64,
+        child: CompositedTransformFollower(
+          link: _layerLink,
+          targetAnchor: Alignment.topCenter,
+          followerAnchor: Alignment.bottomCenter,
+          offset: const Offset(0, -8),
+          child: MouseRegion(
+            onEnter: (_) {
+              _popoverHovered = true;
+              _scheduleShow();
+            },
+            onExit: (_) {
+              _popoverHovered = false;
+              _scheduleHide();
+            },
+            child: _VolumePopover(
+              volume: widget.volume,
+              onChanged: (value) {
+                widget.onChanged(value);
+                _overlayEntry?.markNeedsBuild();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    Overlay.of(context, rootOverlay: true).insert(entry);
+    _overlayEntry = entry;
   }
 
   void _toggleMute() {
-    _removeOverlay();
     if (widget.volume <= 0.01) {
       widget.onChanged(_lastAudibleVolume.clamp(0.08, 1.0));
     } else {
@@ -704,41 +652,36 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   }
 
   @override
-  Widget build(BuildContext context) => CompositedTransformTarget(
-    link: _layerLink,
-    child: MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        _anchorHovered = true;
-        _scheduleShow();
-      },
-      onExit: (_) {
-        _anchorHovered = false;
-        _scheduleHide();
-      },
-      child: Semantics(
-        button: true,
-        label: widget.volume <= 0.01 ? '恢复音量' : '静音',
-        child: IconButton(
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) {
+          _anchorHovered = true;
+          _scheduleShow();
+        },
+        onExit: (_) {
+          _anchorHovered = false;
+          _scheduleHide();
+        },
+        child: AppIconButton.ghost(
+          tooltip: widget.volume <= 0.01 ? '恢复音量' : '静音',
           onPressed: _toggleMute,
-          icon: Icon(
-            widget.volume <= 0.01
-                ? Icons.volume_off_rounded
-                : widget.volume < 0.45
-                ? Icons.volume_down_rounded
-                : Icons.volume_up_rounded,
-          ),
-          style: IconButton.styleFrom(
-            minimumSize: const Size(42, 42),
-            fixedSize: const Size(42, 42),
-            foregroundColor: AppColors.muted,
-            hoverColor: AppColors.selected,
-            shape: const CircleBorder(),
-          ),
+          icon: widget.volume <= 0.01
+              ? Icons.volume_off_rounded
+              : widget.volume < 0.45
+              ? Icons.volume_down_rounded
+              : Icons.volume_up_rounded,
+          size: 42,
+          iconSize: 21,
+          iconColor: AppColors.muted,
+          hoverIconColor: AppColors.primary,
+          shadowColor: AppColors.primary,
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _VolumePopover extends StatelessWidget {

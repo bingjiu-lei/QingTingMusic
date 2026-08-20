@@ -125,15 +125,14 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         children: [
           Row(
             children: [
-              CircularHoverButton(
+              AppIconButton.filled(
                 icon: Icons.arrow_back_rounded,
                 tooltip: '返回',
-                onTap: widget.onBack,
+                onPressed: widget.onBack,
                 size: 42,
                 iconSize: 22,
-                backgroundColor: AppGlass.surface,
-                hoverBackgroundColor: AppColors.surfaceHover,
-                shadowColor: AppColors.shadow,
+                hoverIconColor: AppColors.primary,
+                shadowColor: AppColors.primary,
               ),
               const SizedBox(width: 12),
               AlbumArt(size: 80, imageUrl: widget.imageUrl),
@@ -144,44 +143,75 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   children: [
                     Text(
                       widget.title,
-                      maxLines: 2,
+                      style: AppTypography.pageTitle,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTypography.style(
-                        25,
-                        800,
-                        color: AppColors.text,
-                        height: 1.16,
-                        letterSpacing: 0.2,
-                      ),
                     ),
-                    if (widget.kind == CollectionDetailKind.playlist &&
-                        widget.subtitle.isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      _HeaderSubtitle(
-                        text: widget.subtitle,
-                        onTap: widget.onOpenHeaderArtist,
-                      ),
-                    ],
                     Builder(
                       builder: (context) {
-                        if (widget.kind == CollectionDetailKind.artist) {
-                          return const SizedBox.shrink();
-                        }
                         if (widget.kind == CollectionDetailKind.playlist) {
-                          if (widget.subtitle.contains('首')) {
-                            return const SizedBox.shrink();
-                          }
                           return Padding(
                             padding: const EdgeInsets.only(top: 6),
-                            child: Text(
-                              '${widget.songs.length} 首',
-                              style: TextStyle(
-                                color: AppColors.muted,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (widget.subtitle.isNotEmpty &&
+                                    !widget.subtitle.contains('首'))
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 3),
+                                    child: widget.onOpenHeaderArtist != null
+                                        ? MouseRegion(
+                                            cursor: SystemMouseCursors.click,
+                                            child: GestureDetector(
+                                              onTap: widget.onOpenHeaderArtist,
+                                              child: Text(
+                                                widget.subtitle,
+                                                style: TextStyle(
+                                                  color: AppColors.primary,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
+                                            ),
+                                          )
+                                        : Text(
+                                            widget.subtitle,
+                                            style: TextStyle(
+                                              color: AppColors.muted,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                  ),
+                                Text(
+                                  '${widget.songs.length} 首',
+                                  style: TextStyle(
+                                    color: AppColors.muted,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           );
+                        }
+                        if (widget.kind == CollectionDetailKind.artist) {
+                          if (widget.subtitle.isNotEmpty &&
+                              widget.subtitle != '歌手') {
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 6),
+                              child: Text(
+                                widget.subtitle,
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
                         }
                         if (widget.kind == CollectionDetailKind.album) {
                           final formattedDate = formatReleaseDate(
@@ -222,33 +252,37 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                 size: 36,
                               ),
                             if (widget.collectionItem != null)
-                              CircularHoverButton(
+                              AppIconButton.filled(
                                 icon: widget.isCollected
                                     ? Icons.favorite_rounded
                                     : Icons.favorite_border_rounded,
                                 tooltip: widget.isCollected ? '取消收藏' : '收藏',
-                                onTap: widget.onToggleCollection,
+                                onPressed: widget.onToggleCollection,
                                 size: 36,
                                 iconSize: 18,
                                 iconColor: widget.isCollected
                                     ? AppColors.favorite
                                     : AppColors.muted,
-                                hoverIconColor: widget.isCollected
-                                    ? AppColors.favorite
-                                    : AppColors.text,
-                                shadowColor: widget.isCollected
-                                    ? AppColors.favorite
-                                    : null,
+                                hoverIconColor: AppColors.favorite,
+                                hoverBackgroundColor:
+                                    AppColors.favorite.withValues(
+                                  alpha: AppColors.isDark ? 0.18 : 0.10,
+                                ),
+                                shadowColor: AppColors.favorite,
                               ),
                             if (widget.onDeletePlaylist != null)
-                              CircularHoverButton(
+                              AppIconButton.filled(
                                 icon: Icons.delete_outline_rounded,
                                 tooltip: '删除歌单',
-                                onTap: widget.onDeletePlaylist,
+                                onPressed: widget.onDeletePlaylist,
                                 size: 36,
                                 iconSize: 18,
                                 iconColor: AppColors.muted,
                                 hoverIconColor: AppColors.danger,
+                                hoverBackgroundColor:
+                                    AppColors.danger.withValues(
+                                  alpha: AppColors.isDark ? 0.18 : 0.10,
+                                ),
                                 shadowColor: AppColors.danger,
                               ),
                           ],
@@ -415,30 +449,6 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
     // Keep the complete artist metadata returned by the API. Replacing it with
     // the current artist used to hide collaborators on artist detail pages.
     return widget.songs;
-  }
-}
-
-class _HeaderSubtitle extends StatelessWidget {
-  const _HeaderSubtitle({required this.text, this.onTap});
-
-  final String text;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final child = Text(
-      text,
-      style: TextStyle(
-        color: onTap == null ? AppColors.muted : AppColors.primary,
-        fontSize: 13,
-        fontWeight: onTap == null ? FontWeight.w500 : FontWeight.w600,
-      ),
-    );
-    if (onTap == null) return child;
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(onTap: onTap, child: child),
-    );
   }
 }
 
@@ -654,7 +664,6 @@ class _CatalogGridTile extends StatefulWidget {
 
 class _CatalogGridTileState extends State<_CatalogGridTile> {
   bool _hovered = false;
-  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -665,65 +674,51 @@ class _CatalogGridTileState extends State<_CatalogGridTile> {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTapCancel: () => setState(() => _pressed = false),
         onTap: () => widget.onTap(item),
         child: AnimatedScale(
-          scale: _pressed
-              ? 0.96
-              : _hovered
-              ? 1.02
-              : 1.0,
-          duration: AppMotion.fast,
-          curve: AppMotion.curve,
+          scale: _hovered ? 1.015 : 1.0,
+          duration: const Duration(milliseconds: 90),
+          curve: Curves.easeOutQuad,
           child: AnimatedContainer(
-            duration: AppMotion.fast,
+            duration: const Duration(milliseconds: 90),
+            curve: Curves.easeOutQuad,
             decoration: BoxDecoration(
               color: _hovered
-                  ? AppColors.primary.withValues(alpha: isDark ? 0.10 : 0.05)
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.04)
                   : AppGlass.surface,
               borderRadius: BorderRadius.circular(AppRadius.lg),
               border: Border.all(
                 color: _hovered
-                    ? AppColors.primary.withValues(alpha: isDark ? 0.28 : 0.18)
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12)
                     : AppGlass.border,
               ),
-              boxShadow: _hovered
-                  ? [
-                      BoxShadow(
-                        color: AppColors.primary.withValues(
-                          alpha: isDark ? 0.14 : 0.07,
-                        ),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : (isDark ? null : AppShadows.soft),
+              boxShadow: isDark ? null : AppShadows.soft,
             ),
             padding: const EdgeInsets.all(10),
             child: Row(
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(AppRadius.sm),
-                  child: Container(
-                    width: 50,
-                    height: 50,
-                    color: AppColors.surfaceMuted,
-                    child: item.imageUrl == null
-                        ? Icon(Icons.album_rounded, color: AppColors.muted)
-                        : Image.network(
-                            item.imageUrl!,
-                            fit: BoxFit.cover,
-                            cacheWidth: (50 * pixelRatio).round(),
-                            gaplessPlayback: true,
-                          ),
+                  child: AnimatedScale(
+                    scale: _hovered ? 1.03 : 1.0,
+                    duration: const Duration(milliseconds: 90),
+                    curve: Curves.easeOutQuad,
+                    child: Container(
+                      width: 50,
+                      height: 50,
+                      color: AppColors.surfaceMuted,
+                      child: item.imageUrl == null
+                          ? Icon(Icons.album_rounded, color: AppColors.muted)
+                          : Image.network(
+                              item.imageUrl!,
+                              fit: BoxFit.cover,
+                              cacheWidth: (50 * pixelRatio).round(),
+                              gaplessPlayback: true,
+                            ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 11),

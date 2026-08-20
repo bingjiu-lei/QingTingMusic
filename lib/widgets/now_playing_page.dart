@@ -9,6 +9,7 @@ import '../models/lyric.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'app_icon_button.dart';
 import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
 import 'song_row.dart';
@@ -676,7 +677,7 @@ class _SubtleCollapseButtonState extends State<_SubtleCollapseButton> {
   }
 }
 
-class _PortraitModeButton extends StatefulWidget {
+class _PortraitModeButton extends StatelessWidget {
   const _PortraitModeButton({
     required this.selected,
     required this.available,
@@ -688,69 +689,21 @@ class _PortraitModeButton extends StatefulWidget {
   final VoidCallback onPressed;
 
   @override
-  State<_PortraitModeButton> createState() => _PortraitModeButtonState();
-}
-
-class _PortraitModeButtonState extends State<_PortraitModeButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final selected = widget.selected;
-    final available = widget.available;
-    final isDark = AppColors.isDark;
-
-    return Tooltip(
-      message: selected ? '切换到专辑封面' : '切换到歌手写真',
-      child: MouseRegion(
-        cursor: available ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: available ? widget.onPressed : null,
-          child: AnimatedScale(
-            scale: _hovered && available ? 1.06 : 1.0,
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: selected
-                    ? AppColors.primary.withValues(alpha: isDark ? 0.22 : 0.12)
-                    : _hovered && available
-                    ? AppColors.primary.withValues(alpha: 0.08)
-                    : Colors.transparent,
-                border: Border.all(
-                  color: selected
-                      ? AppColors.primary.withValues(alpha: 0.35)
-                      : _hovered && available
-                      ? Colors.white.withValues(alpha: 0.60)
-                      : Colors.transparent,
-                  width: 1,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  selected
-                      ? Icons.person_rounded
-                      : Icons.person_outline_rounded,
-                  size: 22,
-                  color: !available
-                      ? AppColors.faint.withValues(alpha: 0.40)
-                      : selected
-                      ? AppColors.primary
-                      : _hovered
-                      ? AppColors.text
-                      : AppColors.muted,
-                ),
-              ),
-            ),
-          ),
-        ),
+    return AppIconButton.ghost(
+      tooltip: selected ? '切换到专辑封面' : '切换到歌手写真',
+      icon: selected ? Icons.person_rounded : Icons.person_outline_rounded,
+      onPressed: available ? onPressed : null,
+      size: 42,
+      iconSize: 22,
+      selected: selected,
+      selectedColor: AppColors.primary,
+      selectedBackgroundColor: AppColors.primary.withValues(
+        alpha: AppColors.isDark ? 0.18 : 0.10,
       ),
+      iconColor: AppColors.muted,
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
     );
   }
 }
@@ -763,30 +716,19 @@ class _CollapseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: Tooltip(
-        message: '收起播放页',
-        child: SizedBox(
-          width: 58,
-          height: 58,
-          child: IconButton.filledTonal(
-            style: IconButton.styleFrom(
-              backgroundColor: AppColors.surfaceMuted.withValues(
-                alpha: AppColors.isDark ? 0.72 : 0.82,
-              ),
-              foregroundColor: AppColors.muted,
-              hoverColor: AppColors.primary.withValues(alpha: 0.08),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            tooltip: '收起播放页',
-            onPressed: onClose,
-            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 25),
-          ),
-        ),
+    return AppIconButton.filled(
+      tooltip: '收起播放页',
+      icon: Icons.keyboard_arrow_down_rounded,
+      onPressed: onClose,
+      size: 46,
+      iconSize: 26,
+      backgroundColor: AppColors.surfaceMuted.withValues(
+        alpha: AppColors.isDark ? 0.72 : 0.82,
       ),
+      hoverBackgroundColor: AppColors.primary.withValues(alpha: 0.16),
+      iconColor: AppColors.muted,
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
     );
   }
 }
@@ -842,7 +784,7 @@ class _NowPlayingActions extends StatelessWidget {
   }
 }
 
-class _NowPlayingActionButton extends StatefulWidget {
+class _NowPlayingActionButton extends StatelessWidget {
   const _NowPlayingActionButton({
     required this.tooltip,
     required this.icon,
@@ -858,84 +800,19 @@ class _NowPlayingActionButton extends StatefulWidget {
   final bool selected;
 
   @override
-  State<_NowPlayingActionButton> createState() =>
-      _NowPlayingActionButtonState();
-}
-
-class _NowPlayingActionButtonState extends State<_NowPlayingActionButton> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    final enabled = widget.onPressed != null;
-    final selected = widget.selected;
-    final isDark = AppColors.isDark;
-
-    final foregroundColor = !enabled
-        ? AppColors.faint.withValues(alpha: 0.45)
-        : selected
-        ? AppColors.favorite
-        : _hovered
-        ? AppColors.text
-        : AppColors.muted;
-
-    final backgroundColor = selected
-        ? AppColors.favoriteSoft
-        : _hovered && enabled
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.14)
-              : Colors.white.withValues(alpha: 0.55))
-        : Colors.transparent;
-
-    final borderColor = selected
-        ? AppColors.favorite.withValues(alpha: 0.35)
-        : _hovered && enabled
-        ? (isDark
-              ? Colors.white.withValues(alpha: 0.16)
-              : Colors.white.withValues(alpha: 0.70))
-        : Colors.transparent;
-
-    return Tooltip(
-      message: widget.tooltip,
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onPressed,
-          child: AnimatedScale(
-            scale: _hovered && enabled ? 1.08 : 1.0,
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              width: widget.size,
-              height: widget.size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: backgroundColor,
-                border: Border.all(color: borderColor, width: 1),
-                boxShadow: selected
-                    ? [
-                        BoxShadow(
-                          color: AppColors.favorite.withValues(alpha: 0.18),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Icon(
-                  widget.icon,
-                  size: widget.size < 36 ? 18 : 20,
-                  color: foregroundColor,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
+    return AppIconButton.ghost(
+      tooltip: tooltip,
+      icon: icon,
+      onPressed: onPressed,
+      size: size,
+      iconSize: size < 36 ? 18 : 20,
+      selected: selected,
+      selectedColor: AppColors.favorite,
+      selectedBackgroundColor: Colors.transparent,
+      iconColor: AppColors.muted,
+      hoverIconColor: selected ? AppColors.favorite : AppColors.primary,
+      shadowColor: selected ? AppColors.favorite : AppColors.primary,
     );
   }
 }
@@ -1853,23 +1730,15 @@ class _GlassControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return AppIconButton.ghost(
       tooltip: tooltip,
+      icon: icon,
       onPressed: onPressed,
-      mouseCursor: onPressed == null
-          ? SystemMouseCursors.basic
-          : SystemMouseCursors.click,
-      icon: Icon(icon),
-      style: IconButton.styleFrom(
-        minimumSize: const Size(42, 42),
-        fixedSize: const Size(42, 42),
-        iconSize: 22,
-        foregroundColor: AppColors.muted,
-        disabledForegroundColor: AppColors.faint.withValues(alpha: 0.45),
-        hoverColor: AppColors.primary.withValues(alpha: 0.10),
-        highlightColor: AppColors.primary.withValues(alpha: 0.14),
-        shape: const CircleBorder(),
-      ),
+      size: 42,
+      iconSize: 22,
+      iconColor: AppColors.muted,
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
     );
   }
 }
@@ -1887,22 +1756,18 @@ class _DesktopLyricControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return IconButton(
+    return AppIconButton.ghost(
       tooltip: tooltip,
       onPressed: onPressed,
-      mouseCursor: SystemMouseCursors.click,
-      style: IconButton.styleFrom(
-        minimumSize: const Size(42, 42),
-        fixedSize: const Size(42, 42),
-        foregroundColor: selected ? AppColors.primary : AppColors.muted,
-        backgroundColor: selected
-            ? AppColors.primary.withValues(alpha: 0.10)
-            : Colors.transparent,
-        hoverColor: AppColors.primary.withValues(alpha: 0.10),
-        highlightColor: AppColors.primary.withValues(alpha: 0.14),
-        shape: const CircleBorder(),
+      selected: selected,
+      size: 42,
+      selectedColor: AppColors.primary,
+      selectedBackgroundColor: AppColors.primary.withValues(
+        alpha: AppColors.isDark ? 0.18 : 0.10,
       ),
-      icon: Text(
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
+      child: Text(
         '词',
         style: TextStyle(
           color: selected ? AppColors.primary : AppColors.muted,
@@ -1928,36 +1793,31 @@ class _PlayControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = AppColors.isDark;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 6),
-      child: SizedBox(
-        width: 44,
-        height: 44,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: preparing ? AppColors.surfaceMuted : AppColors.selected,
-          ),
-          child: Material(
-            color: Colors.transparent,
-            shape: const CircleBorder(),
-            child: InkWell(
-              onTap: preparing ? null : onPressed,
-              customBorder: const CircleBorder(),
-              child: Center(
-                child: preparing
-                    ? const _PreparingDots()
-                    : Icon(
-                        isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: AppColors.primary,
-                        size: 26,
-                      ),
-              ),
-            ),
-          ),
+      child: AppIconButton.filled(
+        tooltip: preparing
+            ? '正在准备'
+            : isPlaying
+            ? '暂停'
+            : '播放',
+        icon: isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+        onPressed: preparing ? null : onPressed,
+        size: 44,
+        iconSize: 26,
+        iconColor: AppColors.primary,
+        hoverIconColor: AppColors.primary,
+        backgroundColor: AppColors.surfaceMuted.withValues(
+          alpha: isDark ? 0.40 : 0.60,
         ),
+        hoverBackgroundColor: AppColors.primary.withValues(
+          alpha: isDark ? 0.18 : 0.10,
+        ),
+        shadowColor: AppColors.primary,
+        alwaysGlow: true,
+        scaleFactor: 1.08,
+        child: preparing ? const _PreparingDots() : null,
       ),
     );
   }
@@ -1995,13 +1855,14 @@ class _PreparingDotsState extends State<_PreparingDots>
           mainAxisAlignment: MainAxisAlignment.center,
           children: List.generate(3, (index) {
             final offset = (phase + index / 3) % 1;
-            final opacity = 0.32 + (offset < 0.5 ? offset : 1 - offset) * 1.36;
+            final opacity = (0.32 + (offset < 0.5 ? offset : 1 - offset) * 1.36)
+                .clamp(0.0, 1.0);
             return Container(
               width: 3.5,
               height: 3.5,
               margin: const EdgeInsets.symmetric(horizontal: 1.2),
               decoration: BoxDecoration(
-                color: AppColors.muted.withValues(alpha: opacity),
+                color: AppColors.primary.withValues(alpha: opacity),
                 shape: BoxShape.circle,
               ),
             );

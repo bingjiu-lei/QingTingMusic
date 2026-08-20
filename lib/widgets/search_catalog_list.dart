@@ -91,6 +91,7 @@ class _CatalogTileState extends State<_CatalogTile> {
           curve: AppMotion.curve,
           child: AnimatedContainer(
             duration: AppMotion.fast,
+            curve: AppMotion.curve,
             height: 64,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(

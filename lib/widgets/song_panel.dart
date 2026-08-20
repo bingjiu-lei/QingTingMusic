@@ -4,9 +4,12 @@ import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import '../widgets/glass.dart';
+import 'app_icon_button.dart';
 import 'list_scroll_actions.dart';
 import 'smooth_mouse_scroll.dart';
 import 'song_row.dart';
+
+export 'app_icon_button.dart';
 
 typedef SongPlayRequest = void Function(Song song, List<Song> queue);
 
@@ -277,128 +280,25 @@ class PlayAllHeaderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CircularHoverButton(
+    return AppIconButton.filled(
       icon: Icons.play_arrow_rounded,
       tooltip: songCount != null ? '播放全部 ($songCount首)' : '播放全部',
-      onTap: onTap,
+      onPressed: onTap,
       size: size,
       iconSize: size * 0.55,
       iconColor: AppColors.primary,
       hoverIconColor: AppColors.primary,
-      shadowColor: AppColors.primary,
-    );
-  }
-}
-
-class CircularHoverButton extends StatefulWidget {
-  const CircularHoverButton({
-    super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.size = 36.0,
-    this.iconSize,
-    this.iconColor,
-    this.hoverIconColor,
-    this.backgroundColor,
-    this.hoverBackgroundColor,
-    this.shadowColor,
-    this.selected = false,
-  });
-
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final double size;
-  final double? iconSize;
-  final Color? iconColor;
-  final Color? hoverIconColor;
-  final Color? backgroundColor;
-  final Color? hoverBackgroundColor;
-  final Color? shadowColor;
-  final bool selected;
-
-  @override
-  State<CircularHoverButton> createState() => _CircularHoverButtonState();
-}
-
-class _CircularHoverButtonState extends State<CircularHoverButton> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.onTap != null;
-    final isDark = AppColors.isDark;
-    final size = widget.size;
-    final iconSize = widget.iconSize ?? (size * 0.52);
-
-    final defaultBg = widget.backgroundColor ??
-        (widget.selected
-            ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
-            : AppColors.surfaceMuted.withValues(alpha: isDark ? 0.40 : 0.55));
-
-    final hoverBg = widget.hoverBackgroundColor ??
-        (widget.selected
-            ? AppColors.primary.withValues(alpha: isDark ? 0.26 : 0.18)
-            : AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08));
-
-    final defaultColor = widget.iconColor ??
-        (widget.selected ? AppColors.primary : AppColors.muted);
-    final hoverColor = widget.hoverIconColor ??
-        (widget.selected ? AppColors.primary : AppColors.primary);
-
-    return Tooltip(
-      message: widget.tooltip,
-      waitDuration: const Duration(milliseconds: 300),
-      child: MouseRegion(
-        cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedScale(
-            scale: enabled && _hovered ? 1.08 : 1.0,
-            duration: AppMotion.fast,
-            curve: AppMotion.curve,
-            child: AnimatedContainer(
-              duration: AppMotion.fast,
-              curve: AppMotion.curve,
-              width: size,
-              height: size,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: enabled
-                    ? (_hovered ? hoverBg : defaultBg)
-                    : AppColors.muted.withValues(alpha: 0.15),
-                boxShadow: enabled && _hovered
-                    ? [
-                        BoxShadow(
-                          color: (widget.shadowColor ?? AppColors.primary)
-                              .withValues(
-                            alpha: isDark ? 0.25 : 0.12,
-                          ),
-                          blurRadius: 10,
-                          offset: const Offset(0, 2),
-                        ),
-                      ]
-                    : null,
-              ),
-              child: Center(
-                child: Icon(
-                  widget.icon,
-                  size: iconSize,
-                  color: enabled
-                      ? (_hovered ? hoverColor : defaultColor)
-                      : AppColors.muted,
-                ),
-              ),
-            ),
-          ),
-        ),
+      hoverBackgroundColor: AppColors.primary.withValues(
+        alpha: AppColors.isDark ? 0.18 : 0.10,
       ),
+      shadowColor: AppColors.primary,
+      alwaysGlow: true,
+      scaleFactor: 1.08,
     );
   }
 }
+
+typedef CircularHoverButton = AppIconButton;
 
 class _ListSortButton extends StatelessWidget {
   const _ListSortButton({required this.reversed, required this.onTap});
@@ -408,22 +308,19 @@ class _ListSortButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CircularHoverButton(
+    return AppIconButton.filled(
       icon: reversed
           ? Icons.south_rounded
           : Icons.format_list_numbered_rounded,
       tooltip: reversed ? '切换为原顺序' : '切换为倒序',
-      onTap: onTap,
+      onPressed: onTap,
       size: 36,
       iconSize: 18,
       selected: reversed,
       iconColor: reversed ? AppColors.primary : AppColors.muted,
       hoverIconColor: AppColors.primary,
-      backgroundColor: reversed
-          ? AppColors.selected.withValues(
-              alpha: AppColors.isDark ? 0.72 : 0.92,
-            )
-          : null,
+      selectedColor: AppColors.primary,
+      shadowColor: AppColors.primary,
     );
   }
 }
@@ -453,10 +350,10 @@ class _ListFilterField extends StatelessWidget {
   Widget build(BuildContext context) {
     final showField = expanded || hasFilter;
     if (!showField) {
-      return CircularHoverButton(
+      return AppIconButton.filled(
         icon: Icons.search_rounded,
         tooltip: '筛选当前列表',
-        onTap: onExpand,
+        onPressed: onExpand,
         size: 36,
         iconSize: 18,
       );

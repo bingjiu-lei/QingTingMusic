@@ -1854,6 +1854,7 @@ class _MusicShellState extends State<MusicShell>
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
         onPlay: _playSong,
+        onPlayAll: _playAllSongs,
         onLogin: _showLogin,
         onOpenCatalog: _openCatalog,
         onLike: _toggleFavorite,

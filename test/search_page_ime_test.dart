@@ -22,6 +22,7 @@ void main() {
             currentSong: null,
             isPlaying: false,
             onPlay: (song, queue) {},
+            onPlayAll: (_) {},
             onLogin: () {},
             onOpenCatalog: (_) {},
             onLike: (_) {},
