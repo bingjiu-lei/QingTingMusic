@@ -544,8 +544,12 @@ class _ControlIconButton extends StatelessWidget {
       selectedColor: selectedColor,
       selectedBackgroundColor: selectedBackgroundColor,
       iconColor: AppColors.muted,
-      hoverIconColor: selected ? (selectedColor ?? AppColors.primary) : AppColors.primary,
-      shadowColor: selected ? (selectedColor ?? AppColors.primary) : AppColors.primary,
+      hoverIconColor: selected
+          ? (selectedColor ?? AppColors.primary)
+          : AppColors.primary,
+      shadowColor: selected
+          ? (selectedColor ?? AppColors.primary)
+          : AppColors.primary,
       child: child,
     );
   }
@@ -569,6 +573,12 @@ class _HoverVolumeControlState extends State<_HoverVolumeControl> {
   bool _anchorHovered = false;
   bool _popoverHovered = false;
   double _lastAudibleVolume = 0.78;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.volume > 0.01) _lastAudibleVolume = widget.volume;
+  }
 
   @override
   void didUpdateWidget(covariant _HoverVolumeControl oldWidget) {

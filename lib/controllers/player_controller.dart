@@ -177,6 +177,10 @@ class PlayerController extends ChangeNotifier {
           await audioService.setSpeed(playbackSpeed);
         } catch (_) {}
       }
+      volume = snapshot.volume.clamp(0.0, 1.0);
+      try {
+        await audioService.setVolume(volume);
+      } catch (_) {}
     }
     notifyListeners();
   }
@@ -784,9 +788,12 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> setVolume(double value) async {
-    volume = value.clamp(0.0, 1.0);
+    final clamped = value.clamp(0.0, 1.0);
+    if ((volume - clamped).abs() < 0.0001) return;
+    volume = clamped;
     notifyListeners();
     await audioService.setVolume(volume);
+    _schedulePlaybackStateSave();
   }
 
   Future<void> setPlaybackSpeed(double value) async {
@@ -824,6 +831,7 @@ class PlayerController extends ChangeNotifier {
           shuffleHistory: List.unmodifiable(_shuffleHistory),
           shuffleUpcoming: List.unmodifiable(_shuffleUpcoming),
           playbackSpeed: playbackSpeed,
+          volume: volume,
         ),
       );
     } catch (error, stackTrace) {

@@ -54,7 +54,7 @@ void main() {
     expect(restored.single.title, song.title);
   });
 
-  test('persists playback queue, position and mode', () async {
+  test('persists playback queue, position, mode and volume', () async {
     final service = PlaybackStateService();
     const songs = [
       Song(
@@ -81,6 +81,7 @@ void main() {
         currentSong: songs.last,
         position: const Duration(seconds: 82),
         playbackMode: PlaybackMode.shuffle,
+        volume: 0.42,
       ),
     );
 
@@ -90,6 +91,7 @@ void main() {
     expect(restored?.currentSong?.id, 'two');
     expect(restored?.position, const Duration(seconds: 82));
     expect(restored?.playbackMode, PlaybackMode.shuffle);
+    expect(restored?.volume, closeTo(0.42, 0.001));
   });
 
   test('clears managed cache without deleting login and settings', () async {
