@@ -656,20 +656,17 @@ class _MusicShellState extends State<MusicShell>
     if (current == null) return;
     final playtimeSeconds = playerController.position.inSeconds;
 
-    final nextSongFuture = recommendationController.dislikeFm(
+    final nextSong = await recommendationController.dislikeFm(
       current,
       playtimeSeconds: playtimeSeconds,
     );
+    if (nextSong == null) return;
 
     await playerController.removeFromQueue(current);
-
-    final nextSong = await nextSongFuture;
-    if (nextSong != null) {
-      await playerController.playSong(
-        nextSong,
-        fromQueue: recommendationController.fmSongs,
-      );
-    }
+    await playerController.playSong(
+      nextSong,
+      fromQueue: recommendationController.fmSongs,
+    );
   }
 
   Future<void> _playFromQueue(Song song, List<Song> sourceQueue) async {
