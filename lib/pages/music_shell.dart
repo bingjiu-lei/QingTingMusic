@@ -146,8 +146,14 @@ class _MusicShellState extends State<MusicShell>
   void initState() {
     super.initState();
     widget.themeController.addListener(_handleThemeChanged);
-    playbackQualityController = PlaybackQualityController()
-      ..addListener(_refresh);
+    playbackQualityController = PlaybackQualityController(
+      onQualityChanged: () {
+        if (widget.useDemoData || playerController.currentSong == null) {
+          return;
+        }
+        unawaited(playerController.refreshCurrentSong());
+      },
+    )..addListener(_refresh);
     if (widget.useDemoData) {
       repository = demoRepository;
     } else {
@@ -513,6 +519,13 @@ class _MusicShellState extends State<MusicShell>
 
   void _handlePlayerChanged() {
     final song = playerController.currentSong;
+    playbackQualityController.setCurrentSong(song);
+    final client = apiClient;
+    if (song != null &&
+        client != null &&
+        playbackQualityController.shouldLoadCurrentSongAvailability) {
+      unawaited(client.loadAvailableQualities(song));
+    }
     final shouldRefreshShell =
         _lastShellSongId != song?.id ||
         _lastShellPlaying != playerController.isPlaying;

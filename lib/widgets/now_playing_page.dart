@@ -1700,6 +1700,7 @@ class _PlaybackControls extends StatelessWidget {
                         children: [
                           PlaybackQualityMenu(
                             controller: playbackQualityController,
+                            playerController: controller,
                             compact: true,
                           ),
                           _DesktopLyricControlButton(

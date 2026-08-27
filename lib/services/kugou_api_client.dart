@@ -30,10 +30,18 @@ class KugouApiException implements Exception {
 }
 
 class _PlaybackCandidate {
-  const _PlaybackCandidate({required this.hash, this.quality});
+  const _PlaybackCandidate({required this.hash, this.quality, this.url});
 
   final String hash;
   final Object? quality;
+  final String? url;
+}
+
+class _ResolvedPlayback {
+  const _ResolvedPlayback({required this.url, required this.quality});
+
+  final String url;
+  final Object quality;
 }
 
 class KugouQrCode {
@@ -101,6 +109,7 @@ class KugouApiClient {
   final Map<String, ({DateTime expiresAt, List<String> urls})> _portraitCache =
       {};
   final Map<String, Future<List<String>>> _portraitRequests = {};
+  final Map<String, Future<List<_PlaybackCandidate>>> _privilegeRequests = {};
 
   KugouSession session = const KugouSession();
 
@@ -1259,33 +1268,63 @@ class KugouApiClient {
     if (!await _usesOfficialApi() && !session.isLoggedIn) {
       throw const AuthenticationRequiredException();
     }
-    if (song.hash == null || song.hash!.isEmpty) {
+    final playbackHash = song.playbackSource == 'catalog'
+        ? song.catalogHash
+        : song.hash;
+    if (playbackHash == null || playbackHash.isEmpty) {
       throw const KugouApiException('歌曲缺少播放信息');
+    }
+
+    if (song.isCloud &&
+        song.playbackSource == 'catalog' &&
+        song.catalogHash?.isNotEmpty == true) {
+      return _resolveCloudCatalogPlayback(song);
     }
 
     if (!song.isCloud) {
       final candidates = await _resolvePrivilegeCandidates(song);
+      final allowedQualities =
+          (playbackQualityController?.requestCandidates ?? const <Object>[128])
+              .map(_normalizedQuality)
+              .toSet();
       for (final candidate in candidates) {
-        final candidateUrl = await _resolveSongUrl(
-          song,
-          hash: candidate.hash,
-          quality: candidate.quality,
-        );
+        if (!allowedQualities.contains(_normalizedQuality(candidate.quality))) {
+          continue;
+        }
+        final candidateUrl =
+            candidate.url ??
+            await _resolveSongUrl(
+              song,
+              hash: candidate.hash,
+              quality: candidate.quality,
+            );
         if (candidateUrl != null) {
-          return song.copyWith(audioUrl: candidateUrl);
+          return song.copyWith(
+            audioUrl: candidateUrl,
+            playbackQuality: _normalizedQuality(candidate.quality),
+          );
         }
       }
     }
 
-    final directUrl = await _resolvePreferredSongUrl(song);
-    if (directUrl != null) return song.copyWith(audioUrl: directUrl);
+    final directPlayback = await _resolvePreferredSongUrl(song);
+    if (directPlayback != null) {
+      return song.copyWith(
+        audioUrl: directPlayback.url,
+        playbackQuality: _normalizedQuality(directPlayback.quality),
+      );
+    }
 
     if (!song.isCloud) {
       final cloudMatch = await _findMatchingCloudSong(song);
       if (cloudMatch != null) {
-        final cloudUrl = await _resolvePreferredSongUrl(cloudMatch);
-        if (cloudUrl != null) {
-          return song.copyWith(audioUrl: cloudUrl, playbackNotice: '已切换云盘版本');
+        final cloudPlayback = await _resolvePreferredSongUrl(cloudMatch);
+        if (cloudPlayback != null) {
+          return song.copyWith(
+            audioUrl: cloudPlayback.url,
+            playbackQuality: _normalizedQuality(cloudPlayback.quality),
+            playbackNotice: '已切换云盘版本',
+          );
         }
       }
 
@@ -1293,6 +1332,68 @@ class KugouApiClient {
       if (searchableMatch != null) return searchableMatch;
     }
 
+    throw const KugouApiException('该歌曲无版权或需付费');
+  }
+
+  Future<void> loadAvailableQualities(Song song) async {
+    if (song.hash?.trim().isEmpty != false &&
+        song.catalogHash?.trim().isEmpty != false) {
+      playbackQualityController?.markAvailabilityChecked(song);
+      return;
+    }
+    if (song.isCloud) {
+      final catalogHash = song.catalogHash;
+      if (catalogHash?.isNotEmpty == true) {
+        await _resolvePrivilegeCandidates(
+          song,
+          hashOverride: catalogHash,
+          useCloudSource: false,
+        );
+      }
+    } else {
+      await _resolvePrivilegeCandidates(song);
+    }
+    playbackQualityController?.markAvailabilityChecked(song);
+  }
+
+  Future<Song> _resolveCloudCatalogPlayback(Song song) async {
+    final candidates = await _resolvePrivilegeCandidates(
+      song,
+      hashOverride: song.catalogHash,
+      useCloudSource: false,
+    );
+    final allowed =
+        (playbackQualityController?.requestCandidates ?? const <Object>[128])
+            .map(_normalizedQuality)
+            .toSet();
+    for (final candidate in candidates) {
+      if (!allowed.contains(_normalizedQuality(candidate.quality))) continue;
+      final candidateUrl =
+          candidate.url ??
+          await _resolveSongUrl(
+            song,
+            hash: candidate.hash,
+            quality: candidate.quality,
+            useCloudSource: false,
+          );
+      if (candidateUrl != null) {
+        return song.copyWith(
+          audioUrl: candidateUrl,
+          playbackQuality: _normalizedQuality(candidate.quality),
+        );
+      }
+    }
+
+    final directPlayback = await _resolvePreferredSongUrl(
+      song,
+      useCloudSource: false,
+    );
+    if (directPlayback != null) {
+      return song.copyWith(
+        audioUrl: directPlayback.url,
+        playbackQuality: _normalizedQuality(directPlayback.quality),
+      );
+    }
     throw const KugouApiException('该歌曲无版权或需付费');
   }
 
@@ -1390,20 +1491,23 @@ class KugouApiClient {
     Song song, {
     String? hash,
     Object? quality,
+    bool? useCloudSource,
   }) async {
     final targetHash = hash ?? song.hash;
     if (targetHash == null || targetHash.isEmpty) return null;
     try {
+      final isCloudSource = useCloudSource ?? song.isCloud;
       final response = await _get(
-        song.isCloud ? '/user/cloud/url' : '/song/url',
+        isCloudSource ? '/user/cloud/url' : '/song/url',
         authenticated: true,
+        bypassCache: true,
         queryParameters: {
           'hash': targetHash,
           'album_id': song.albumId ?? 0,
           'album_audio_id': song.albumAudioId ?? 0,
-          if (song.isCloud) 'audio_id': song.cloudAudioId ?? 0,
-          if (song.isCloud) 'name': '${song.artist} - ${song.title}',
-          if (!song.isCloud) 'ppage_id': 356753938,
+          if (isCloudSource) 'audio_id': song.cloudAudioId ?? 0,
+          if (isCloudSource) 'name': '${song.artist} - ${song.title}',
+          if (!isCloudSource) 'ppage_id': 356753938,
           'quality': quality ?? 128,
         },
       );
@@ -1413,40 +1517,121 @@ class KugouApiClient {
     }
   }
 
-  Future<String?> _resolvePreferredSongUrl(Song song) async {
+  Future<_ResolvedPlayback?> _resolvePreferredSongUrl(
+    Song song, {
+    bool? useCloudSource,
+  }) async {
     final qualities =
         playbackQualityController?.requestCandidates ?? const <Object>[128];
     for (final quality in qualities) {
-      final url = await _resolveSongUrl(song, quality: quality);
-      if (url != null) return url;
+      final url = await _resolveSongUrl(
+        song,
+        quality: quality,
+        useCloudSource: useCloudSource,
+      );
+      if (url != null) {
+        if (!(useCloudSource ?? song.isCloud)) {
+          playbackQualityController?.setAvailableQualities(song, [quality]);
+        }
+        final resolvedQuality =
+            (useCloudSource ?? song.isCloud) && song.cloudQuality != null
+            ? song.cloudQuality!
+            : quality;
+        return _ResolvedPlayback(url: url, quality: resolvedQuality);
+      }
     }
     return null;
   }
 
   Future<List<_PlaybackCandidate>> _resolvePrivilegeCandidates(
-    Song song,
-  ) async {
-    final hash = song.hash;
-    if (hash == null || hash.isEmpty || song.isCloud) return const [];
+    Song song, {
+    String? hashOverride,
+    bool useCloudSource = false,
+  }) async {
+    final hash = hashOverride ?? song.hash;
+    if (hash == null || hash.isEmpty) return const [];
+    final requestKey = '${hash.toLowerCase()}:${song.albumId ?? 0}';
+    final pending = _privilegeRequests[requestKey];
+    if (pending != null) return pending;
+    final request = _fetchPrivilegeCandidates(
+      song,
+      hash: hash,
+      useCloudSource: useCloudSource,
+    );
+    _privilegeRequests[requestKey] = request;
+    try {
+      return await request;
+    } finally {
+      _privilegeRequests.remove(requestKey);
+    }
+  }
+
+  Future<List<_PlaybackCandidate>> _fetchPrivilegeCandidates(
+    Song song, {
+    required String hash,
+    required bool useCloudSource,
+  }) async {
     try {
       final response = await _get(
         '/privilege/lite',
         authenticated: true,
+        bypassCache: true,
         queryParameters: {'hash': hash, 'album_id': song.albumId ?? 0},
       );
       final goods = _findRelateGoods(response.data);
+      final playable = <_PlaybackCandidate>[];
+      for (final candidate in goods) {
+        final quality = _normalizedQuality(candidate.quality);
+        if (!const {'128', '320', 'flac', 'high'}.contains(quality)) {
+          continue;
+        }
+        final url = await _resolveSongUrl(
+          song,
+          hash: candidate.hash,
+          quality: candidate.quality,
+          useCloudSource: useCloudSource,
+        );
+        if (url != null) {
+          playable.add(
+            _PlaybackCandidate(
+              hash: candidate.hash,
+              quality: candidate.quality,
+              url: url,
+            ),
+          );
+        }
+      }
+      if (!playable.any(
+        (candidate) => _normalizedQuality(candidate.quality) == '128',
+      )) {
+        final standardUrl = await _resolveSongUrl(
+          song,
+          hash: hash,
+          quality: 128,
+          useCloudSource: useCloudSource,
+        );
+        if (standardUrl != null) {
+          playable.add(
+            _PlaybackCandidate(hash: hash, quality: '128', url: standardUrl),
+          );
+        }
+      }
+      playbackQualityController?.setAvailableQualities(
+        song,
+        playable.map((item) => item.quality),
+      );
       final preferred =
           playbackQualityController?.requestCandidates ?? const <Object>[128];
       final ranks = <String, int>{
         for (var index = 0; index < preferred.length; index++)
           _normalizedQuality(preferred[index]): index,
       };
-      goods.sort((left, right) {
+      playable.sort((left, right) {
         final leftRank = ranks[_normalizedQuality(left.quality)] ?? 999;
         final rightRank = ranks[_normalizedQuality(right.quality)] ?? 999;
         return leftRank.compareTo(rightRank);
       });
-      return goods;
+      return playable;
     } catch (_) {
       return const [];
     }
@@ -1470,10 +1655,11 @@ class KugouApiClient {
       final candidates = await searchSongs('${song.title} ${song.artist}');
       for (final candidate in candidates) {
         if (!_isReplacementCandidate(song, candidate)) continue;
-        final candidateUrl = await _resolvePreferredSongUrl(candidate);
-        if (candidateUrl == null) continue;
+        final candidatePlayback = await _resolvePreferredSongUrl(candidate);
+        if (candidatePlayback == null) continue;
         return song.copyWith(
-          audioUrl: candidateUrl,
+          audioUrl: candidatePlayback.url,
+          playbackQuality: _normalizedQuality(candidatePlayback.quality),
           playbackNotice: '已切换可播放版本',
         );
       }
@@ -1777,16 +1963,39 @@ class KugouApiClient {
         : _map(relateGoodsList.first);
     final relateInfo = _map(relateGoods['info']);
     final transParam = _map(json['trans_param']);
+    final catalogHash = cloud
+        ? _read(
+            json,
+            ['hash_std', 'hashstd'],
+            fallback: _read(
+              audio,
+              ['hash_std', 'hashstd'],
+              fallback: _read(relateGoods, [
+                'hash_std',
+                'hashstd',
+              ], fallback: _read(relateInfo, ['hash_std', 'hashstd'])),
+            ),
+          )
+        : '';
+    final cloudQuality = cloud
+        ? _cloudQuality(
+            json['bitrate'] ?? audio['bitrate'] ?? relateGoods['bitrate'],
+            json['quality'] ?? audio['quality'] ?? relateGoods['quality'],
+          )
+        : null;
     final singerInfoValue = json['singerinfo'];
     final singerInfo = singerInfoValue is List && singerInfoValue.isNotEmpty
         ? _map(singerInfoValue.first)
         : _map(singerInfoValue);
-    final hash = _read(json, [
-      'hash',
-      'FileHash',
-      'file_hash',
-      'filehash',
-    ], fallback: _read(audio, ['hash', 'hash_128', 'file_hash']));
+    final hash = _read(
+      json,
+      ['hash', 'FileHash', 'file_hash', 'filehash'],
+      fallback: _read(audio, [
+        'hash',
+        'hash_128',
+        'file_hash',
+      ], fallback: _read(base, ['hash', 'hash_128', 'file_hash'])),
+    );
     var artist = _read(
       json,
       ['singername', 'SingerName', 'author_name', 'singer_name', 'singer'],
@@ -1886,6 +2095,7 @@ class KugouApiClient {
       duration: Duration(seconds: duration),
       audioUrl: '',
       hash: hash.isEmpty ? null : hash,
+      catalogHash: catalogHash.isEmpty ? null : catalogHash,
       albumId: _nullableInt(
         json['album_id'] ??
             json['albumid'] ??
@@ -1925,6 +2135,7 @@ class KugouApiClient {
             base['audio_id'],
       ),
       liked: liked,
+      cloudQuality: cloudQuality,
     );
   }
 
@@ -2456,17 +2667,32 @@ List<_PlaybackCandidate> _findRelateGoods(Object? value) {
       goods.add(
         _PlaybackCandidate(
           hash: hash,
-          quality: _normalizedQuality(json['quality'] ?? json['level']),
+          quality: _normalizedQuality(
+            json['quality'] ??
+                json['Quality'] ??
+                json['q'] ??
+                json['level'] ??
+                json['quality_level'] ??
+                json['qualityLevel'] ??
+                json['bitrate'],
+          ),
         ),
       );
     }
-    final relateGoods = json['relate_goods'] ?? json['relateGoods'];
-    if (relateGoods != null) visit(relateGoods);
+    for (final child in json.values) {
+      if (child is Map || child is List) visit(child);
+    }
   }
 
   visit(value);
   final seen = <String>{};
-  return goods.where((item) => seen.add(item.hash.toLowerCase())).toList();
+  return goods
+      .where(
+        (item) => seen.add(
+          '${item.hash.toLowerCase()}:${_normalizedQuality(item.quality)}',
+        ),
+      )
+      .toList();
 }
 
 List<String> _findPortraitUrls(Object? value) {
@@ -2515,6 +2741,16 @@ String _normalizedQuality(Object? value) {
     '7' || 'super' || 'dsd' || 'premium' => 'super',
     _ => raw,
   };
+}
+
+String? _cloudQuality(Object? bitrate, Object? quality) {
+  final bitrateValue = _toInt(bitrate);
+  final normalized = _normalizedQuality(
+    bitrateValue > 0 ? bitrateValue : quality,
+  );
+  return const {'128', '320', 'flac', 'high'}.contains(normalized)
+      ? normalized
+      : null;
 }
 
 bool _isSameSong(Song source, Song target) {

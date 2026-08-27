@@ -234,6 +234,7 @@ class PlayerController extends ChangeNotifier {
       }
       if (requestEpoch != _playRequestEpoch) return false;
       currentSong = playableSong;
+      _replaceSongInQueue(playableSong);
       _showPlaybackNotice(playableSong.playbackNotice);
 
       final climaxRequestEpoch = ++_climaxRequestEpoch;
@@ -352,6 +353,72 @@ class PlayerController extends ChangeNotifier {
       );
       return false;
     }
+  }
+
+  /// Re-resolves the current song after a playback setting changes.
+  /// The URL is intentionally cleared so a previously resolved or cached
+  /// source cannot short-circuit the resolver.
+  Future<bool> refreshCurrentSong() async {
+    final song = currentSong;
+    if (song == null) return false;
+    final wasPlaying = isPlaying || audioService.isPlaying;
+    final startPosition = position;
+    final source = song.copyWith(audioUrl: '');
+    final sourceQueue = queue.isEmpty
+        ? <Song>[source]
+        : queue
+              .map(
+                (item) =>
+                    item.id == song.id ? item.copyWith(audioUrl: '') : item,
+              )
+              .toList(growable: false);
+    final result = await playSong(
+      source,
+      fromQueue: sourceQueue,
+      startPosition: startPosition,
+      preserveShufflePath: true,
+    );
+    if (!result && currentSong?.id == song.id) {
+      currentSong = song;
+      duration = song.duration;
+      _hasOpenSource = song.audioUrl.isNotEmpty;
+      isPlaying = wasPlaying;
+      _syncProgress();
+      if (wasPlaying) unawaited(audioService.play());
+      notifyListeners();
+      return false;
+    }
+    if (result && !wasPlaying) {
+      await audioService.pause();
+      isPlaying = false;
+      notifyListeners();
+    }
+    return result;
+  }
+
+  bool preferCloudSource() {
+    final song = currentSong;
+    if (song == null || !song.isCloud || song.playbackSource != 'catalog') {
+      return false;
+    }
+    currentSong = song.copyWith(playbackSource: 'cloud');
+    _replaceSongInQueue(currentSong!);
+    notifyListeners();
+    unawaited(refreshCurrentSong());
+    return true;
+  }
+
+  bool preferCatalogSource({bool refresh = true}) {
+    final song = currentSong;
+    if (song == null || !song.isCloud || song.catalogHash == null) {
+      return false;
+    }
+    if (song.playbackSource == 'catalog') return false;
+    currentSong = song.copyWith(playbackSource: 'catalog');
+    _replaceSongInQueue(currentSong!);
+    notifyListeners();
+    if (refresh) unawaited(refreshCurrentSong());
+    return true;
   }
 
   void _applyDetectedDuration(Duration value) {

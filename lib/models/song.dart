@@ -32,6 +32,7 @@ class Song {
     required this.duration,
     required this.audioUrl,
     this.hash,
+    this.catalogHash,
     this.albumId,
     this.albumAudioId,
     this.coverUrl,
@@ -42,6 +43,9 @@ class Song {
     this.cloudAudioId,
     this.liked = false,
     this.playbackNotice,
+    this.playbackQuality,
+    this.cloudQuality,
+    this.playbackSource,
     this.climaxSegments = const [],
   });
 
@@ -52,6 +56,7 @@ class Song {
   final Duration duration;
   final String audioUrl;
   final String? hash;
+  final String? catalogHash;
   final int? albumId;
   final int? albumAudioId;
   final String? coverUrl;
@@ -62,10 +67,14 @@ class Song {
   final int? cloudAudioId;
   final bool liked;
   final String? playbackNotice;
+  final String? playbackQuality;
+  final String? cloudQuality;
+  final String? playbackSource;
   final List<SongClimaxSegment> climaxSegments;
 
   Song copyWith({
     String? audioUrl,
+    String? hash,
     String? artist,
     int? artistId,
     List<SongArtist>? artists,
@@ -73,6 +82,9 @@ class Song {
     Duration? duration,
     bool? liked,
     String? playbackNotice,
+    String? playbackQuality,
+    String? cloudQuality,
+    String? playbackSource,
     List<SongClimaxSegment>? climaxSegments,
   }) {
     return Song(
@@ -82,7 +94,8 @@ class Song {
       album: album,
       duration: duration ?? this.duration,
       audioUrl: audioUrl ?? this.audioUrl,
-      hash: hash,
+      hash: hash ?? this.hash,
+      catalogHash: catalogHash,
       albumId: albumId,
       albumAudioId: albumAudioId,
       coverUrl: coverUrl,
@@ -93,6 +106,9 @@ class Song {
       cloudAudioId: cloudAudioId,
       liked: liked ?? this.liked,
       playbackNotice: playbackNotice ?? this.playbackNotice,
+      playbackQuality: playbackQuality ?? this.playbackQuality,
+      cloudQuality: cloudQuality ?? this.cloudQuality,
+      playbackSource: playbackSource ?? this.playbackSource,
       climaxSegments: climaxSegments ?? this.climaxSegments,
     );
   }
@@ -105,6 +121,7 @@ class Song {
     'duration': duration.inMilliseconds,
     'audioUrl': audioUrl,
     'hash': hash,
+    'catalogHash': catalogHash,
     'albumId': albumId,
     'albumAudioId': albumAudioId,
     'coverUrl': coverUrl,
@@ -114,6 +131,9 @@ class Song {
     'isCloud': isCloud,
     'cloudAudioId': cloudAudioId,
     'liked': liked,
+    'playbackQuality': playbackQuality,
+    'cloudQuality': cloudQuality,
+    'playbackSource': playbackSource,
   };
 
   factory Song.fromJson(Map<String, Object?> json) {
@@ -126,6 +146,7 @@ class Song {
       duration: Duration(milliseconds: readInt(json['duration']) ?? 0),
       audioUrl: json['audioUrl']?.toString() ?? '',
       hash: json['hash']?.toString(),
+      catalogHash: json['catalogHash']?.toString(),
       albumId: readInt(json['albumId']),
       albumAudioId: readInt(json['albumAudioId']),
       coverUrl: json['coverUrl']?.toString(),
@@ -139,6 +160,9 @@ class Song {
       isCloud: json['isCloud'] == true,
       cloudAudioId: readInt(json['cloudAudioId']),
       liked: json['liked'] == true,
+      playbackQuality: json['playbackQuality']?.toString(),
+      cloudQuality: json['cloudQuality']?.toString(),
+      playbackSource: json['playbackSource']?.toString(),
     );
   }
 }

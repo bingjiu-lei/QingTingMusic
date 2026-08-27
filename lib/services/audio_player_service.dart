@@ -275,7 +275,12 @@ class AudioPlayerService {
     final extension = uri.pathSegments.last.contains('.')
         ? uri.pathSegments.last.split('.').last
         : 'mp3';
-    final safeId = (song.hash ?? song.id).replaceAll(
+    final quality =
+        (song.playbackQuality?.isNotEmpty == true
+                ? song.playbackQuality!
+                : 'auto')
+            .replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+    final safeId = '${(song.hash ?? song.id)}_$quality'.replaceAll(
       RegExp(r'[^A-Za-z0-9_-]'),
       '_',
     );
@@ -315,7 +320,8 @@ class AudioPlayerService {
     );
   }
 
-  String _cacheKey(Song song) => song.hash ?? song.id;
+  String _cacheKey(Song song) =>
+      '${song.hash ?? song.id}:${song.playbackQuality ?? 'auto'}';
 
   Future<void> _touch(File file) async {
     try {

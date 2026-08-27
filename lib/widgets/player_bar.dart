@@ -137,6 +137,7 @@ class PlayerBar extends StatelessWidget {
                             Expanded(
                               flex: 4,
                               child: _ToolSection(
+                                controller: controller,
                                 song: song,
                                 onOpenAlbum: onOpenAlbum,
                                 volume: controller.volume,
@@ -360,6 +361,7 @@ class _TransportSection extends StatelessWidget {
 
 class _ToolSection extends StatelessWidget {
   const _ToolSection({
+    required this.controller,
     required this.song,
     required this.onOpenAlbum,
     required this.volume,
@@ -370,6 +372,7 @@ class _ToolSection extends StatelessWidget {
     required this.onQueuePressed,
   });
 
+  final PlayerController controller;
   final Song? song;
   final ValueChanged<Song>? onOpenAlbum;
   final double volume;
@@ -391,7 +394,11 @@ class _ToolSection extends StatelessWidget {
               : null,
           icon: Icons.album_outlined,
         ),
-      PlaybackQualityMenu(controller: qualityController, compact: true),
+      PlaybackQualityMenu(
+        controller: qualityController,
+        playerController: controller,
+        compact: true,
+      ),
       const SizedBox(width: 4),
       _ControlIconButton(
         tooltip: desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词',

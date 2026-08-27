@@ -251,6 +251,37 @@ void main() {
     controller.dispose();
   });
 
+  test(
+    'refreshes the current source without waiting for the next song',
+    () async {
+      final audio = _FakeAudioPlayerService();
+      var resolveCount = 0;
+      final controller = PlayerController(
+        audioService: audio,
+        resolveSong: (song) async {
+          resolveCount++;
+          return song.copyWith(
+            audioUrl: 'https://example.com/$resolveCount.mp3',
+            playbackQuality: resolveCount == 1 ? '128' : '320',
+          );
+        },
+      );
+      final source = _song('one').copyWith(audioUrl: '');
+
+      await controller.playSong(source);
+      await controller.refreshCurrentSong();
+
+      expect(resolveCount, 2);
+      expect(audio.opened.map((song) => song.audioUrl), [
+        'https://example.com/1.mp3',
+        'https://example.com/2.mp3',
+      ]);
+      expect(controller.currentSong?.playbackQuality, '320');
+
+      controller.dispose();
+    },
+  );
+
   test('shuffle previous keeps the path across rapid next requests', () async {
     final audio = _FakeAudioPlayerService();
     final songs = [_song('one'), _song('two'), _song('three')];
