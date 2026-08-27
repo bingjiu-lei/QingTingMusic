@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../data/music_repository.dart';
@@ -77,13 +79,84 @@ class RecommendationController extends ChangeNotifier {
     }
   }
 
+  Future<Song?> dislikeFm(Song current, {int playtimeSeconds = 0}) async {
+    fmSongs = fmSongs.where((song) => song.id != current.id).toList();
+    notifyListeners();
+
+    if (fmSongs.isNotEmpty) {
+      final immediateNext = fmSongs.first;
+      final requestVersion = ++_fmRequestVersion;
+      unawaited(() async {
+        try {
+          final next = await repository.getPersonalFmSongs(
+            action: 'garbage',
+            contextSong: current,
+            playtimeSeconds: playtimeSeconds,
+            mode: fmMode,
+            songPoolId: fmSongPoolId,
+            remainSongCount: fmSongs.length,
+          );
+          if (requestVersion != _fmRequestVersion) return;
+          final known = <String>{...fmSongs.map(_songKey)};
+          final additions = next
+              .where((song) => known.add(_songKey(song)))
+              .toList();
+          if (additions.isNotEmpty) {
+            fmSongs = [...fmSongs, ...additions];
+            notifyListeners();
+          }
+        } catch (_) {
+          // The current next song is already available; top-up can retry later.
+        }
+      }());
+      return immediateNext;
+    }
+
+    final requestVersion = ++_fmRequestVersion;
+    loadingFm = true;
+    fmError = null;
+    notifyListeners();
+    try {
+      final next = await repository.getPersonalFmSongs(
+        action: 'garbage',
+        contextSong: current,
+        playtimeSeconds: playtimeSeconds,
+        mode: fmMode,
+        songPoolId: fmSongPoolId,
+        remainSongCount: 0,
+      );
+      if (requestVersion != _fmRequestVersion) return null;
+      final known = <String>{...fmSongs.map(_songKey)};
+      final additions = next
+          .where((song) => known.add(_songKey(song)))
+          .toList();
+      fmSongs = additions;
+      if (fmSongs.isEmpty) fmError = '暂时没有可播放的私人 FM';
+      return fmSongs.isEmpty ? null : fmSongs.first;
+    } on AuthenticationRequiredException {
+      fmError = '登录后即可开启私人 FM';
+      return null;
+    } catch (_) {
+      fmError = '私人 FM 暂时不可用，请稍后重试';
+      return null;
+    } finally {
+      if (requestVersion == _fmRequestVersion) {
+        loadingFm = false;
+        notifyListeners();
+      }
+    }
+  }
+
   Future<Song?> nextFm(Song? current, {bool dislike = false}) async {
     if (current != null) {
+      if (dislike) {
+        return dislikeFm(current);
+      }
       fmSongs = fmSongs.where((song) => song.id != current.id).toList();
       notifyListeners();
     }
     if (fmSongs.isNotEmpty) return fmSongs.first;
-    return startFm(contextSong: current, action: dislike ? 'garbage' : 'play');
+    return startFm(contextSong: current, action: 'play');
   }
 
   Future<Song?> restartFm() async {

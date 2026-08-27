@@ -651,6 +651,27 @@ class _MusicShellState extends State<MusicShell>
     await _playFromQueue(song, sourceQueue);
   }
 
+  Future<void> _handleDislikeFm() async {
+    final current = playerController.currentSong;
+    if (current == null) return;
+    final playtimeSeconds = playerController.position.inSeconds;
+
+    final nextSongFuture = recommendationController.dislikeFm(
+      current,
+      playtimeSeconds: playtimeSeconds,
+    );
+
+    await playerController.removeFromQueue(current);
+
+    final nextSong = await nextSongFuture;
+    if (nextSong != null) {
+      await playerController.playSong(
+        nextSong,
+        fromQueue: recommendationController.fmSongs,
+      );
+    }
+  }
+
   Future<void> _playFromQueue(Song song, List<Song> sourceQueue) async {
     if (playerController.currentSong?.id == song.id &&
         playerController.isPlaying) {
@@ -1626,6 +1647,8 @@ class _MusicShellState extends State<MusicShell>
                         onOpenArtist: _openArtistFromSong,
                         onLike: _toggleFavorite,
                         onAddToPlaylist: _showAddToPlaylist,
+                        isFm: _isFmSession,
+                        onDislikeFm: _handleDislikeFm,
                         onQueuePressed: () {
                           setState(() => showQueuePanel = !showQueuePanel);
                         },
@@ -1725,6 +1748,8 @@ class _MusicShellState extends State<MusicShell>
                                   onLike: _toggleFavorite,
                                   onAddToPlaylist: _showAddToPlaylist,
                                   onOpenArtist: _openArtistFromNowPlaying,
+                                  isFm: _isFmSession,
+                                  onDislikeFm: _handleDislikeFm,
                                   desktopLyricsVisible: _desktopLyricsVisible,
                                   onDesktopLyricsChanged: (value) {
                                     unawaited(_setDesktopLyricsVisible(value));
@@ -1952,15 +1977,9 @@ class _CreatePlaylistDialog extends StatelessWidget {
       ],
     ),
     actions: [
-      AppDialogButton.ghost(
-        label: '取消',
-        onPressed: onCancel,
-      ),
+      AppDialogButton.ghost(label: '取消', onPressed: onCancel),
       const SizedBox(width: 8),
-      AppDialogButton.primary(
-        label: '创建',
-        onPressed: onCreate,
-      ),
+      AppDialogButton.primary(label: '创建', onPressed: onCreate),
     ],
   );
 }

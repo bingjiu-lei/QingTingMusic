@@ -9,6 +9,7 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
 import 'app_icon_button.dart';
+import 'heart_off_icon.dart';
 import 'preparing_dots.dart';
 import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
@@ -27,6 +28,8 @@ class PlayerBar extends StatelessWidget {
     this.onAddToPlaylist,
     required this.desktopLyricsVisible,
     required this.onDesktopLyricsChanged,
+    this.isFm = false,
+    this.onDislikeFm,
   });
 
   final PlayerController controller;
@@ -39,6 +42,8 @@ class PlayerBar extends StatelessWidget {
   final ValueChanged<Song>? onAddToPlaylist;
   final bool desktopLyricsVisible;
   final ValueChanged<bool> onDesktopLyricsChanged;
+  final bool isFm;
+  final VoidCallback? onDislikeFm;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -125,6 +130,8 @@ class PlayerBar extends StatelessWidget {
                               child: _TransportSection(
                                 controller: controller,
                                 song: song,
+                                isFm: isFm,
+                                onDislikeFm: onDislikeFm,
                               ),
                             ),
                             Expanded(
@@ -303,21 +310,35 @@ class _TrackSection extends StatelessWidget {
 }
 
 class _TransportSection extends StatelessWidget {
-  const _TransportSection({required this.controller, required this.song});
+  const _TransportSection({
+    required this.controller,
+    required this.song,
+    this.isFm = false,
+    this.onDislikeFm,
+  });
 
   final PlayerController controller;
   final Song? song;
+  final bool isFm;
+  final VoidCallback? onDislikeFm;
 
   @override
   Widget build(BuildContext context) => Row(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
-      _ControlIconButton(
-        tooltip: '上一首',
-        onPressed: song == null ? null : controller.playPrevious,
-        icon: Icons.skip_previous_rounded,
-        iconSize: 25,
-      ),
+      if (isFm)
+        _ControlIconButton(
+          tooltip: '不喜欢',
+          onPressed: song == null || onDislikeFm == null ? null : onDislikeFm,
+          child: const HeartOffIcon(size: 20, strokeWidth: 1.7),
+        )
+      else
+        _ControlIconButton(
+          tooltip: '上一首',
+          onPressed: song == null ? null : controller.playPrevious,
+          icon: Icons.skip_previous_rounded,
+          iconSize: 25,
+        ),
       Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
         child: _PrimaryPlayButton(

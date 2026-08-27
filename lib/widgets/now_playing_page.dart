@@ -10,6 +10,7 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
 import 'app_icon_button.dart';
+import 'heart_off_icon.dart';
 import 'playback_progress.dart';
 import 'playback_quality_menu.dart';
 import 'song_row.dart';
@@ -31,6 +32,8 @@ class NowPlayingPage extends StatefulWidget {
     required this.onTranslationChanged,
     required this.onTransliterationChanged,
     required this.loadArtistPortraits,
+    this.isFm = false,
+    this.onDislikeFm,
   });
 
   final PlayerController controller;
@@ -47,6 +50,8 @@ class NowPlayingPage extends StatefulWidget {
   final ValueChanged<bool> onTranslationChanged;
   final ValueChanged<bool> onTransliterationChanged;
   final Future<List<String>> Function(Song song) loadArtistPortraits;
+  final bool isFm;
+  final VoidCallback? onDislikeFm;
 
   @override
   State<NowPlayingPage> createState() => _NowPlayingPageState();
@@ -246,6 +251,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                       onTogglePortrait: _togglePortraitMode,
                       desktopLyricsVisible: widget.desktopLyricsVisible,
                       onDesktopLyricsChanged: widget.onDesktopLyricsChanged,
+                      isFm: widget.isFm,
+                      onDislikeFm: widget.onDislikeFm,
                     ),
                   ],
                 ],
@@ -1596,6 +1603,8 @@ class _PlaybackControls extends StatelessWidget {
     required this.onTogglePortrait,
     required this.desktopLyricsVisible,
     required this.onDesktopLyricsChanged,
+    this.isFm = false,
+    this.onDislikeFm,
   });
 
   final PlayerController controller;
@@ -1608,6 +1617,8 @@ class _PlaybackControls extends StatelessWidget {
   final VoidCallback onTogglePortrait;
   final bool desktopLyricsVisible;
   final ValueChanged<bool> onDesktopLyricsChanged;
+  final bool isFm;
+  final VoidCallback? onDislikeFm;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -1656,11 +1667,18 @@ class _PlaybackControls extends StatelessWidget {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      _GlassControlButton(
-                        tooltip: '上一首',
-                        icon: Icons.skip_previous_rounded,
-                        onPressed: controller.playPrevious,
-                      ),
+                      if (isFm)
+                        _GlassControlButton(
+                          tooltip: '不喜欢',
+                          onPressed: onDislikeFm,
+                          child: const HeartOffIcon(size: 20, strokeWidth: 1.7),
+                        )
+                      else
+                        _GlassControlButton(
+                          tooltip: '上一首',
+                          icon: Icons.skip_previous_rounded,
+                          onPressed: controller.playPrevious,
+                        ),
                       _PlayControlButton(
                         isPlaying: controller.isPlaying,
                         preparing: controller.isPreparing,
@@ -1720,12 +1738,14 @@ class _PlaybackControls extends StatelessWidget {
 class _GlassControlButton extends StatelessWidget {
   const _GlassControlButton({
     required this.tooltip,
-    required this.icon,
+    this.icon,
+    this.child,
     required this.onPressed,
   });
 
   final String tooltip;
-  final IconData icon;
+  final IconData? icon;
+  final Widget? child;
   final VoidCallback? onPressed;
 
   @override
@@ -1739,6 +1759,7 @@ class _GlassControlButton extends StatelessWidget {
       iconColor: AppColors.muted,
       hoverIconColor: AppColors.primary,
       shadowColor: AppColors.primary,
+      child: child,
     );
   }
 }

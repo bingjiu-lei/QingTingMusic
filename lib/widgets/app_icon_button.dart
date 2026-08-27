@@ -53,27 +53,26 @@ class AppIconButton extends StatefulWidget {
     bool alwaysGlow = false,
     double scaleFactor = 1.08,
     Widget? child,
-  }) =>
-      AppIconButton(
-        key: key,
-        icon: icon,
-        tooltip: tooltip,
-        onPressed: onPressed,
-        variant: AppIconButtonVariant.filled,
-        size: size,
-        iconSize: iconSize,
-        iconColor: iconColor,
-        hoverIconColor: hoverIconColor,
-        backgroundColor: backgroundColor,
-        hoverBackgroundColor: hoverBackgroundColor,
-        shadowColor: shadowColor,
-        selected: selected,
-        selectedColor: selectedColor,
-        selectedBackgroundColor: selectedBackgroundColor,
-        alwaysGlow: alwaysGlow,
-        scaleFactor: scaleFactor,
-        child: child,
-      );
+  }) => AppIconButton(
+    key: key,
+    icon: icon,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    variant: AppIconButtonVariant.filled,
+    size: size,
+    iconSize: iconSize,
+    iconColor: iconColor,
+    hoverIconColor: hoverIconColor,
+    backgroundColor: backgroundColor,
+    hoverBackgroundColor: hoverBackgroundColor,
+    shadowColor: shadowColor,
+    selected: selected,
+    selectedColor: selectedColor,
+    selectedBackgroundColor: selectedBackgroundColor,
+    alwaysGlow: alwaysGlow,
+    scaleFactor: scaleFactor,
+    child: child,
+  );
 
   /// Factory for clean toolbar / row / player bar buttons (no heavy box, smooth floating hover)
   factory AppIconButton.ghost({
@@ -92,25 +91,24 @@ class AppIconButton extends StatefulWidget {
     bool alwaysGlow = false,
     double scaleFactor = 1.08,
     Widget? child,
-  }) =>
-      AppIconButton(
-        key: key,
-        icon: icon,
-        tooltip: tooltip,
-        onPressed: onPressed,
-        variant: AppIconButtonVariant.ghost,
-        size: size,
-        iconSize: iconSize,
-        iconColor: iconColor,
-        hoverIconColor: hoverIconColor,
-        shadowColor: shadowColor,
-        selected: selected,
-        selectedColor: selectedColor,
-        selectedBackgroundColor: selectedBackgroundColor,
-        alwaysGlow: alwaysGlow,
-        scaleFactor: scaleFactor,
-        child: child,
-      );
+  }) => AppIconButton(
+    key: key,
+    icon: icon,
+    tooltip: tooltip,
+    onPressed: onPressed,
+    variant: AppIconButtonVariant.ghost,
+    size: size,
+    iconSize: iconSize,
+    iconColor: iconColor,
+    hoverIconColor: hoverIconColor,
+    shadowColor: shadowColor,
+    selected: selected,
+    selectedColor: selectedColor,
+    selectedBackgroundColor: selectedBackgroundColor,
+    alwaysGlow: alwaysGlow,
+    scaleFactor: scaleFactor,
+    child: child,
+  );
 
   final IconData? icon;
   final String tooltip;
@@ -163,29 +161,30 @@ class _AppIconButtonState extends State<AppIconButton> {
       bg = Colors.transparent;
     } else if (widget.variant == AppIconButtonVariant.filled) {
       if (_hovered) {
-        bg = widget.hoverBackgroundColor ??
+        bg =
+            widget.hoverBackgroundColor ??
             (widget.backgroundColor != null
                 ? widget.backgroundColor!
                 : AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.12));
       } else if (selected) {
-        bg = widget.selectedBackgroundColor ??
+        bg =
+            widget.selectedBackgroundColor ??
             (widget.backgroundColor ??
-                AppColors.surfaceMuted.withValues(
-                  alpha: isDark ? 0.40 : 0.60,
-                ));
+                AppColors.surfaceMuted.withValues(alpha: isDark ? 0.40 : 0.60));
       } else {
-        bg = widget.backgroundColor ??
-            AppColors.surfaceMuted.withValues(
-              alpha: isDark ? 0.40 : 0.60,
-            );
+        bg =
+            widget.backgroundColor ??
+            AppColors.surfaceMuted.withValues(alpha: isDark ? 0.40 : 0.60);
       }
     } else {
       // ghost variant
       if (_hovered) {
-        bg = widget.hoverBackgroundColor ??
+        bg =
+            widget.hoverBackgroundColor ??
             AppColors.primary.withValues(alpha: isDark ? 0.14 : 0.08);
       } else if (selected) {
-        bg = widget.selectedBackgroundColor ??
+        bg =
+            widget.selectedBackgroundColor ??
             AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10);
       } else {
         bg = widget.backgroundColor ?? Colors.transparent;
@@ -194,7 +193,8 @@ class _AppIconButtonState extends State<AppIconButton> {
 
     // Shadow / Halo calculation
     final activeGlow = enabled && (widget.alwaysGlow || _hovered);
-    final baseShadowColor = widget.shadowColor ??
+    final baseShadowColor =
+        widget.shadowColor ??
         (selected
             ? (widget.selectedColor ?? AppColors.primary)
             : AppColors.primary);
@@ -205,8 +205,8 @@ class _AppIconButtonState extends State<AppIconButton> {
               color: baseShadowColor.withValues(
                 alpha: widget.alwaysGlow
                     ? (_hovered
-                        ? (isDark ? 0.45 : 0.32)
-                        : (isDark ? 0.30 : 0.18))
+                          ? (isDark ? 0.45 : 0.32)
+                          : (isDark ? 0.30 : 0.18))
                     : (isDark ? 0.24 : 0.12),
               ),
               blurRadius: _hovered ? 14 : 8,
@@ -235,10 +235,10 @@ class _AppIconButtonState extends State<AppIconButton> {
             scale: !enabled
                 ? 1.0
                 : _pressed
-                    ? 0.94
-                    : _hovered
-                        ? widget.scaleFactor
-                        : 1.0,
+                ? 0.94
+                : _hovered
+                ? widget.scaleFactor
+                : 1.0,
             duration: const Duration(milliseconds: 90),
             curve: Curves.easeOutQuad,
             child: AnimatedContainer(
@@ -252,16 +252,25 @@ class _AppIconButtonState extends State<AppIconButton> {
                 boxShadow: shadows,
               ),
               child: Center(
-                child: widget.child ??
-                    (widget.icon != null
-                        ? Icon(
-                            widget.icon,
-                            size: iconSize,
-                            color: enabled
-                                ? (_hovered ? hoverColor : defaultColor)
-                                : AppColors.faint.withValues(alpha: 0.40),
-                          )
-                        : const SizedBox.shrink()),
+                child: widget.child != null
+                    ? IconTheme(
+                        data: IconThemeData(
+                          color: enabled
+                              ? (_hovered ? hoverColor : defaultColor)
+                              : AppColors.faint.withValues(alpha: 0.40),
+                          size: iconSize,
+                        ),
+                        child: widget.child!,
+                      )
+                    : (widget.icon != null
+                          ? Icon(
+                              widget.icon,
+                              size: iconSize,
+                              color: enabled
+                                  ? (_hovered ? hoverColor : defaultColor)
+                                  : AppColors.faint.withValues(alpha: 0.40),
+                            )
+                          : const SizedBox.shrink()),
               ),
             ),
           ),
