@@ -1,7 +1,7 @@
 <div align="center">
   <img src="assets/images/app_icon_light.png" width="120" alt="晴听音乐" />
   <h1>晴听音乐</h1>
-  <p>搜索够直接，推荐有分寸，播放更顺手的 Windows 音乐播放器。</p>
+  <p>搜索够直接，推荐有分寸，播放更顺手的 <b>Windows第三方酷狗概念版</b> 音乐播放器。</p>
   <p>
     <a href="https://github.com/bingjiu-lei/QingTingMusic/releases/latest">下载最新版</a>
     ·
