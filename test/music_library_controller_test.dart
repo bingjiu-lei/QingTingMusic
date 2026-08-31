@@ -171,6 +171,29 @@ void main() {
     );
   });
 
+  test('refreshes persisted playlist songs once per app session', () async {
+    final playlist = _playlist('session-refresh-p1', name: '歌单A');
+    final staleSong = _song('stale');
+    final freshSong = _song('fresh');
+    final repository = _FakeMusicRepository(
+      playlists: [playlist],
+      favoriteSongs: const [],
+      playlistTracks: {
+        'session-refresh-p1': [freshSong],
+      },
+    );
+    final cache = _FakeMusicLibraryCacheService()
+      ..seedPlaylistSongs(playlist, [staleSong]);
+    final controller = MusicLibraryController(repository, cacheService: cache);
+
+    final firstLoad = await controller.loadPlaylist(playlist);
+    final secondLoad = await controller.loadPlaylist(playlist);
+
+    expect(firstLoad.map((song) => song.id), ['fresh']);
+    expect(secondLoad.map((song) => song.id), ['fresh']);
+    expect(repository.playlistSongRequests, 1);
+  });
+
   test(
     'shows non-favorite default collection with created playlists',
     () async {
@@ -326,6 +349,10 @@ class _FakeMusicLibraryCacheService extends MusicLibraryCacheService {
   MusicLibrarySnapshot _snapshot = const MusicLibrarySnapshot();
   final Map<String, List<Song>> _tracks = {};
 
+  void seedPlaylistSongs(MusicPlaylist playlist, List<Song> songs) {
+    _tracks['${playlist.kind.name}:${playlist.listId}'] = List.of(songs);
+  }
+
   @override
   Future<MusicLibrarySnapshot> load() async => _snapshot;
 
@@ -377,6 +404,7 @@ class _FakeMusicRepository implements MusicRepository {
   final List<Song> _favoriteSongs;
   final Map<String, List<Song>> playlistTracks;
   int playlistRequests = 0;
+  int playlistSongRequests = 0;
 
   @override
   Future<List<MusicPlaylist>> getUserPlaylists() async {
@@ -386,6 +414,7 @@ class _FakeMusicRepository implements MusicRepository {
 
   @override
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist) async {
+    playlistSongRequests++;
     if (playlist.kind == MusicPlaylistKind.favoriteSongs) {
       return List.unmodifiable(_favoriteSongs);
     }

@@ -245,8 +245,9 @@ class _MusicShellState extends State<MusicShell>
         return;
       }
     }
-    await libraryController.ensureLoaded(LibrarySection.songs);
-    unawaited(libraryController.refreshCachedInBackground());
+    // Keep the disk snapshot for fast first paint, but always refresh the
+    // library once when a new app process starts.
+    await libraryController.ensureLoaded(LibrarySection.songs, refresh: true);
     unawaited(recommendationController.loadDaily());
     if (!widget.useDemoData && updateController.autoCheck) {
       unawaited(_checkForUpdates(silent: true));
