@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 
 import '../controllers/playback_quality_controller.dart';
 import '../controllers/player_controller.dart';
-import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'app_icon_button.dart';
 
@@ -40,7 +39,7 @@ class PlaybackQualityMenu extends StatelessWidget {
           style: MenuStyle(
             backgroundColor: WidgetStatePropertyAll(AppColors.surfaceElevated),
             padding: const WidgetStatePropertyAll(
-              EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+              EdgeInsets.symmetric(horizontal: 5, vertical: 5),
             ),
             shape: WidgetStatePropertyAll(
               RoundedRectangleBorder(
@@ -52,21 +51,20 @@ class PlaybackQualityMenu extends StatelessWidget {
           ),
           menuChildren: [
             if (isCloudSong)
-              _QualityMenuItem(
+              QualityMenuItem(
                 selected: isCloudSourceSelected,
                 onPressed: () => playerController?.preferCloudSource(),
-                leading: _QualityBadge(
+                leading: QualityBadge(
                   label: 'CLD',
                   selected: isCloudSourceSelected,
                 ),
                 title: '云盘文件',
-                description: _cloudDescription(song),
               ),
-            if (isCloudSong && qualities.isNotEmpty) const SizedBox(height: 4),
+            if (isCloudSong && qualities.isNotEmpty) const SizedBox(height: 3),
             ...qualities.map((quality) {
               final selected =
                   !isCloudSourceSelected && controller.quality == quality;
-              return _QualityMenuItem(
+              return QualityMenuItem(
                 selected: selected,
                 onPressed: () {
                   final qualityChanged = controller.quality != quality;
@@ -80,33 +78,25 @@ class PlaybackQualityMenu extends StatelessWidget {
                     if (player != null) unawaited(player.refreshCurrentSong());
                   }
                 },
-                leading: _QualityBadge(
-                  label: _qualityBadge(quality),
-                  selected: selected,
-                ),
-                title: _qualityTitle(quality),
-                description: _qualityDescription(quality),
+                leading: QualityBadge(label: quality.badge, selected: selected),
+                title: quality.title,
               );
             }),
             if (qualities.isEmpty &&
                 (!isCloudSong || hasLinkedCatalog) &&
                 !controller.availabilityChecked)
-              _QualityMenuItem(
+              const QualityMenuItem(
                 onPressed: null,
-                leading: const _QualityBadge(label: '…'),
+                leading: QualityBadge(label: '…'),
                 title: '正在检测音质',
-                description: hasLinkedCatalog ? '等待线上官方资源信息' : '等待官方资源信息',
               ),
             if (qualities.isEmpty &&
                 (!isCloudSong || hasLinkedCatalog) &&
                 controller.availabilityChecked)
-              _QualityMenuItem(
+              const QualityMenuItem(
                 onPressed: null,
-                leading: const _QualityBadge(label: '—'),
+                leading: QualityBadge(label: '—'),
                 title: '暂无可用音质',
-                description: hasLinkedCatalog
-                    ? '没有可播放的线上官方资源'
-                    : '当前歌曲没有可播放的官方资源',
               ),
           ],
           builder: (context, menuController, _) {
@@ -127,107 +117,88 @@ class PlaybackQualityMenu extends StatelessWidget {
       },
     );
   }
-
-  String _qualityBadge(PlaybackQuality quality) => switch (quality) {
-    PlaybackQuality.standard => 'STD',
-    PlaybackQuality.high => 'HQ',
-    PlaybackQuality.lossless => 'SQ',
-    PlaybackQuality.hiRes => 'HI',
-  };
-
-  String _cloudDescription(Song? song) {
-    final quality = PlaybackQuality.fromRequestValue(song?.cloudQuality);
-    return quality == null ? '当前歌曲的云盘资源' : '${quality.label} 云盘资源';
-  }
-
-  String _qualityTitle(PlaybackQuality quality) => switch (quality) {
-    PlaybackQuality.standard => '标准音质',
-    PlaybackQuality.high => 'HQ 高品质',
-    PlaybackQuality.lossless => '无损音质',
-    PlaybackQuality.hiRes => 'Hi-Res 高解析',
-  };
-
-  String _qualityDescription(PlaybackQuality quality) => switch (quality) {
-    PlaybackQuality.standard => '流量更省，播放更稳定',
-    PlaybackQuality.high => '更丰富的声音细节',
-    PlaybackQuality.lossless => '优先播放 FLAC 无损资源',
-    PlaybackQuality.hiRes => '资源与账号支持时可用',
-  };
 }
 
-class _QualityMenuItem extends StatelessWidget {
-  const _QualityMenuItem({
+class QualityMenuItem extends StatefulWidget {
+  const QualityMenuItem({
+    super.key,
     required this.leading,
     required this.title,
-    required this.description,
     required this.onPressed,
     this.selected = false,
+    this.width = 148,
   });
 
   final Widget leading;
   final String title;
-  final String description;
   final VoidCallback? onPressed;
   final bool selected;
+  final double width;
+
+  @override
+  State<QualityMenuItem> createState() => _QualityMenuItemState();
+}
+
+class _QualityMenuItemState extends State<QualityMenuItem> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return MenuItemButton(
-      onPressed: onPressed,
-      style: ButtonStyle(
-        padding: const WidgetStatePropertyAll(
-          EdgeInsets.symmetric(horizontal: 8, vertical: 7),
-        ),
-        backgroundColor: WidgetStatePropertyAll(
-          selected ? AppColors.selected : Colors.transparent,
-        ),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
+    final enabled = widget.onPressed != null;
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled
+            ? () {
+                widget.onPressed?.call();
+                Actions.maybeInvoke(context, const DismissIntent());
+              }
+            : null,
+        child: Container(
+          width: widget.width,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: widget.selected
+                ? AppColors.selected
+                : (_hovered && enabled
+                      ? AppColors.surfaceHover
+                      : Colors.transparent),
             borderRadius: BorderRadius.circular(AppRadius.md),
           ),
-        ),
-      ),
-      child: SizedBox(
-        width: 208,
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      color: onPressed == null
-                          ? AppColors.muted
-                          : AppColors.text,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              widget.leading,
+              const SizedBox(width: 9),
+              Expanded(
+                child: Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: widget.selected
+                        ? AppColors.primary
+                        : (enabled ? AppColors.text : AppColors.muted),
+                    fontSize: 12.5,
+                    fontWeight: widget.selected
+                        ? FontWeight.w700
+                        : FontWeight.w500,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: TextStyle(
-                      color: AppColors.faint,
-                      fontSize: 10,
-                      height: 1.2,
-                    ),
-                  ),
-                ],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _QualityBadge extends StatelessWidget {
-  const _QualityBadge({required this.label, this.selected = false});
+class QualityBadge extends StatelessWidget {
+  const QualityBadge({super.key, required this.label, this.selected = false});
 
   final String label;
   final bool selected;
@@ -243,18 +214,19 @@ class _QualityBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(AppRadius.xs),
           border: Border.all(
             color: selected
-                ? AppColors.primary.withValues(alpha: 0.35)
-                : AppColors.muted.withValues(alpha: 0.34),
+                ? AppColors.primary.withValues(alpha: 0.4)
+                : AppColors.muted.withValues(alpha: 0.3),
+            width: 1.2,
           ),
         ),
         child: Center(
           child: selected
-              ? Icon(Icons.check_rounded, size: 16, color: AppColors.primary)
+              ? Icon(Icons.check_rounded, size: 15, color: AppColors.primary)
               : Text(
                   label,
                   style: TextStyle(
                     color: AppColors.muted,
-                    fontSize: label.length > 2 ? 8 : 9.5,
+                    fontSize: label.length > 2 ? 8.5 : 10,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.2,
                   ),

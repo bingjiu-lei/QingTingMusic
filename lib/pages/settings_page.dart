@@ -15,6 +15,7 @@ import '../services/developer_mode_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_dialog.dart';
 import '../widgets/page_header.dart';
+import '../widgets/playback_quality_menu.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -330,7 +331,7 @@ class _SettingsPageState extends State<SettingsPage> {
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   _LegalItem(
                     title: '项目定位',
                     content:
@@ -525,40 +526,29 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 14, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          PageHeader(title: '设置', subtitle: '调整晴听音乐的使用偏好'),
-          const SizedBox(height: 22),
-          Expanded(
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 22),
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(
-                  alpha: AppColors.isDark ? 0.78 : 0.86,
+    return AnimatedBuilder(
+      animation: widget.themeController,
+      builder: (context, _) => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 6, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            PageHeader(title: '设置', subtitle: '调整晴听音乐的使用偏好'),
+            const SizedBox(height: 22),
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(
+                    alpha: AppColors.isDark ? 0.78 : 0.86,
+                  ),
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: AppColors.isDark ? null : AppShadows.soft,
                 ),
-                borderRadius: BorderRadius.circular(AppRadius.xl),
-                border: Border.all(color: AppColors.border),
-                boxShadow: AppColors.isDark ? null : AppShadows.soft,
-              ),
-              child: ShaderMask(
-                blendMode: BlendMode.dstIn,
-                shaderCallback: (bounds) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.white,
-                    Colors.white,
-                    Colors.transparent,
-                  ],
-                  stops: [0, 0.018, 0.97, 1],
-                ).createShader(bounds),
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 22),
+                  padding: const EdgeInsets.symmetric(vertical: 24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -567,7 +557,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         onCustomColor: _showAccentPicker,
                       ),
                       Divider(
-                        height: 30,
+                        height: 32,
                         color: AppColors.divider.withValues(alpha: 0.72),
                       ),
                       _CacheSection(
@@ -578,14 +568,14 @@ class _SettingsPageState extends State<SettingsPage> {
                         onClear: _clearCache,
                       ),
                       Divider(
-                        height: 30,
+                        height: 32,
                         color: AppColors.divider.withValues(alpha: 0.72),
                       ),
                       _PlaybackQualitySection(
                         controller: widget.playbackQualityController,
                       ),
                       Divider(
-                        height: 30,
+                        height: 32,
                         color: AppColors.divider.withValues(alpha: 0.72),
                       ),
                       _SettingSwitchRow(
@@ -595,7 +585,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         value: widget.closeToTray,
                         onChanged: widget.onCloseToTrayChanged,
                       ),
-                      const SizedBox(height: 20),
+                      Divider(
+                        height: 32,
+                        color: AppColors.divider.withValues(alpha: 0.72),
+                      ),
                       _SettingSwitchRow(
                         icon: Icons.view_sidebar_rounded,
                         title: '展开侧边栏',
@@ -604,7 +597,7 @@ class _SettingsPageState extends State<SettingsPage> {
                         onChanged: widget.onSidebarExpandedChanged,
                       ),
                       Divider(
-                        height: 30,
+                        height: 32,
                         color: AppColors.divider.withValues(alpha: 0.72),
                       ),
                       _UpdateSection(
@@ -615,7 +608,10 @@ class _SettingsPageState extends State<SettingsPage> {
                         onLegalTap: _showLegalDialog,
                       ),
                       if (_developerEnabled) ...[
-                        const Divider(height: 30),
+                        Divider(
+                          height: 32,
+                          color: AppColors.divider.withValues(alpha: 0.72),
+                        ),
                         _DeveloperSection(
                           apiController: _controller,
                           githubProxyController: _githubProxyController,
@@ -638,8 +634,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -652,6 +648,68 @@ class _SettingsPageState extends State<SettingsPage> {
       return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
     }
     return '${(bytes / 1024 / 1024 / 1024).toStringAsFixed(2)} GB';
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(
+              alpha: AppColors.isDark ? 0.14 : 0.08,
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.16),
+            ),
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.1,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: AppColors.muted,
+                  fontSize: 12,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -673,119 +731,155 @@ class _AppearanceSection extends StatelessWidget {
   final VoidCallback onCustomColor;
 
   @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: controller,
-    builder: (context, _) => Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(Icons.palette_outlined, color: AppColors.primary, size: 21),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _SectionHeader(
+        icon: Icons.palette_outlined,
+        title: '外观',
+        subtitle: '主题色会影响选中状态、按钮和页面氛围，品牌图标仍保持原色。',
+      ),
+      const SizedBox(height: 16),
+      Padding(
+        padding: const EdgeInsets.only(left: 52),
+        child: Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _ThemeModeSwitcher(
+              isDark: controller.isDark,
+              onChanged: controller.setDarkMode,
+            ),
+            const SizedBox(width: 4),
+            for (final color in colors) ...[
+              _ThemeSwatch(
+                color: color,
+                selected:
+                    !controller.coverAccentEnabled &&
+                    controller.accentColor.toARGB32() == color.toARGB32(),
+                onTap: () async {
+                  await controller.setCoverAccentEnabled(false);
+                  await controller.setAccentColor(color);
+                },
+              ),
+            ],
+            _CoverAccentButton(
+              enabled: controller.coverAccentEnabled,
+              onTap: () => controller.setCoverAccentEnabled(
+                !controller.coverAccentEnabled,
+              ),
+            ),
+            _SettingsButton(
+              icon: Icons.colorize_rounded,
+              label: '自定义',
+              onPressed: onCustomColor,
+            ),
+            _SettingsButton.ghost(
+              label: '恢复默认',
+              onPressed: () async {
+                await controller.setCoverAccentEnabled(false);
+                await controller.resetAccentColor();
+              },
+            ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+class _ThemeModeSwitcher extends StatelessWidget {
+  const _ThemeModeSwitcher({required this.isDark, required this.onChanged});
+
+  final bool isDark;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: AppColors.page,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildItem(
+            label: '浅色',
+            icon: Icons.light_mode_rounded,
+            active: !isDark,
+            onTap: () => onChanged(false),
+          ),
+          const SizedBox(width: 2),
+          _buildItem(
+            label: '深色',
+            icon: Icons.dark_mode_rounded,
+            active: isDark,
+            onTap: () => onChanged(true),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItem({
+    required String label,
+    required IconData icon,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? AppColors.surface : Colors.transparent,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            boxShadow: active && !AppColors.isDark
+                ? [
+                    BoxShadow(
+                      color: AppColors.shadow.withValues(alpha: 0.08),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
+              Icon(
+                icon,
+                size: 15,
+                color: active ? AppColors.primary : AppColors.muted,
+              ),
+              const SizedBox(width: 5),
               Text(
-                '外观',
+                label,
                 style: TextStyle(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w700,
+                  color: active ? AppColors.text : AppColors.muted,
+                  fontSize: 12.5,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '主题色会影响选中状态、按钮和页面氛围，品牌图标仍保持原色。',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  SegmentedButton<bool>(
-                    segments: const [
-                      ButtonSegment(
-                        value: false,
-                        icon: Icon(Icons.light_mode_rounded, size: 17),
-                        label: Text('浅色'),
-                      ),
-                      ButtonSegment(
-                        value: true,
-                        icon: Icon(Icons.dark_mode_rounded, size: 17),
-                        label: Text('深色'),
-                      ),
-                    ],
-                    selected: {controller.isDark},
-                    onSelectionChanged: (value) =>
-                        controller.setDarkMode(value.first),
-                    showSelectedIcon: false,
-                    style: const ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                  const SizedBox(width: 18),
-                  for (final color in colors) ...[
-                    _ThemeSwatch(
-                      color: color,
-                      selected:
-                          !controller.coverAccentEnabled &&
-                          controller.accentColor.toARGB32() == color.toARGB32(),
-                      onTap: () async {
-                        await controller.setCoverAccentEnabled(false);
-                        await controller.setAccentColor(color);
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Tooltip(
-                    message: controller.coverAccentEnabled
-                        ? '关闭随封面取色'
-                        : '主题色跟随当前歌曲封面',
-                    child: IconButton(
-                      onPressed: () => controller.setCoverAccentEnabled(
-                        !controller.coverAccentEnabled,
-                      ),
-                      icon: Icon(
-                        controller.coverAccentEnabled
-                            ? Icons.album_rounded
-                            : Icons.album_outlined,
-                      ),
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size(34, 34),
-                        fixedSize: const Size(34, 34),
-                        iconSize: 18,
-                        foregroundColor: controller.coverAccentEnabled
-                            ? AppColors.primary
-                            : AppColors.muted,
-                        backgroundColor: controller.coverAccentEnabled
-                            ? AppColors.selected
-                            : Colors.transparent,
-                        side: BorderSide(color: AppColors.divider),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  OutlinedButton.icon(
-                    onPressed: onCustomColor,
-                    icon: const Icon(Icons.colorize_rounded, size: 17),
-                    label: const Text('自定义'),
-                  ),
-                  const SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () async {
-                      await controller.setCoverAccentEnabled(false);
-                      await controller.resetAccentColor();
-                    },
-                    child: const Text('恢复默认'),
-                  ),
-                ],
               ),
             ],
           ),
         ),
-      ],
-    ),
-  );
+      ),
+    );
+  }
 }
 
-class _ThemeSwatch extends StatelessWidget {
+class _ThemeSwatch extends StatefulWidget {
   const _ThemeSwatch({
     required this.color,
     required this.selected,
@@ -797,29 +891,81 @@ class _ThemeSwatch extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: '使用此主题色',
-    child: InkWell(
-      onTap: onTap,
-      customBorder: const CircleBorder(),
-      child: AnimatedContainer(
-        duration: AppMotion.fast,
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: selected ? AppColors.text : Colors.transparent,
-            width: 2,
+  State<_ThemeSwatch> createState() => _ThemeSwatchState();
+}
+
+class _ThemeSwatchState extends State<_ThemeSwatch> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '使用此主题色',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedScale(
+            scale: _hovered ? 1.1 : 1.0,
+            duration: AppMotion.fast,
+            child: AnimatedContainer(
+              duration: AppMotion.fast,
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: widget.color,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: widget.selected
+                      ? (AppColors.isDark ? Colors.white : AppColors.text)
+                      : Colors.white.withValues(alpha: 0.2),
+                  width: widget.selected ? 2.5 : 1.5,
+                ),
+                boxShadow: widget.selected
+                    ? [
+                        BoxShadow(
+                          color: widget.color.withValues(alpha: 0.4),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: widget.selected
+                  ? const Icon(
+                      Icons.check_rounded,
+                      size: 17,
+                      color: Colors.white,
+                    )
+                  : null,
+            ),
           ),
         ),
-        child: selected
-            ? const Icon(Icons.check_rounded, size: 17, color: Colors.white)
-            : null,
       ),
-    ),
-  );
+    );
+  }
+}
+
+class _CoverAccentButton extends StatelessWidget {
+  const _CoverAccentButton({required this.enabled, required this.onTap});
+
+  final bool enabled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: enabled ? '关闭随封面取色' : '主题色跟随当前歌曲封面',
+      child: _SettingsButton(
+        icon: enabled ? Icons.album_rounded : Icons.album_outlined,
+        label: '封面取色',
+        active: enabled,
+        onPressed: onTap,
+      ),
+    );
+  }
 }
 
 class _ColorSlider extends StatelessWidget {
@@ -898,38 +1044,65 @@ class _DeveloperSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.code_rounded, color: AppColors.primary, size: 21),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(
+                  alpha: AppColors.isDark ? 0.14 : 0.08,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.16),
+                ),
+              ),
+              child: Icon(
+                Icons.code_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Text(
-                      '开发者管理',
-                      style: TextStyle(
-                        color: AppColors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  Text(
+                    '开发者管理',
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
                     ),
                   ),
-                  TextButton(
-                    onPressed: onDisable,
-                    child: const Text('关闭开发者模式'),
+                  const SizedBox(height: 3),
+                  Text(
+                    '调试接口、升级代理和运行日志。普通使用无需调整这些选项。',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 5),
-              Text(
-                '调试接口、升级代理和运行日志。普通使用无需调整这些选项。',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
+            ),
+            _SettingsButton.ghost(label: '关闭开发者模式', onPressed: onDisable),
+          ],
+        ),
+        const SizedBox(height: 18),
+        Padding(
+          padding: const EdgeInsets.only(left: 52),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
               _DeveloperTextField(
                 title: '后端 API',
                 description: '留空时直接请求官方接口；填写后使用这个域名下的服务器接口。',
@@ -940,7 +1113,7 @@ class _DeveloperSection extends StatelessWidget {
                 saved: endpointSaved,
                 onSave: onSaveEndpoint,
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 8),
               Text(
                 endpointErrorText ??
                     (activeEndpoint.isEmpty
@@ -966,7 +1139,7 @@ class _DeveloperSection extends StatelessWidget {
                 saved: proxySaved,
                 onSave: onSaveGithubProxy,
               ),
-              const SizedBox(height: 9),
+              const SizedBox(height: 8),
               Text(
                 proxyErrorText ??
                     (githubProxyController.text.trim().isEmpty
@@ -981,18 +1154,18 @@ class _DeveloperSection extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                spacing: 12,
+                runSpacing: 12,
                 children: [
-                  OutlinedButton.icon(
+                  _SettingsButton(
+                    icon: Icons.content_copy_rounded,
+                    label: '复制诊断信息',
                     onPressed: onCopyDiagnostics,
-                    icon: const Icon(Icons.content_copy_rounded, size: 17),
-                    label: const Text('复制诊断信息'),
                   ),
-                  OutlinedButton.icon(
+                  _SettingsButton(
+                    icon: Icons.article_outlined,
+                    label: '查看播放日志',
                     onPressed: onShowPlaybackLog,
-                    icon: const Icon(Icons.article_outlined, size: 17),
-                    label: const Text('查看播放日志'),
                   ),
                 ],
               ),
@@ -1038,7 +1211,7 @@ class _DeveloperTextField extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 5),
+        const SizedBox(height: 4),
         Text(
           description,
           style: TextStyle(color: AppColors.muted, fontSize: 12),
@@ -1047,27 +1220,56 @@ class _DeveloperTextField extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: hintText,
-                  prefixIcon: Icon(icon, size: 20),
-                  filled: true,
-                  fillColor: AppColors.page,
-                  border: const OutlineInputBorder(borderSide: BorderSide.none),
+              child: SizedBox(
+                height: 38,
+                child: TextField(
+                  controller: controller,
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: hintText,
+                    hintStyle: TextStyle(
+                      color: AppColors.muted.withValues(alpha: 0.65),
+                      fontSize: 12.5,
+                    ),
+                    prefixIcon: Icon(icon, size: 18, color: AppColors.muted),
+                    filled: true,
+                    fillColor: AppColors.page,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(color: AppColors.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      borderSide: BorderSide(
+                        color: AppColors.primary,
+                        width: 1.4,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            FilledButton(
+            const SizedBox(width: 10),
+            _SettingsButton.primary(
+              label: saving
+                  ? '保存中'
+                  : saved
+                  ? '已保存'
+                  : '保存',
+              loading: saving,
               onPressed: saving ? null : onSave,
-              child: Text(
-                saving
-                    ? '保存中'
-                    : saved
-                    ? '已保存'
-                    : '保存',
-              ),
             ),
           ],
         ),
@@ -1097,81 +1299,172 @@ class _UpdateSection extends StatelessWidget {
     final version = controller.currentVersion.isEmpty
         ? '读取中'
         : 'v${controller.currentVersion}';
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.info_outline_rounded, color: AppColors.primary, size: 21),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '关于晴听音乐',
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w600,
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(
+                  alpha: AppColors.isDark ? 0.14 : 0.08,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.16),
                 ),
               ),
-              const SizedBox(height: 5),
-              GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: onVersionTap,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2),
-                  child: Text(
-                    '当前版本 $version',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12),
-                  ),
-                ),
+              child: Icon(
+                Icons.info_outline_rounded,
+                color: AppColors.primary,
+                size: 20,
               ),
-              const SizedBox(height: 13),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  FilterChip(
-                    selected: controller.autoCheck,
-                    label: const Text('启动时自动检查更新'),
-                    onSelected: (value) {
-                      controller.setAutoCheck(value);
-                    },
-                    selectedColor: AppColors.selected,
-                    checkmarkColor: AppColors.primary,
-                    backgroundColor: AppColors.page,
-                    side: BorderSide(color: AppColors.divider),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                  Row(
+                    children: [
+                      Text(
+                        '关于晴听音乐',
+                        style: TextStyle(
+                          color: AppColors.text,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.1,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      _VersionBadge(version: version, onTap: onVersionTap),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '极简清爽的第三方桌面音乐客户端',
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.3,
                     ),
                   ),
-                  OutlinedButton.icon(
-                    onPressed: checking ? null : onCheckUpdates,
-                    icon: checking
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.system_update_alt_rounded, size: 18),
-                    label: Text(checking ? '检查中' : '检查更新'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onProjectTap,
-                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
-                    label: const Text('项目地址'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: onLegalTap,
-                    icon: const Icon(Icons.gavel_rounded, size: 17),
-                    label: const Text('声明'),
-                  ),
                 ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.only(left: 52),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _AutoCheckChip(
+                selected: controller.autoCheck,
+                onChanged: controller.setAutoCheck,
+              ),
+              _SettingsButton(
+                icon: Icons.system_update_alt_rounded,
+                label: checking ? '检查中' : '检查更新',
+                loading: checking,
+                onPressed: checking ? null : onCheckUpdates,
+              ),
+              _SettingsButton(
+                icon: Icons.open_in_new_rounded,
+                label: '项目地址',
+                onPressed: onProjectTap,
+              ),
+              _SettingsButton(
+                icon: Icons.gavel_rounded,
+                label: '声明',
+                onPressed: onLegalTap,
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _VersionBadge extends StatefulWidget {
+  const _VersionBadge({required this.version, required this.onTap});
+
+  final String version;
+  final VoidCallback onTap;
+
+  @override
+  State<_VersionBadge> createState() => _VersionBadgeState();
+}
+
+class _VersionBadgeState extends State<_VersionBadge> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '连续点击可切换开发者模式',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? AppColors.primary.withValues(
+                      alpha: AppColors.isDark ? 0.22 : 0.14,
+                    )
+                  : AppColors.primary.withValues(
+                      alpha: AppColors.isDark ? 0.14 : 0.08,
+                    ),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              border: Border.all(
+                color: AppColors.primary.withValues(
+                  alpha: _hovered ? 0.4 : 0.22,
+                ),
+              ),
+            ),
+            child: Text(
+              widget.version,
+              style: TextStyle(
+                color: AppColors.primary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.3,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AutoCheckChip extends StatelessWidget {
+  const _AutoCheckChip({required this.selected, required this.onChanged});
+
+  final bool selected;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return _SettingsButton(
+      icon: selected
+          ? Icons.check_circle_rounded
+          : Icons.radio_button_unchecked_rounded,
+      label: '启动时自动检查更新',
+      active: selected,
+      onPressed: () => onChanged(!selected),
     );
   }
 }
@@ -1240,76 +1533,73 @@ class _CacheSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(
-          Icons.cleaning_services_rounded,
-          color: AppColors.primary,
-          size: 21,
+        _SectionHeader(
+          icon: Icons.cleaning_services_rounded,
+          title: '缓存管理',
+          subtitle: '缓存用于提升加载与播放速度，超过上限会自动清理较早内容。',
         ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.only(left: 52),
+          child: Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Text(
-                '缓存管理',
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w600,
+              _CacheStatBadge(sizeText: sizeText),
+              MenuAnchor(
+                style: MenuStyle(
+                  backgroundColor: WidgetStatePropertyAll(
+                    AppColors.surfaceElevated,
+                  ),
+                  padding: const WidgetStatePropertyAll(
+                    EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                  ),
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                      side: BorderSide(color: AppColors.border),
+                    ),
+                  ),
+                  elevation: const WidgetStatePropertyAll(4),
                 ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                '缓存用于提升加载与播放速度，超过上限会自动清理较早内容。',
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
-              ),
-              const SizedBox(height: 13),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  _CacheInfo(label: '当前占用', value: sizeText),
-                  Container(
-                    height: 36,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: AppColors.page,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppColors.divider),
+                menuChildren: _limits.map((limit) {
+                  final selected = selectedLimit == limit;
+                  return QualityMenuItem(
+                    width: 140,
+                    selected: selected,
+                    leading: QualityBadge(
+                      label: _limitBadge(limit),
+                      selected: selected,
                     ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int>(
-                        value: _limits.contains(selectedLimit)
-                            ? selectedLimit
-                            : CacheManagementService.defaultLimitBytes,
-                        borderRadius: BorderRadius.circular(8),
-                        dropdownColor: AppColors.surface,
-                        iconEnabledColor: AppColors.muted,
-                        style: TextStyle(
-                          color: AppColors.text,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        items: _limits
-                            .map(
-                              (value) => DropdownMenuItem<int>(
-                                value: value,
-                                child: Text('上限 ${_limitLabel(value)}'),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: busy ? null : onLimitChanged,
-                      ),
+                    title: '上限 ${_limitLabel(limit)}',
+                    onPressed: () => onLimitChanged(limit),
+                  );
+                }).toList(),
+                builder: (context, menuController, _) {
+                  return _DropdownTriggerButton(
+                    isOpen: menuController.isOpen,
+                    onTap: busy
+                        ? () {}
+                        : () => menuController.isOpen
+                              ? menuController.close()
+                              : menuController.open(),
+                    leading: QualityBadge(
+                      label: _limitBadge(selectedLimit),
+                      selected: true,
                     ),
-                  ),
-                  OutlinedButton(
-                    onPressed: busy ? null : onClear,
-                    child: Text(busy ? '处理中' : '清理缓存'),
-                  ),
-                ],
+                    label: '上限 ${_limitLabel(selectedLimit)}',
+                  );
+                },
+              ),
+              _SettingsButton(
+                icon: Icons.delete_outline_rounded,
+                label: busy ? '处理中' : '清理缓存',
+                loading: busy,
+                onPressed: busy ? null : onClear,
               ),
             ],
           ),
@@ -1324,32 +1614,48 @@ class _CacheSection extends StatelessWidget {
     }
     return '${(bytes / 1024 / 1024).toInt()} MB';
   }
+
+  static String _limitBadge(int bytes) {
+    if (bytes >= 1024 * 1024 * 1024) {
+      return '${(bytes / 1024 / 1024 / 1024).toInt()}G';
+    }
+    return '${(bytes / 1024 / 1024).toInt()}M';
+  }
 }
 
-class _CacheInfo extends StatelessWidget {
-  const _CacheInfo({required this.label, required this.value});
+class _CacheStatBadge extends StatelessWidget {
+  const _CacheStatBadge({required this.sizeText});
 
-  final String label;
-  final String value;
+  final String sizeText;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 36,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 14),
       decoration: BoxDecoration(
         color: AppColors.selected.withValues(
-          alpha: AppColors.isDark ? 0.55 : 1,
+          alpha: AppColors.isDark ? 0.5 : 0.85,
         ),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.16)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
+          Icon(
+            Icons.pie_chart_outline_rounded,
+            size: 16,
+            color: AppColors.primary,
+          ),
           const SizedBox(width: 8),
           Text(
-            value,
+            '当前占用',
+            style: TextStyle(color: AppColors.muted, fontSize: 12.5),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            sizeText,
             style: TextStyle(
               color: AppColors.text,
               fontWeight: FontWeight.w700,
@@ -1372,75 +1678,183 @@ class _PlaybackQualitySection extends StatelessWidget {
     return AnimatedBuilder(
       animation: controller,
       builder: (context, _) {
+        final currentQuality = controller.quality;
         return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(
-              Icons.high_quality_rounded,
-              color: AppColors.primary,
-              size: 21,
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(
+                  alpha: AppColors.isDark ? 0.14 : 0.08,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.16),
+                ),
+              ),
+              child: Icon(
+                Icons.high_quality_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
             ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     '播放音质',
                     style: TextStyle(
                       color: AppColors.text,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
                     ),
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 3),
                   Text(
                     '新歌曲优先按此音质解析，不可用时会自动选择可播放版本。',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 16),
-            Container(
-              height: 36,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: AppColors.page,
-                borderRadius: BorderRadius.circular(AppRadius.sm),
-                border: Border.all(color: AppColors.divider),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<PlaybackQuality>(
-                  value: controller.quality,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                  dropdownColor: AppColors.surface,
-                  iconEnabledColor: AppColors.muted,
-                  style: TextStyle(
-                    color: AppColors.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                  ),
-                  items: PlaybackQuality.values
-                      .map(
-                        (quality) => DropdownMenuItem(
-                          value: quality,
-                          child: Text(
-                            quality == PlaybackQuality.standard
-                                ? '标准音质'
-                                : '${quality.label} 音质',
-                          ),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) controller.select(value);
-                  },
+            MenuAnchor(
+              style: MenuStyle(
+                backgroundColor: WidgetStatePropertyAll(
+                  AppColors.surfaceElevated,
                 ),
+                padding: const WidgetStatePropertyAll(
+                  EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                ),
+                shape: WidgetStatePropertyAll(
+                  RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.lg),
+                    side: BorderSide(color: AppColors.border),
+                  ),
+                ),
+                elevation: const WidgetStatePropertyAll(4),
               ),
+              menuChildren: PlaybackQuality.values.map((quality) {
+                final selected = currentQuality == quality;
+                return QualityMenuItem(
+                  width: 148,
+                  selected: selected,
+                  leading: QualityBadge(
+                    label: quality.badge,
+                    selected: selected,
+                  ),
+                  title: quality.title,
+                  onPressed: () => controller.select(quality),
+                );
+              }).toList(),
+              builder: (context, menuController, _) {
+                return _DropdownTriggerButton(
+                  isOpen: menuController.isOpen,
+                  onTap: () => menuController.isOpen
+                      ? menuController.close()
+                      : menuController.open(),
+                  leading: QualityBadge(
+                    label: currentQuality.badge,
+                    selected: true,
+                  ),
+                  label: currentQuality.title,
+                );
+              },
             ),
           ],
         );
       },
+    );
+  }
+}
+
+class _DropdownTriggerButton extends StatefulWidget {
+  const _DropdownTriggerButton({
+    required this.isOpen,
+    required this.onTap,
+    this.leading,
+    required this.label,
+  });
+
+  final bool isOpen;
+  final VoidCallback onTap;
+  final Widget? leading;
+  final String label;
+
+  @override
+  State<_DropdownTriggerButton> createState() => _DropdownTriggerButtonState();
+}
+
+class _DropdownTriggerButtonState extends State<_DropdownTriggerButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: AppMotion.fast,
+          height: 38,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: widget.isOpen
+                ? AppColors.selected
+                : _hovered
+                ? AppColors.surfaceHover
+                : AppColors.page,
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: widget.isOpen
+                  ? AppColors.primary.withValues(alpha: 0.4)
+                  : _hovered
+                  ? AppColors.primary.withValues(alpha: 0.25)
+                  : AppColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.leading != null) ...[
+                widget.leading!,
+                const SizedBox(width: 8),
+              ],
+              Text(
+                widget.label,
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 6),
+              AnimatedRotation(
+                turns: widget.isOpen ? 0.5 : 0.0,
+                duration: AppMotion.fast,
+                child: Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 18,
+                  color: widget.isOpen ? AppColors.primary : AppColors.muted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1462,31 +1876,197 @@ class _SettingSwitchRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.primary, size: 21),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontWeight: FontWeight.w600,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onChanged(!value),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(
+                  alpha: AppColors.isDark ? 0.14 : 0.08,
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: AppColors.primary.withValues(alpha: 0.16),
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: TextStyle(color: AppColors.muted, fontSize: 12),
+              child: Icon(icon, color: AppColors.primary, size: 20),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: AppColors.text,
+                      fontSize: 14.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      color: AppColors.muted,
+                      fontSize: 12,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
+            const SizedBox(width: 16),
+            Switch(value: value, onChanged: onChanged),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SettingsButton extends StatefulWidget {
+  const _SettingsButton({
+    this.icon,
+    required this.label,
+    this.onPressed,
+    this.active = false,
+    this.loading = false,
+  }) : isGhost = false,
+       isPrimary = false;
+
+  const _SettingsButton.ghost({required this.label, this.onPressed})
+    : icon = null,
+      active = false,
+      isGhost = true,
+      isPrimary = false,
+      loading = false;
+
+  const _SettingsButton.primary({
+    required this.label,
+    this.onPressed,
+    this.loading = false,
+  }) : icon = null,
+       active = false,
+       isGhost = false,
+       isPrimary = true;
+
+  final IconData? icon;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool active;
+  final bool isGhost;
+  final bool isPrimary;
+  final bool loading;
+
+  @override
+  State<_SettingsButton> createState() => _SettingsButtonState();
+}
+
+class _SettingsButtonState extends State<_SettingsButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = widget.onPressed != null && !widget.loading;
+    final isDark = AppColors.isDark;
+
+    Color bg;
+    Color fg;
+    Color borderColor;
+
+    if (widget.isPrimary) {
+      bg = enabled
+          ? (_hovered ? AppColors.primaryPressed : AppColors.primary)
+          : AppColors.primary.withValues(alpha: 0.4);
+      fg = Colors.white;
+      borderColor = Colors.transparent;
+    } else if (widget.isGhost) {
+      bg = _hovered
+          ? (isDark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Colors.black.withValues(alpha: 0.05))
+          : Colors.transparent;
+      fg = _hovered ? AppColors.primary : AppColors.muted;
+      borderColor = Colors.transparent;
+    } else if (widget.active) {
+      bg = AppColors.selected;
+      fg = AppColors.primary;
+      borderColor = AppColors.primary.withValues(alpha: 0.35);
+    } else {
+      bg = _hovered ? AppColors.surfaceHover : AppColors.page;
+      fg = _hovered ? AppColors.text : AppColors.muted;
+      borderColor = AppColors.border;
+    }
+
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: enabled ? (_) => setState(() => _pressed = true) : null,
+        onTapUp: enabled ? (_) => setState(() => _pressed = false) : null,
+        onTapCancel: enabled ? () => setState(() => _pressed = false) : null,
+        onTap: enabled ? widget.onPressed : null,
+        child: AnimatedScale(
+          scale: _pressed
+              ? 0.97
+              : _hovered && enabled
+              ? 1.02
+              : 1.0,
+          duration: AppMotion.fast,
+          child: AnimatedContainer(
+            duration: AppMotion.fast,
+            height: 38,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: borderColor),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (widget.loading) ...[
+                  SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                  ),
+                  const SizedBox(width: 8),
+                ] else if (widget.icon != null) ...[
+                  Icon(widget.icon, size: 16, color: fg),
+                  const SizedBox(width: 7),
+                ],
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 12.5,
+                    fontWeight: widget.isPrimary || widget.active
+                        ? FontWeight.w700
+                        : FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        Switch(value: value, onChanged: onChanged),
-      ],
+      ),
     );
   }
 }
