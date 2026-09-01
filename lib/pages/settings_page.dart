@@ -14,6 +14,7 @@ import '../services/cache_management_service.dart';
 import '../services/developer_mode_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_dialog.dart';
+import '../widgets/app_scrollbar.dart';
 import '../widgets/page_header.dart';
 import '../widgets/playback_quality_menu.dart';
 
@@ -538,7 +539,6 @@ class _SettingsPageState extends State<SettingsPage> {
             Expanded(
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 24),
                 decoration: BoxDecoration(
                   color: AppColors.surface.withValues(
                     alpha: AppColors.isDark ? 0.78 : 0.86,
@@ -547,89 +547,97 @@ class _SettingsPageState extends State<SettingsPage> {
                   border: Border.all(color: AppColors.border),
                   boxShadow: AppColors.isDark ? null : AppShadows.soft,
                 ),
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _AppearanceSection(
-                        controller: widget.themeController,
-                        onCustomColor: _showAccentPicker,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(AppRadius.xl),
+                  child: AppScrollbar(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 24,
                       ),
-                      Divider(
-                        height: 32,
-                        color: AppColors.divider.withValues(alpha: 0.72),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _AppearanceSection(
+                            controller: widget.themeController,
+                            onCustomColor: _showAccentPicker,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _CacheSection(
+                            sizeText: _formatBytes(_cacheSizeBytes),
+                            selectedLimit: _cacheLimitBytes,
+                            busy: _cacheBusy,
+                            onLimitChanged: _changeCacheLimit,
+                            onClear: _clearCache,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _PlaybackQualitySection(
+                            controller: widget.playbackQualityController,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _SettingSwitchRow(
+                            icon: Icons.web_asset_rounded,
+                            title: '关闭后隐藏到托盘',
+                            subtitle: '关闭窗口时继续后台播放，可在托盘退出应用',
+                            value: widget.closeToTray,
+                            onChanged: widget.onCloseToTrayChanged,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _SettingSwitchRow(
+                            icon: Icons.view_sidebar_rounded,
+                            title: '展开侧边栏',
+                            subtitle: '点击侧边分割线，即可切换侧边栏的展开状态',
+                            value: widget.sidebarExpanded,
+                            onChanged: widget.onSidebarExpandedChanged,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _UpdateSection(
+                            controller: widget.updateController,
+                            onCheckUpdates: widget.onCheckUpdates,
+                            onVersionTap: _handleVersionTap,
+                            onProjectTap: _openProjectHome,
+                            onLegalTap: _showLegalDialog,
+                          ),
+                          if (_developerEnabled) ...[
+                            Divider(
+                              height: 32,
+                              color: AppColors.divider.withValues(alpha: 0.72),
+                            ),
+                            _DeveloperSection(
+                              apiController: _controller,
+                              githubProxyController: _githubProxyController,
+                              activeEndpoint: _activeEndpoint,
+                              endpointErrorText: _errorText,
+                              proxyErrorText: _proxyErrorText,
+                              endpointSaved: _saved,
+                              proxySaved: _proxySaved,
+                              savingEndpoint: _saving,
+                              savingProxy: _savingProxy,
+                              onSaveEndpoint: _save,
+                              onSaveGithubProxy: _saveGithubProxy,
+                              onCopyDiagnostics: _copyDiagnosticInfo,
+                              onShowPlaybackLog: _showPlaybackLog,
+                              onDisable: _disableDeveloperMode,
+                            ),
+                          ],
+                        ],
                       ),
-                      _CacheSection(
-                        sizeText: _formatBytes(_cacheSizeBytes),
-                        selectedLimit: _cacheLimitBytes,
-                        busy: _cacheBusy,
-                        onLimitChanged: _changeCacheLimit,
-                        onClear: _clearCache,
-                      ),
-                      Divider(
-                        height: 32,
-                        color: AppColors.divider.withValues(alpha: 0.72),
-                      ),
-                      _PlaybackQualitySection(
-                        controller: widget.playbackQualityController,
-                      ),
-                      Divider(
-                        height: 32,
-                        color: AppColors.divider.withValues(alpha: 0.72),
-                      ),
-                      _SettingSwitchRow(
-                        icon: Icons.web_asset_rounded,
-                        title: '关闭后隐藏到托盘',
-                        subtitle: '关闭窗口时继续后台播放，可在托盘退出应用',
-                        value: widget.closeToTray,
-                        onChanged: widget.onCloseToTrayChanged,
-                      ),
-                      Divider(
-                        height: 32,
-                        color: AppColors.divider.withValues(alpha: 0.72),
-                      ),
-                      _SettingSwitchRow(
-                        icon: Icons.view_sidebar_rounded,
-                        title: '展开侧边栏',
-                        subtitle: '点击侧边分割线，即可切换侧边栏的展开状态',
-                        value: widget.sidebarExpanded,
-                        onChanged: widget.onSidebarExpandedChanged,
-                      ),
-                      Divider(
-                        height: 32,
-                        color: AppColors.divider.withValues(alpha: 0.72),
-                      ),
-                      _UpdateSection(
-                        controller: widget.updateController,
-                        onCheckUpdates: widget.onCheckUpdates,
-                        onVersionTap: _handleVersionTap,
-                        onProjectTap: _openProjectHome,
-                        onLegalTap: _showLegalDialog,
-                      ),
-                      if (_developerEnabled) ...[
-                        Divider(
-                          height: 32,
-                          color: AppColors.divider.withValues(alpha: 0.72),
-                        ),
-                        _DeveloperSection(
-                          apiController: _controller,
-                          githubProxyController: _githubProxyController,
-                          activeEndpoint: _activeEndpoint,
-                          endpointErrorText: _errorText,
-                          proxyErrorText: _proxyErrorText,
-                          endpointSaved: _saved,
-                          proxySaved: _proxySaved,
-                          savingEndpoint: _saving,
-                          savingProxy: _savingProxy,
-                          onSaveEndpoint: _save,
-                          onSaveGithubProxy: _saveGithubProxy,
-                          onCopyDiagnostics: _copyDiagnosticInfo,
-                          onShowPlaybackLog: _showPlaybackLog,
-                          onDisable: _disableDeveloperMode,
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
               ),

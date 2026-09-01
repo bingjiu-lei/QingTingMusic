@@ -7,6 +7,7 @@ import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
 import 'app_dialog.dart';
+import 'app_scrollbar.dart';
 
 class AddToPlaylistDialog extends StatefulWidget {
   const AddToPlaylistDialog({
@@ -77,9 +78,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isDark
-                  ? const Color(0xFF1C222B)
-                  : const Color(0xFFF3F6FA),
+              color: isDark ? const Color(0xFF1C222B) : const Color(0xFFF3F6FA),
               borderRadius: BorderRadius.circular(AppRadius.md),
               border: Border.all(
                 color: isDark
@@ -110,10 +109,7 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                         widget.song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
                       ),
                     ],
                   ),
@@ -131,112 +127,113 @@ class _AddToPlaylistDialogState extends State<AddToPlaylistDialog> {
                       padding: const EdgeInsets.symmetric(vertical: 36),
                       child: Text(
                         '还没有可添加的自建歌单',
-                        style: TextStyle(
-                          color: AppColors.faint,
-                          fontSize: 13,
-                        ),
+                        style: TextStyle(color: AppColors.faint, fontSize: 13),
                       ),
                     ),
                   )
-                : ListView.separated(
-                    shrinkWrap: true,
-                    itemCount: widget.playlists.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 6),
-                    itemBuilder: (context, index) {
-                      final playlist = widget.playlists[index];
-                      final key = _getPlaylistKey(playlist);
-                      final isAlreadyAdded =
-                          _containingPlaylistIds.contains(key);
+                : AppScrollbar(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.only(right: 12),
+                      shrinkWrap: true,
+                      itemCount: widget.playlists.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 6),
+                      itemBuilder: (context, index) {
+                        final playlist = widget.playlists[index];
+                        final key = _getPlaylistKey(playlist);
+                        final isAlreadyAdded = _containingPlaylistIds.contains(
+                          key,
+                        );
 
-                      return Material(
-                        color: isAlreadyAdded
-                            ? (isDark
-                                ? Colors.white.withValues(alpha: 0.03)
-                                : Colors.black.withValues(alpha: 0.02))
-                            : (isDark
-                                ? const Color(0xFF1C222B)
-                                : const Color(0xFFF3F6FA)),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        child: InkWell(
+                        return Material(
+                          color: isAlreadyAdded
+                              ? (isDark
+                                    ? Colors.white.withValues(alpha: 0.03)
+                                    : Colors.black.withValues(alpha: 0.02))
+                              : (isDark
+                                    ? const Color(0xFF1C222B)
+                                    : const Color(0xFFF3F6FA)),
                           borderRadius: BorderRadius.circular(AppRadius.md),
-                          onTap: isAlreadyAdded || _selectionPending
-                              ? null
-                              : () {
-                                  setState(() => _selectionPending = true);
-                                  Navigator.of(context).pop(playlist);
-                                  widget.onSelected?.call(playlist);
-                                },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    playlist.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: isAlreadyAdded
-                                          ? AppColors.muted
-                                          : AppColors.text,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13.5,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(AppRadius.md),
+                            onTap: isAlreadyAdded || _selectionPending
+                                ? null
+                                : () {
+                                    setState(() => _selectionPending = true);
+                                    Navigator.of(context).pop(playlist);
+                                    widget.onSelected?.call(playlist);
+                                  },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 10,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      playlist.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: isAlreadyAdded
+                                            ? AppColors.muted
+                                            : AppColors.text,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${playlist.songCount} 首',
-                                  style: TextStyle(
-                                    color: AppColors.muted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                if (isAlreadyAdded) ...[
                                   const SizedBox(width: 8),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary.withValues(
-                                        alpha: 0.12,
-                                      ),
-                                      borderRadius: BorderRadius.circular(
-                                        AppRadius.xs,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          Icons.check_circle_rounded,
-                                          size: 12,
-                                          color: AppColors.primary,
-                                        ),
-                                        const SizedBox(width: 3),
-                                        Text(
-                                          '已包含',
-                                          style: TextStyle(
-                                            color: AppColors.primary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ],
+                                  Text(
+                                    '${playlist.songCount} 首',
+                                    style: TextStyle(
+                                      color: AppColors.muted,
+                                      fontSize: 12,
                                     ),
                                   ),
+                                  if (isAlreadyAdded) ...[
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primary.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          AppRadius.xs,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.check_circle_rounded,
+                                            size: 12,
+                                            color: AppColors.primary,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            '已包含',
+                                            style: TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      );
-                    },
+                        );
+                      },
+                    ),
                   ),
           ),
         ],

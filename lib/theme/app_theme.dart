@@ -368,6 +368,49 @@ abstract final class AppTheme {
           fontSize: 12,
         ),
       ),
+      scrollbarTheme: ScrollbarThemeData(
+        interactive: true,
+        radius: const Radius.circular(AppRadius.pill),
+        thickness: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return 8.0;
+          }
+          return 5.0;
+        }),
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.dragged)) {
+            return primary;
+          }
+          if (states.contains(WidgetState.hovered)) {
+            return primary.withValues(alpha: dark ? 0.90 : 0.85);
+          }
+          return dark
+              ? Colors.white.withValues(alpha: 0.28)
+              : Colors.black.withValues(alpha: 0.24);
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return dark
+                ? Colors.white.withValues(alpha: 0.07)
+                : Colors.black.withValues(alpha: 0.05);
+          }
+          return Colors.transparent;
+        }),
+        trackBorderColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.hovered) ||
+              states.contains(WidgetState.dragged)) {
+            return dark
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.06);
+          }
+          return Colors.transparent;
+        }),
+        crossAxisMargin: 2.0,
+        mainAxisMargin: 4.0,
+        minThumbLength: 42.0,
+      ),
     );
   }
 }
