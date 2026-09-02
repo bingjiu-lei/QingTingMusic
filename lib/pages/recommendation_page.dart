@@ -177,7 +177,7 @@ class _DailyHero extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const _DateBadge(),
+                            _DateBadge(),
                             const SizedBox(width: 12),
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
