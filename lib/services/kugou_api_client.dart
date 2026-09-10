@@ -815,7 +815,8 @@ class KugouApiClient {
             'pub_date',
           ])
         : '';
-    final hasCustomCoverFlag = kind == MusicPlaylistKind.collectedPlaylist ||
+    final hasCustomCoverFlag =
+        kind == MusicPlaylistKind.collectedPlaylist ||
         kind == MusicPlaylistKind.album ||
         _toInt(json['is_custom_pic']) == 1 ||
         (json['custom_pic'] != null &&
@@ -1211,7 +1212,7 @@ class KugouApiClient {
     if (song.hash == null || song.hash!.isEmpty) {
       throw const KugouApiException('歌曲缺少收藏信息');
     }
-    await _post(
+    final response = await _post(
       '/playlist/tracks/add',
       authenticated: true,
       queryParameters: {
@@ -1220,17 +1221,45 @@ class KugouApiClient {
             '${song.artist} - ${song.title}|${song.hash}|${song.albumId ?? 0}|${song.albumAudioId ?? 0}',
       },
     );
+    _ensureOperationSucceeded(response.data);
   }
 
   Future<void> removeSongFromPlaylist(MusicPlaylist playlist, Song song) async {
-    if (song.fileId == null) {
+    var fileId = song.fileId;
+    if (fileId == null) {
+      try {
+        final songs = await getPlaylistSongs(playlist);
+        final songTitle = song.title.trim().toLowerCase();
+        final songArtist = song.artist.trim().toLowerCase();
+        final match = songs.cast<Song?>().firstWhere((item) {
+          if (item == null) return false;
+          final itemHash = item.hash?.trim().toLowerCase();
+          final songHash = song.hash?.trim().toLowerCase();
+          if (itemHash != null &&
+              itemHash.isNotEmpty &&
+              songHash != null &&
+              songHash.isNotEmpty &&
+              itemHash == songHash) {
+            return true;
+          }
+          if (item.id.trim().toLowerCase() == song.id.trim().toLowerCase()) {
+            return true;
+          }
+          return item.title.trim().toLowerCase() == songTitle &&
+              item.artist.trim().toLowerCase() == songArtist;
+        }, orElse: () => null);
+        fileId = match?.fileId;
+      } catch (_) {}
+    }
+    if (fileId == null) {
       throw const KugouApiException('请刷新收藏列表后再取消收藏');
     }
-    await _post(
+    final response = await _post(
       '/playlist/tracks/del',
       authenticated: true,
-      queryParameters: {'listid': playlist.listId, 'fileids': song.fileId},
+      queryParameters: {'listid': playlist.listId, 'fileids': fileId},
     );
+    _ensureOperationSucceeded(response.data);
   }
 
   Future<void> createPlaylist(String name, {bool isPrivate = false}) async {

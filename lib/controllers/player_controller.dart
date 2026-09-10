@@ -554,6 +554,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> removeFromQueue(Song song) async {
+    final currentIndex = queue.indexWhere((item) => item.id == song.id);
     final wasCurrent = currentSong?.id == song.id;
     final nextQueue = queue.where((item) => item.id != song.id).toList();
     queue = List.unmodifiable(nextQueue);
@@ -578,7 +579,10 @@ class PlayerController extends ChangeNotifier {
       await _playShuffleNext();
       return;
     }
-    await playSong(queue.first, fromQueue: queue);
+    final nextIndex = currentIndex >= 0 && currentIndex < queue.length
+        ? currentIndex
+        : 0;
+    await playSong(queue[nextIndex], fromQueue: queue);
   }
 
   void clearQueue() {

@@ -24,6 +24,7 @@ class NowPlayingPage extends StatefulWidget {
     required this.loadLyrics,
     this.onLike,
     this.onAddToPlaylist,
+    this.isAddedToPlaylist = false,
     this.onOpenArtist,
     required this.desktopLyricsVisible,
     required this.onDesktopLyricsChanged,
@@ -42,6 +43,7 @@ class NowPlayingPage extends StatefulWidget {
   final Future<List<LyricLine>> Function(Song song) loadLyrics;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
+  final bool isAddedToPlaylist;
   final ValueChanged<Song>? onOpenArtist;
   final bool desktopLyricsVisible;
   final ValueChanged<bool> onDesktopLyricsChanged;
@@ -246,6 +248,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                       song: song,
                       onLike: widget.onLike,
                       onAddToPlaylist: widget.onAddToPlaylist,
+                      isAddedToPlaylist: widget.isAddedToPlaylist,
                       portraitSelected: _portraitMode,
                       portraitAvailable: true,
                       onTogglePortrait: _togglePortraitMode,
@@ -746,6 +749,7 @@ class _NowPlayingActions extends StatelessWidget {
     required this.controller,
     this.onLike,
     this.onAddToPlaylist,
+    this.isAddedToPlaylist = false,
     this.compact = false,
   });
 
@@ -753,6 +757,7 @@ class _NowPlayingActions extends StatelessWidget {
   final PlayerController controller;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
+  final bool isAddedToPlaylist;
   final bool compact;
 
   @override
@@ -772,8 +777,12 @@ class _NowPlayingActions extends StatelessWidget {
         ),
         SizedBox(width: compact ? 4 : 6),
         _NowPlayingActionButton(
-          tooltip: '添加到歌单',
-          icon: Icons.playlist_add_rounded,
+          tooltip: isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单',
+          icon: isAddedToPlaylist
+              ? Icons.playlist_add_check_rounded
+              : Icons.playlist_add_rounded,
+          selected: isAddedToPlaylist,
+          selectedColor: AppColors.primary,
           size: size,
           onPressed: onAddToPlaylist == null
               ? null
@@ -798,6 +807,7 @@ class _NowPlayingActionButton extends StatelessWidget {
     required this.onPressed,
     required this.size,
     this.selected = false,
+    this.selectedColor,
   });
 
   final String tooltip;
@@ -805,9 +815,11 @@ class _NowPlayingActionButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final double size;
   final bool selected;
+  final Color? selectedColor;
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = selectedColor ?? AppColors.favorite;
     return AppIconButton.ghost(
       tooltip: tooltip,
       icon: icon,
@@ -815,11 +827,11 @@ class _NowPlayingActionButton extends StatelessWidget {
       size: size,
       iconSize: size < 36 ? 18 : 20,
       selected: selected,
-      selectedColor: AppColors.favorite,
+      selectedColor: activeColor,
       selectedBackgroundColor: Colors.transparent,
       iconColor: AppColors.muted,
-      hoverIconColor: selected ? AppColors.favorite : AppColors.primary,
-      shadowColor: selected ? AppColors.favorite : AppColors.primary,
+      hoverIconColor: selected ? activeColor : AppColors.primary,
+      shadowColor: selected ? activeColor : AppColors.primary,
     );
   }
 }
@@ -1598,6 +1610,7 @@ class _PlaybackControls extends StatelessWidget {
     required this.song,
     this.onLike,
     this.onAddToPlaylist,
+    this.isAddedToPlaylist = false,
     required this.portraitSelected,
     required this.portraitAvailable,
     required this.onTogglePortrait,
@@ -1612,6 +1625,7 @@ class _PlaybackControls extends StatelessWidget {
   final Song song;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
+  final bool isAddedToPlaylist;
   final bool portraitSelected;
   final bool portraitAvailable;
   final VoidCallback onTogglePortrait;
@@ -1659,6 +1673,7 @@ class _PlaybackControls extends StatelessWidget {
                         controller: controller,
                         onLike: onLike,
                         onAddToPlaylist: onAddToPlaylist,
+                        isAddedToPlaylist: isAddedToPlaylist,
                         compact: true,
                       ),
                     ),

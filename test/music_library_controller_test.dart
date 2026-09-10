@@ -80,6 +80,35 @@ void main() {
     expect(controller.hasData(LibrarySection.songs), isFalse);
   });
 
+  test(
+    'resolves fileId from playlist tracks when removing a song with null fileId',
+    () async {
+      final playlist = _playlist(
+        'created-1',
+        kind: MusicPlaylistKind.createdPlaylist,
+        name: '自建歌单',
+      );
+      final songInPlaylist = _song('song-album').copyWith(fileId: 9988);
+      final repository = _FakeMusicRepository(
+        playlists: [playlist],
+        favoriteSongs: const [],
+        playlistTracks: {
+          'created-1': [songInPlaylist],
+        },
+      );
+      final controller = _controller(repository);
+
+      // This song object represents a song viewed in an album/search (fileId is null)
+      final songFromAlbum = _song('song-album');
+      expect(songFromAlbum.fileId, isNull);
+
+      await controller.removeFromPlaylist(playlist, songFromAlbum);
+
+      expect(repository.removedSongs, ['song-album']);
+      expect(repository.removedSongObjects.single.fileId, 9988);
+    },
+  );
+
   test('refreshes playlist tab even when cached playlists exist', () async {
     final cached = _playlist('cached', name: '收藏歌单').copyWith(songCount: 0);
     final fresh = _playlist('cached', name: '收藏歌单').copyWith(songCount: 12);
@@ -169,6 +198,7 @@ void main() {
       controller.getPlaylistIdsContainingSongSync(addedSong, [playlist]),
       contains('unique-refresh-p1'),
     );
+    expect(controller.isSongInAnyPlaylistSync(addedSong), isTrue);
   });
 
   test('refreshes persisted playlist songs once per app session', () async {
@@ -398,6 +428,7 @@ class _FakeMusicRepository implements MusicRepository {
 
   final List<MusicPlaylist> playlists;
   final List<String> removedSongs = [];
+  final List<Song> removedSongObjects = [];
   final List<SearchCategory> collectedCatalogs = [];
   final List<String> uncollectedListIds = [];
   final List<SearchCatalogItem> uncollectedCatalogs = [];
@@ -430,6 +461,7 @@ class _FakeMusicRepository implements MusicRepository {
   @override
   Future<void> removeSongFromPlaylist(MusicPlaylist playlist, Song song) async {
     removedSongs.add(song.id);
+    removedSongObjects.add(song);
     _favoriteSongs.removeWhere((item) => item.id == song.id);
   }
 

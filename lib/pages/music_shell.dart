@@ -99,6 +99,7 @@ class _MusicShellState extends State<MusicShell>
   bool detailLoading = false;
   CollectionDetailKind detailKind = CollectionDetailKind.playlist;
   MusicPlaylist? detailPlaylist;
+  MusicPlaylist? _currentPlayingPlaylist;
   SearchCatalogItem? detailCatalogItem;
   String? detailIdentity;
   String? detailStorageKeyPrefix;
@@ -616,6 +617,7 @@ class _MusicShellState extends State<MusicShell>
         detailRelatedPage = 1;
         detailLoading = false;
         detailPlaylist = null;
+        _currentPlayingPlaylist = null;
         detailCatalogItem = null;
         detailIdentity = null;
         detailStorageKeyPrefix = null;
@@ -658,6 +660,7 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _playFmSong(Song song, List<Song> sourceQueue) async {
+    _currentPlayingPlaylist = null;
     _playbackModeBeforeFm ??= playerController.playbackMode;
     _isFmSession = true;
     _lastFmSyncSongId = null;
@@ -716,6 +719,7 @@ class _MusicShellState extends State<MusicShell>
       detailLoading = false;
       detailKind = CollectionDetailKind.playlist;
       detailPlaylist = null;
+      _currentPlayingPlaylist = null;
       detailCatalogItem = null;
       detailIdentity =
           'recommendation:daily:${DateTime.now().toIso8601String().substring(0, 10)}';
@@ -1224,7 +1228,10 @@ class _MusicShellState extends State<MusicShell>
         _playlistOperationMessage = '正在检查歌单状态…';
       });
       if (!mounted) return;
-      final selectedPlaylist = await showDialog<MusicPlaylist>(
+      final isCurrent = playerController.currentSong?.id == song.id;
+      final currentPlaylist = isCurrent ? _currentPlayingPlaylist : null;
+
+      await showDialog<void>(
         context: context,
         builder: (_) => AddToPlaylistDialog(
           song: song,
@@ -1232,15 +1239,15 @@ class _MusicShellState extends State<MusicShell>
           containingPlaylistIds: containingIds,
           containingPlaylistIdsFuture: containingIdsFuture,
           onContainingStateLoaded: _hidePlaylistOperationIndicator,
+          currentPlayingPlaylist: currentPlaylist,
+          isCurrentPlayingSong: isCurrent,
+          onAddToPlaylist: (playlist) => _addToPlaylist(playlist, song),
+          onRemoveFromPlaylist: (playlist) =>
+              _removeFromPlaylist(playlist, song),
+          onRemoveAndSkipCurrent: (playlist) =>
+              _removeAndSkipCurrent(playlist, song),
         ),
       );
-      if (selectedPlaylist != null && mounted) {
-        setState(() {
-          _playlistOperationIndicatorVisible = true;
-          _playlistOperationMessage = '正在添加到「${selectedPlaylist.name}」…';
-        });
-        await _addToPlaylist(selectedPlaylist, song);
-      }
     } catch (error) {
       if (!mounted) return;
       _showNotice(error.toString(), kind: AppNoticeKind.error);
@@ -1289,6 +1296,49 @@ class _MusicShellState extends State<MusicShell>
     }
   }
 
+  Future<void> _removeFromPlaylist(MusicPlaylist playlist, Song song) async {
+    try {
+      await libraryController.removeFromPlaylist(playlist, song);
+      if (detailPlaylist?.listId == playlist.listId && mounted) {
+        setState(() {
+          detailSongs = detailSongs
+              .where((item) => !libraryController.sameSong(item, song))
+              .toList();
+        });
+      }
+      if (!mounted) return;
+      _showNotice(
+        '已从 ${playlist.name} 移除 ${song.title}',
+        kind: AppNoticeKind.success,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
+    }
+  }
+
+  Future<void> _removeAndSkipCurrent(MusicPlaylist playlist, Song song) async {
+    try {
+      await libraryController.removeFromPlaylist(playlist, song);
+      if (detailPlaylist?.listId == playlist.listId && mounted) {
+        setState(() {
+          detailSongs = detailSongs
+              .where((item) => !libraryController.sameSong(item, song))
+              .toList();
+        });
+      }
+      final current = playerController.currentSong;
+      if (current != null && libraryController.sameSong(current, song)) {
+        await playerController.removeFromQueue(current);
+      }
+      if (!mounted) return;
+      _showNotice('已从「${playlist.name}」移除并跳过', kind: AppNoticeKind.success);
+    } catch (error) {
+      if (!mounted) return;
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
+    }
+  }
+
   Future<void> _removeFromDetailPlaylist(Song song) async {
     final playlist = detailPlaylist;
     if (playlist == null) return;
@@ -1304,22 +1354,7 @@ class _MusicShellState extends State<MusicShell>
     );
 
     if (confirmed != true || !mounted) return;
-
-    try {
-      await libraryController.removeFromPlaylist(playlist, song);
-      setState(() {
-        detailSongs = detailSongs.where((item) => item.id != song.id).toList();
-      });
-      if (mounted) {
-        _showNotice(
-          '已从 ${playlist.name} 移除 ${song.title}',
-          kind: AppNoticeKind.success,
-        );
-      }
-    } catch (error) {
-      if (!mounted) return;
-      _showNotice(error.toString(), kind: AppNoticeKind.error);
-    }
+    await _removeFromPlaylist(playlist, song);
   }
 
   Future<void> _openAlbumFromSong(Song song) async {
@@ -1658,6 +1693,14 @@ class _MusicShellState extends State<MusicShell>
                         onOpenArtist: _openArtistFromSong,
                         onLike: _toggleFavorite,
                         onAddToPlaylist: _showAddToPlaylist,
+                        isAddedToPlaylist:
+                            playerController.currentSong != null &&
+                            libraryController.isSongInAnyPlaylistSync(
+                              playerController.currentSong!,
+                            ),
+                        currentPlayingPlaylist: _currentPlayingPlaylist,
+                        onRemoveFromCurrentPlaylistAndSkip:
+                            _removeAndSkipCurrent,
                         isFm: _isFmSession,
                         onDislikeFm: _handleDislikeFm,
                         onQueuePressed: () {
@@ -1758,6 +1801,11 @@ class _MusicShellState extends State<MusicShell>
                                   loadLyrics: _loadLyricsCached,
                                   onLike: _toggleFavorite,
                                   onAddToPlaylist: _showAddToPlaylist,
+                                  isAddedToPlaylist:
+                                      playerController.currentSong != null &&
+                                      libraryController.isSongInAnyPlaylistSync(
+                                        playerController.currentSong!,
+                                      ),
                                   onOpenArtist: _openArtistFromNowPlaying,
                                   isFm: _isFmSession,
                                   onDislikeFm: _handleDislikeFm,
@@ -1852,8 +1900,14 @@ class _MusicShellState extends State<MusicShell>
                 detailHeaderArtistName != null
             ? () => _openArtistByName(detailHeaderArtistName!)
             : null,
-        onPlay: _playSong,
-        onPlayAll: _playAllSongs,
+        onPlay: (song, queue) {
+          _currentPlayingPlaylist = detailPlaylist;
+          _playSong(song, queue);
+        },
+        onPlayAll: (songs) {
+          _currentPlayingPlaylist = detailPlaylist;
+          _playAllSongs(songs);
+        },
         onLike: _toggleFavorite,
         onAddToPlaylist: _showAddToPlaylist,
         onRemoveFromPlaylist:

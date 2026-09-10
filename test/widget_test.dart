@@ -17,7 +17,9 @@ void main() {
   tearDown(() async {
     AppStorageService.overrideForTesting(null);
     if (await tempDirectory.exists()) {
-      await tempDirectory.delete(recursive: true);
+      try {
+        await tempDirectory.delete(recursive: true);
+      } catch (_) {}
     }
   });
 
@@ -65,7 +67,10 @@ void main() {
     await _settleForUi(tester);
     expect(find.text('Imagine'), findsWidgets);
 
-    tester.widget<TextField>(find.byType(TextField)).onSubmitted?.call('Imagine');
+    tester
+        .widget<TextField>(find.byType(TextField))
+        .onSubmitted
+        ?.call('Imagine');
     await _settleForUi(tester);
     expect(find.text('搜索结果'), findsOneWidget);
     expect(find.text('单曲'), findsOneWidget);

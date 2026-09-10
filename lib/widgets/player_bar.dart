@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 
 import '../controllers/playback_quality_controller.dart';
 import '../controllers/player_controller.dart';
+import '../models/music_playlist.dart';
 import '../models/song.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
+import 'app_dialog.dart';
 import 'app_icon_button.dart';
 import 'heart_off_icon.dart';
 import 'preparing_dots.dart';
@@ -26,6 +28,9 @@ class PlayerBar extends StatelessWidget {
     this.onOpenArtist,
     this.onLike,
     this.onAddToPlaylist,
+    this.isAddedToPlaylist = false,
+    this.currentPlayingPlaylist,
+    this.onRemoveFromCurrentPlaylistAndSkip,
     required this.desktopLyricsVisible,
     required this.onDesktopLyricsChanged,
     this.isFm = false,
@@ -40,6 +45,10 @@ class PlayerBar extends StatelessWidget {
   final ValueChanged<Song>? onOpenArtist;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
+  final bool isAddedToPlaylist;
+  final MusicPlaylist? currentPlayingPlaylist;
+  final Future<void> Function(MusicPlaylist playlist, Song song)?
+  onRemoveFromCurrentPlaylistAndSkip;
   final bool desktopLyricsVisible;
   final ValueChanged<bool> onDesktopLyricsChanged;
   final bool isFm;
@@ -109,6 +118,10 @@ class PlayerBar extends StatelessWidget {
                                 onOpenAlbum: onOpenAlbum,
                                 onLike: onLike,
                                 onAddToPlaylist: onAddToPlaylist,
+                                isAddedToPlaylist: isAddedToPlaylist,
+                                currentPlayingPlaylist: currentPlayingPlaylist,
+                                onRemoveFromCurrentPlaylistAndSkip:
+                                    onRemoveFromCurrentPlaylistAndSkip,
                                 playbackMode: controller.playbackMode,
                                 onCyclePlaybackMode:
                                     controller.cyclePlaybackMode,
@@ -172,6 +185,9 @@ class _TrackSection extends StatelessWidget {
     required this.onOpenAlbum,
     required this.onLike,
     required this.onAddToPlaylist,
+    this.isAddedToPlaylist = false,
+    this.currentPlayingPlaylist,
+    this.onRemoveFromCurrentPlaylistAndSkip,
     required this.playbackMode,
     required this.onCyclePlaybackMode,
     required this.subtitle,
@@ -185,6 +201,10 @@ class _TrackSection extends StatelessWidget {
   final ValueChanged<Song>? onOpenAlbum;
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
+  final bool isAddedToPlaylist;
+  final MusicPlaylist? currentPlayingPlaylist;
+  final Future<void> Function(MusicPlaylist playlist, Song song)?
+  onRemoveFromCurrentPlaylistAndSkip;
   final PlaybackMode playbackMode;
   final VoidCallback onCyclePlaybackMode;
   final String subtitle;
@@ -290,13 +310,109 @@ class _TrackSection extends StatelessWidget {
             selectedColor: AppColors.favorite,
             selectedBackgroundColor: Colors.transparent,
           ),
-          _ControlIconButton(
-            tooltip: '添加到歌单',
-            onPressed: onAddToPlaylist == null
-                ? null
-                : () => onAddToPlaylist!(song!),
-            icon: Icons.playlist_add_rounded,
-            size: 38,
+          GestureDetector(
+            onSecondaryTapDown: (details) async {
+              final isCurrentCreated =
+                  currentPlayingPlaylist != null &&
+                  currentPlayingPlaylist!.kind ==
+                      MusicPlaylistKind.createdPlaylist;
+              final selected = await showMenu<String>(
+                context: context,
+                position: RelativeRect.fromLTRB(
+                  details.globalPosition.dx,
+                  details.globalPosition.dy - (isCurrentCreated ? 95 : 55),
+                  details.globalPosition.dx + 1,
+                  details.globalPosition.dy + 1,
+                ),
+                items: [
+                  if (isCurrentCreated)
+                    PopupMenuItem<String>(
+                      value: 'remove_and_skip',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.delete_outline_rounded,
+                            size: 18,
+                            color: Colors.redAccent,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            '从当前歌单「${currentPlayingPlaylist!.name}」移除并切歌',
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  PopupMenuItem<String>(
+                    value: 'manage_playlist',
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isAddedToPlaylist
+                              ? Icons.playlist_add_check_rounded
+                              : Icons.playlist_add_rounded,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isAddedToPlaylist ? '收藏与歌单管理…' : '添加到歌单…',
+                          style: const TextStyle(fontSize: 12.5),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+              if (!context.mounted) return;
+              if (selected == 'remove_and_skip' &&
+                  onRemoveFromCurrentPlaylistAndSkip != null &&
+                  currentPlayingPlaylist != null &&
+                  song != null) {
+                final confirmed = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogContext) => AppConfirmDialog(
+                    icon: Icons.delete_outline_rounded,
+                    isDanger: true,
+                    title: '从当前歌单移除并切歌',
+                    content:
+                        '确定要将《${song!.title}》从正在播放的歌单「${currentPlayingPlaylist!.name}」中移除，并自动切入下一首吗？',
+                    cancelLabel: '取消',
+                    confirmLabel: '确认移除',
+                    onCancel: () => Navigator.of(dialogContext).pop(false),
+                    onConfirm: () => Navigator.of(dialogContext).pop(true),
+                  ),
+                );
+                if (confirmed == true) {
+                  await onRemoveFromCurrentPlaylistAndSkip!(
+                    currentPlayingPlaylist!,
+                    song!,
+                  );
+                }
+              } else if (selected == 'manage_playlist' &&
+                  onAddToPlaylist != null &&
+                  song != null) {
+                onAddToPlaylist!(song!);
+              }
+            },
+            child: _ControlIconButton(
+              tooltip: isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单',
+              onPressed: onAddToPlaylist == null
+                  ? null
+                  : () => onAddToPlaylist!(song!),
+              icon: isAddedToPlaylist
+                  ? Icons.playlist_add_check_rounded
+                  : Icons.playlist_add_rounded,
+              selected: isAddedToPlaylist,
+              selectedColor: AppColors.primary,
+              selectedBackgroundColor: Colors.transparent,
+              size: 38,
+            ),
           ),
           _ControlIconButton(
             tooltip: playbackMode.label,

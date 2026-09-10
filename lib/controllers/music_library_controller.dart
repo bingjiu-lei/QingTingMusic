@@ -586,7 +586,12 @@ class MusicLibraryController extends ChangeNotifier {
         }
       }
     }
+    notifyListeners();
     await ensureLoaded(LibrarySection.playlists, refresh: true);
+  }
+
+  bool isSongInAnyPlaylistSync(Song song) {
+    return getPlaylistIdsContainingSongSync(song, editablePlaylists).isNotEmpty;
   }
 
   Set<String> getPlaylistIdsContainingSongSync(
@@ -633,25 +638,63 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   Future<void> removeFromPlaylist(MusicPlaylist playlist, Song song) async {
-    await repository.removeSongFromPlaylist(playlist, song);
+    var songToRemove = song;
     final cacheKey = _playlistCacheKey(playlist);
-    _playlistTracksInMemory.remove(cacheKey);
-    _playlistCachesRefreshedThisSession.remove(cacheKey);
-    await cacheService.clearPlaylistSongs(cacheKey);
-    final freshSongs = await repository.getPlaylistSongs(playlist);
-    if (freshSongs.isNotEmpty) {
-      _playlistTracksInMemory[cacheKey] = freshSongs;
-      _playlistCachesRefreshedThisSession.add(cacheKey);
-      unawaited(cacheService.savePlaylistSongs(cacheKey, freshSongs));
-      if (!playlist.hasCustomCover &&
-          (playlist.kind == MusicPlaylistKind.createdPlaylist ||
-              playlist.kind == MusicPlaylistKind.favoriteSongs)) {
-        final firstCover = freshSongs.first.coverUrl;
-        if (firstCover != null && firstCover.isNotEmpty) {
-          _updatePlaylistCover(playlist, firstCover);
-        }
+    if (songToRemove.fileId == null) {
+      final cachedSongs =
+          _playlistTracksInMemory[cacheKey] ??
+          cacheService.getPlaylistSongsSync(cacheKey);
+      var match = cachedSongs.cast<Song?>().firstWhere(
+        (item) => item != null && _sameSong(item, song),
+        orElse: () => null,
+      );
+      if (match == null || match.fileId == null) {
+        try {
+          final fresh = await loadPlaylist(playlist);
+          match = fresh.cast<Song?>().firstWhere(
+            (item) => item != null && _sameSong(item, song),
+            orElse: () => null,
+          );
+        } catch (_) {}
+      }
+      if (match != null && match.fileId != null) {
+        songToRemove = match;
       }
     }
+    await repository.removeSongFromPlaylist(playlist, songToRemove);
+    if (playlist.kind == MusicPlaylistKind.favoriteSongs) {
+      favorites = favorites
+          .where((item) => !_sameSong(item, songToRemove))
+          .toList(growable: false);
+      unawaited(_saveCache());
+    }
+    final existingTracks =
+        _playlistTracksInMemory[cacheKey] ??
+        cacheService.getPlaylistSongsSync(cacheKey);
+    if (existingTracks.isNotEmpty) {
+      final updatedTracks = existingTracks
+          .where((item) => !_sameSong(item, songToRemove))
+          .toList(growable: false);
+      _playlistTracksInMemory[cacheKey] = updatedTracks;
+      _playlistCachesRefreshedThisSession.add(cacheKey);
+      unawaited(cacheService.savePlaylistSongs(cacheKey, updatedTracks));
+      _updatePlaylistCoverFromSongs(playlist, updatedTracks);
+    } else {
+      _playlistTracksInMemory.remove(cacheKey);
+      _playlistCachesRefreshedThisSession.remove(cacheKey);
+      await cacheService.clearPlaylistSongs(cacheKey);
+    }
+    final count = playlist.songCount;
+    if (count > 0) {
+      playlists = playlists.map((p) {
+        if (p.id == playlist.id ||
+            (p.listId.isNotEmpty && p.listId == playlist.listId)) {
+          return p.copyWith(songCount: count - 1);
+        }
+        return p;
+      }).toList();
+    }
+    notifyListeners();
     await ensureLoaded(LibrarySection.playlists, refresh: true);
   }
 
@@ -688,16 +731,38 @@ class MusicLibraryController extends ChangeNotifier {
     }
   }
 
+  bool sameSong(Song left, Song right) => _sameSong(left, right);
+
   bool _sameSong(Song left, Song right) {
-    final leftHash = left.hash;
-    final rightHash = right.hash;
+    final leftHash = left.hash?.trim().toLowerCase();
+    final rightHash = right.hash?.trim().toLowerCase();
     if (leftHash != null &&
         leftHash.isNotEmpty &&
         rightHash != null &&
         rightHash.isNotEmpty) {
       return leftHash == rightHash;
     }
-    return left.id == right.id;
+    final leftCatalogHash = left.catalogHash?.trim().toLowerCase();
+    final rightCatalogHash = right.catalogHash?.trim().toLowerCase();
+    if (leftCatalogHash != null &&
+        leftCatalogHash.isNotEmpty &&
+        rightCatalogHash != null &&
+        rightCatalogHash.isNotEmpty) {
+      return leftCatalogHash == rightCatalogHash;
+    }
+    final leftId = left.id.trim().toLowerCase();
+    final rightId = right.id.trim().toLowerCase();
+    if (leftId.isNotEmpty && rightId.isNotEmpty && leftId == rightId) {
+      return true;
+    }
+    final leftTitle = left.title.trim().toLowerCase();
+    final rightTitle = right.title.trim().toLowerCase();
+    final leftArtist = left.artist.trim().toLowerCase();
+    final rightArtist = right.artist.trim().toLowerCase();
+    return leftTitle.isNotEmpty &&
+        leftArtist.isNotEmpty &&
+        leftTitle == rightTitle &&
+        leftArtist == rightArtist;
   }
 
   bool _sameCatalog(
