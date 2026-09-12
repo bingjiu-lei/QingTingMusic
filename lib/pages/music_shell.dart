@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -23,6 +24,7 @@ import '../models/search_catalog_item.dart';
 import '../models/app_update.dart';
 import '../services/audio_player_service.dart';
 import '../services/app_preferences_service.dart';
+import '../services/app_shortcut_service.dart';
 import '../services/cache_management_service.dart';
 import '../services/cover_palette_service.dart';
 import '../services/developer_mode_service.dart';
@@ -217,6 +219,7 @@ class _MusicShellState extends State<MusicShell>
     _sessionExpiredSubscription = SessionExpiredService.stream.listen((_) {
       if (mounted) unawaited(_showAuthExpiredDialog());
     });
+    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
     if (Platform.isWindows && widget.enableWindowControls) {
       windowManager.addListener(this);
       trayManager.addListener(this);
@@ -273,6 +276,44 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _setSidebarExpanded(bool value) async {
     setState(() => _sidebarExpanded = value);
     await _preferences.write('sidebarExpanded', value);
+  }
+
+  bool _handleGlobalKeyEvent(KeyEvent event) {
+    if (!mounted) return false;
+    final isModalActive = Navigator.canPop(context);
+    return AppShortcutService.handleKeyEvent(
+      event: event,
+      isModalActive: isModalActive,
+      onAction: _executeShortcutAction,
+    );
+  }
+
+  void _executeShortcutAction(AppShortcutAction action) {
+    switch (action) {
+      case AppShortcutAction.togglePlay:
+        if (playerController.currentSong != null) {
+          unawaited(playerController.togglePlay());
+        }
+        break;
+      case AppShortcutAction.playPrevious:
+        if (playerController.currentSong != null && !_isFmSession) {
+          unawaited(playerController.playPrevious());
+        }
+        break;
+      case AppShortcutAction.playNext:
+        if (playerController.currentSong != null) {
+          unawaited(playerController.playNext());
+        }
+        break;
+      case AppShortcutAction.volumeUp:
+        final newVol = (playerController.volume + 0.05).clamp(0.0, 1.0);
+        unawaited(playerController.setVolume(newVol));
+        break;
+      case AppShortcutAction.volumeDown:
+        final newVol = (playerController.volume - 0.05).clamp(0.0, 1.0);
+        unawaited(playerController.setVolume(newVol));
+        break;
+    }
   }
 
   Future<void> _loadDesktopLyricsPreferences() async {
@@ -1566,6 +1607,7 @@ class _MusicShellState extends State<MusicShell>
 
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     _noticeTimer?.cancel();
     _desktopLyricsTimer?.cancel();
     _sessionExpiredSubscription?.cancel();
@@ -1596,7 +1638,9 @@ class _MusicShellState extends State<MusicShell>
     authController
       ?..removeListener(_handleAuthChanged)
       ..dispose();
-    unawaited(_windowsMediaBridge.dispose());
+    if (Platform.isWindows && widget.enableWindowControls) {
+      unawaited(_windowsMediaBridge.dispose());
+    }
     super.dispose();
   }
 

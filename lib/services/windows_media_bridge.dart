@@ -91,6 +91,8 @@ class WindowsMediaBridge {
   Future<void> dispose() async {
     if (!Platform.isWindows) return;
     _channel.setMethodCallHandler(null);
-    await _channel.invokeMethod<void>('dispose');
+    try {
+      await _channel.invokeMethod<void>('dispose');
+    } catch (_) {}
   }
 }

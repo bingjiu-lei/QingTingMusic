@@ -1401,56 +1401,34 @@ class _UpdateSection extends StatelessWidget {
   }
 }
 
-class _VersionBadge extends StatefulWidget {
+class _VersionBadge extends StatelessWidget {
   const _VersionBadge({required this.version, required this.onTap});
 
   final String version;
   final VoidCallback onTap;
 
   @override
-  State<_VersionBadge> createState() => _VersionBadgeState();
-}
-
-class _VersionBadgeState extends State<_VersionBadge> {
-  bool _hovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: '连续点击可切换开发者模式',
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        onEnter: (_) => setState(() => _hovered = true),
-        onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          onTap: widget.onTap,
-          child: AnimatedContainer(
-            duration: AppMotion.fast,
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
-            decoration: BoxDecoration(
-              color: _hovered
-                  ? AppColors.primary.withValues(
-                      alpha: AppColors.isDark ? 0.22 : 0.14,
-                    )
-                  : AppColors.primary.withValues(
-                      alpha: AppColors.isDark ? 0.14 : 0.08,
-                    ),
-              borderRadius: BorderRadius.circular(AppRadius.pill),
-              border: Border.all(
-                color: AppColors.primary.withValues(
-                  alpha: _hovered ? 0.4 : 0.22,
-                ),
-              ),
-            ),
-            child: Text(
-              widget.version,
-              style: TextStyle(
-                color: AppColors.primary,
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.3,
-              ),
-            ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(
+            alpha: AppColors.isDark ? 0.14 : 0.08,
+          ),
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+          border: Border.all(
+            color: AppColors.primary.withValues(alpha: 0.22),
+          ),
+        ),
+        child: Text(
+          version,
+          style: TextStyle(
+            color: AppColors.primary,
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
           ),
         ),
       ),
