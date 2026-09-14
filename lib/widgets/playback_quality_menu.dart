@@ -25,13 +25,16 @@ class PlaybackQualityMenu extends StatelessWidget {
       animation: controller,
       builder: (context, _) {
         final song = playerController?.currentSong;
+        final isMv = song?.isMv == true;
         final isCloudSong = song?.isCloud == true;
         final hasLinkedCatalog =
             isCloudSong && song?.catalogHash?.isNotEmpty == true;
         final isCloudSourceSelected =
             isCloudSong && song?.playbackSource != 'catalog';
         final qualities = controller.availableQualities;
-        final triggerLabel = isCloudSourceSelected
+        final triggerLabel = isMv
+            ? 'MV音源'
+            : isCloudSourceSelected
             ? '云盘文件'
             : controller.quality.label;
 
@@ -50,54 +53,66 @@ class PlaybackQualityMenu extends StatelessWidget {
             elevation: const WidgetStatePropertyAll(4),
           ),
           menuChildren: [
-            if (isCloudSong)
-              QualityMenuItem(
-                selected: isCloudSourceSelected,
-                onPressed: () => playerController?.preferCloudSource(),
+            if (isMv)
+              const QualityMenuItem(
+                selected: true,
+                onPressed: null,
                 leading: QualityBadge(
-                  label: 'CLD',
-                  selected: isCloudSourceSelected,
+                  label: 'MV',
+                  selected: true,
                 ),
-                title: '云盘文件',
-              ),
-            if (isCloudSong && qualities.isNotEmpty) const SizedBox(height: 3),
-            ...qualities.map((quality) {
-              final selected =
-                  !isCloudSourceSelected && controller.quality == quality;
-              return QualityMenuItem(
-                selected: selected,
-                onPressed: () {
-                  final qualityChanged = controller.quality != quality;
-                  final sourceChanged = isCloudSong
-                      ? playerController?.preferCatalogSource(refresh: false) ??
-                            false
-                      : false;
-                  unawaited(controller.select(quality));
-                  if (sourceChanged && !qualityChanged) {
-                    final player = playerController;
-                    if (player != null) unawaited(player.refreshCurrentSong());
-                  }
-                },
-                leading: QualityBadge(label: quality.badge, selected: selected),
-                title: quality.title,
-              );
-            }),
-            if (qualities.isEmpty &&
-                (!isCloudSong || hasLinkedCatalog) &&
-                !controller.availabilityChecked)
-              const QualityMenuItem(
-                onPressed: null,
-                leading: QualityBadge(label: '…'),
-                title: '正在检测音质',
-              ),
-            if (qualities.isEmpty &&
-                (!isCloudSong || hasLinkedCatalog) &&
-                controller.availabilityChecked)
-              const QualityMenuItem(
-                onPressed: null,
-                leading: QualityBadge(label: '—'),
-                title: '暂无可用音质',
-              ),
+                title: 'MV原声音频',
+              )
+            else ...[
+              if (isCloudSong)
+                QualityMenuItem(
+                  selected: isCloudSourceSelected,
+                  onPressed: () => playerController?.preferCloudSource(),
+                  leading: QualityBadge(
+                    label: 'CLD',
+                    selected: isCloudSourceSelected,
+                  ),
+                  title: '云盘文件',
+                ),
+              if (isCloudSong && qualities.isNotEmpty) const SizedBox(height: 3),
+              ...qualities.map((quality) {
+                final selected =
+                    !isCloudSourceSelected && controller.quality == quality;
+                return QualityMenuItem(
+                  selected: selected,
+                  onPressed: () {
+                    final qualityChanged = controller.quality != quality;
+                    final sourceChanged = isCloudSong
+                        ? playerController?.preferCatalogSource(refresh: false) ??
+                              false
+                        : false;
+                    unawaited(controller.select(quality));
+                    if (sourceChanged && !qualityChanged) {
+                      final player = playerController;
+                      if (player != null) unawaited(player.refreshCurrentSong());
+                    }
+                  },
+                  leading: QualityBadge(label: quality.badge, selected: selected),
+                  title: quality.title,
+                );
+              }),
+              if (qualities.isEmpty &&
+                  (!isCloudSong || hasLinkedCatalog) &&
+                  !controller.availabilityChecked)
+                const QualityMenuItem(
+                  onPressed: null,
+                  leading: QualityBadge(label: '…'),
+                  title: '正在检测音质',
+                ),
+              if (qualities.isEmpty &&
+                  (!isCloudSong || hasLinkedCatalog) &&
+                  controller.availabilityChecked)
+                const QualityMenuItem(
+                  onPressed: null,
+                  leading: QualityBadge(label: '—'),
+                  title: '暂无可用音质',
+                ),
+            ],
           ],
           builder: (context, menuController, _) {
             return AppIconButton.ghost(

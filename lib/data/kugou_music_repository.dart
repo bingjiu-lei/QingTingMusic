@@ -89,6 +89,15 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<List<Song>> getArtistMvs(
+    SearchCatalogItem artist, {
+    int page = 1,
+    int pageSize = 30,
+  }) {
+    return apiClient.getArtistMvs(artist, page: page, pageSize: pageSize);
+  }
+
+  @override
   Future<List<MusicPlaylist>> getUserPlaylists() {
     return apiClient.getUserPlaylists();
   }

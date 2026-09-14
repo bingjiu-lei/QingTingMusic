@@ -893,7 +893,9 @@ class _NowPlayingActions extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         _NowPlayingActionButton(
-          tooltip: song.liked ? '取消收藏' : '收藏',
+          tooltip: song.isMv
+              ? (song.liked ? '取消收藏MV' : '收藏MV')
+              : (song.liked ? '取消收藏' : '收藏'),
           icon: song.liked
               ? Icons.favorite_rounded
               : Icons.favorite_border_rounded,
@@ -903,14 +905,16 @@ class _NowPlayingActions extends StatelessWidget {
         ),
         SizedBox(width: compact ? 4 : 6),
         _NowPlayingActionButton(
-          tooltip: isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单',
+          tooltip: song.isMv
+              ? 'MV音源暂不支持加入自建歌单'
+              : (isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单'),
           icon: isAddedToPlaylist
               ? Icons.playlist_add_check_rounded
               : Icons.playlist_add_rounded,
-          selected: isAddedToPlaylist,
+          selected: isAddedToPlaylist && !song.isMv,
           selectedColor: AppColors.primary,
           size: size,
-          onPressed: onAddToPlaylist == null
+          onPressed: (song.isMv || onAddToPlaylist == null)
               ? null
               : () => onAddToPlaylist!(song),
         ),

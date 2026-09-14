@@ -182,6 +182,7 @@ class MusicSearchController extends ChangeNotifier {
       SearchCategory.playlist,
       SearchCategory.artist,
       SearchCategory.album,
+      SearchCategory.mv,
     ]) {
       final key = '${value.name}:$query';
       if (_catalogCache.containsKey(key)) continue;

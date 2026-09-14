@@ -50,6 +50,7 @@ void main() {
     expect(find.textContaining('歌曲'), findsWidgets);
     expect(find.textContaining('歌单'), findsOneWidget);
     expect(find.textContaining('云盘'), findsOneWidget);
+    expect(find.textContaining('MV'), findsOneWidget);
     expect(find.textContaining('最近播放'), findsOneWidget);
 
     await tester.tap(find.byTooltip('设置'));
@@ -77,6 +78,7 @@ void main() {
     expect(find.text('歌单'), findsOneWidget);
     expect(find.text('歌手'), findsOneWidget);
     expect(find.text('专辑'), findsOneWidget);
+    expect(find.text('MV'), findsOneWidget);
     expect(find.text('Imagine'), findsNWidgets(2));
 
     final preferences = AppPreferencesService();

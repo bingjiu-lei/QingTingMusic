@@ -41,6 +41,7 @@ class Song {
     this.artists = const [],
     this.isCloud = false,
     this.cloudAudioId,
+    this.isMv = false,
     this.liked = false,
     this.playbackNotice,
     this.playbackQuality,
@@ -65,6 +66,7 @@ class Song {
   final List<SongArtist> artists;
   final bool isCloud;
   final int? cloudAudioId;
+  final bool isMv;
   final bool liked;
   final String? playbackNotice;
   final String? playbackQuality;
@@ -80,6 +82,7 @@ class Song {
     List<SongArtist>? artists,
     int? fileId,
     Duration? duration,
+    bool? isMv,
     bool? liked,
     String? playbackNotice,
     String? playbackQuality,
@@ -104,6 +107,7 @@ class Song {
       artists: artists ?? this.artists,
       isCloud: isCloud,
       cloudAudioId: cloudAudioId,
+      isMv: isMv ?? this.isMv,
       liked: liked ?? this.liked,
       playbackNotice: playbackNotice ?? this.playbackNotice,
       playbackQuality: playbackQuality ?? this.playbackQuality,
@@ -130,6 +134,7 @@ class Song {
     'artists': artists.map((item) => item.toJson()).toList(),
     'isCloud': isCloud,
     'cloudAudioId': cloudAudioId,
+    'isMv': isMv,
     'liked': liked,
     'playbackQuality': playbackQuality,
     'cloudQuality': cloudQuality,
@@ -159,6 +164,7 @@ class Song {
           .toList(),
       isCloud: json['isCloud'] == true,
       cloudAudioId: readInt(json['cloudAudioId']),
+      isMv: json['isMv'] == true,
       liked: json['liked'] == true,
       playbackQuality: json['playbackQuality']?.toString(),
       cloudQuality: json['cloudQuality']?.toString(),

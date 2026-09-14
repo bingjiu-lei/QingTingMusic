@@ -244,7 +244,9 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                         icon: widget.song.liked
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
-                        tooltip: widget.song.liked ? '取消收藏' : '收藏',
+                        tooltip: widget.song.isMv
+                            ? (widget.song.liked ? '取消收藏MV' : '收藏MV')
+                            : (widget.song.liked ? '取消收藏' : '收藏'),
                         onPressed: widget.onLike,
                         size: 32,
                         iconSize: 18,
@@ -256,7 +258,7 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                         shadowColor: AppColors.favorite,
                       ),
                     ),
-                  if (widget.onAddToPlaylist != null)
+                  if (widget.onAddToPlaylist != null && !widget.song.isMv)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
                       child: IgnorePointer(

@@ -383,6 +383,31 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         'pagesize': params['pagesize'] ?? 100,
         'sort': params['sort'] ?? 'new',
       }),
+      '/artist/videos' => _android(
+        '/kmr/v1/author/videos',
+        {
+          'author_id': params['id'] ?? params['author_id'] ?? '',
+          'is_fanmade': '',
+          'tag_idx': params['tag_idx'] ?? '',
+          'page': params['page'] ?? 1,
+          'pagesize': params['pagesize'] ?? 30,
+        },
+        cookie,
+        baseUrl: 'https://openapicdn.kugou.com',
+      ),
+      '/audio/mv' => _android(
+        '/kmr/v1/audio/mv',
+        {},
+        cookie,
+        method: 'POST',
+        data: {
+          'data': [
+            {'album_audio_id': params['album_audio_id'] ?? ''},
+          ],
+          'fields': params['fields'] ?? '',
+        },
+        headers: {'x-router': 'openapi.kugou.com', 'kg-tid': '38'},
+      ),
       '/artist/similar' => _similarArtists(body, cookie),
       '/user/playlist' => _android(
         '/v7/get_all_list',
@@ -420,6 +445,21 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         '/youth/v1/activity/get_month_vip_record',
         {'latest_limit': 100},
         cookie,
+      ),
+      '/video/url' => _android(
+        '/v2/interface/index',
+        {
+          'backupdomain': 1,
+          'cmd': 123,
+          'ext': params['ext'] ?? 'mp4',
+          'ismp3': params['ismp3'] ?? 0,
+          'hash': params['hash'] ?? '',
+          'pid': 1,
+          'type': 1,
+        },
+        cookie,
+        encryptKey: true,
+        headers: {'x-router': 'trackermv.kugou.com'},
       ),
       _ => _android(path, params, cookie, method: method),
     };

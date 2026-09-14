@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
@@ -529,6 +531,7 @@ class KugouApiClient {
       SearchCategory.artist => 'author',
       SearchCategory.playlist => 'special',
       SearchCategory.song => 'song',
+      SearchCategory.mv => 'mv',
     };
     final response = await _get(
       '/search',
@@ -558,6 +561,9 @@ class KugouApiClient {
   }
 
   Future<List<Song>> getCatalogSongs(SearchCatalogItem item) async {
+    if (item.category == SearchCategory.mv) {
+      return [item.toSong()];
+    }
     if (item.category == SearchCategory.album) {
       return _getAlbumSongs(item.id);
     }
@@ -566,6 +572,7 @@ class KugouApiClient {
       SearchCategory.playlist => '/playlist/public/track/all',
       SearchCategory.album => throw const KugouApiException('不支持的详情类型'),
       SearchCategory.song => throw const KugouApiException('不支持的详情类型'),
+      SearchCategory.mv => throw const KugouApiException('不支持的详情类型'),
     };
     final response = await _get(
       path,
@@ -665,6 +672,36 @@ class KugouApiClient {
         .map((value) => _catalogItem(value, SearchCategory.album))
         .whereType<SearchCatalogItem>()
         .toList();
+  }
+
+  Future<List<Song>> getArtistMvs(
+    SearchCatalogItem artist, {
+    int page = 1,
+    int pageSize = 30,
+  }) async {
+    if (artist.id.isEmpty) return const [];
+    try {
+      final response = await _get(
+        '/artist/videos',
+        authenticated: true,
+        bypassCache: true,
+        queryParameters: {'id': artist.id, 'page': page, 'pagesize': pageSize},
+      );
+      final body = _map(response.data);
+      final data = _map(body['data']);
+      final records = _list(
+        data['data'] ?? body['data'] ?? data['lists'] ?? data['info'],
+      );
+      return records
+          .map(
+            (value) =>
+                _songFromArtistVideo(value, fallbackArtist: artist.title),
+          )
+          .whereType<Song>()
+          .toList();
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<SearchCatalogItem>> getSimilarArtists(
@@ -1172,6 +1209,7 @@ class KugouApiClient {
         );
         _ensureOperationSucceeded(response.data);
       case SearchCategory.song:
+      case SearchCategory.mv:
         throw const KugouApiException('不支持收藏该类型');
     }
   }
@@ -1204,6 +1242,7 @@ class KugouApiClient {
         );
         _ensureOperationSucceeded(response.data);
       case SearchCategory.song:
+      case SearchCategory.mv:
         throw const KugouApiException('不支持取消收藏该类型');
     }
   }
@@ -1294,6 +1333,9 @@ class KugouApiClient {
 
   Future<Song> resolvePlayback(Song song) async {
     if (song.audioUrl.isNotEmpty) return song;
+    if (song.isMv) {
+      return _resolveMvPlayback(song);
+    }
     if (!await _usesOfficialApi() && !session.isLoggedIn) {
       throw const AuthenticationRequiredException();
     }
@@ -1359,12 +1401,45 @@ class KugouApiClient {
 
       final searchableMatch = await _findPlayableSearchReplacement(song);
       if (searchableMatch != null) return searchableMatch;
+
+      final mvMatch = await _findPlayableMvReplacement(song);
+      if (mvMatch != null) return mvMatch;
     }
 
     throw const KugouApiException('该歌曲无版权或需付费');
   }
 
+  Future<Song> _resolveMvPlayback(Song song) async {
+    final hash = song.hash?.trim() ?? '';
+    if (hash.isEmpty) {
+      throw const KugouApiException('MV缺少音频信息');
+    }
+    final response = await _get(
+      '/video/url',
+      authenticated: true,
+      bypassCache: true,
+      queryParameters: {'hash': hash},
+    );
+    final body = _map(response.data);
+    final data = _map(body['data']);
+    final lowerHash = hash.toLowerCase();
+    final entry = _map(
+      data[lowerHash] ?? (data.isNotEmpty ? data.values.first : null),
+    );
+    final backupList = _list(entry['backupdownurl']);
+    final backup = backupList.isNotEmpty ? backupList.first.toString() : '';
+    final url = _read(entry, ['downurl', 'url', 'play_url'], fallback: backup);
+    if (url.isEmpty) {
+      throw const KugouApiException('获取MV播放地址失败');
+    }
+    return song.copyWith(audioUrl: url, playbackQuality: 'MV');
+  }
+
   Future<void> loadAvailableQualities(Song song) async {
+    if (song.isMv) {
+      playbackQualityController?.markAvailabilityChecked(song);
+      return;
+    }
     if (song.hash?.trim().isEmpty != false &&
         song.catalogHash?.trim().isEmpty != false) {
       playbackQualityController?.markAvailabilityChecked(song);
@@ -1428,19 +1503,35 @@ class KugouApiClient {
 
   Future<List<LyricLine>> getLyrics(Song song) async {
     final hash = song.hash?.trim() ?? '';
-    if (hash.isEmpty) return const [];
+    if (hash.isEmpty && !song.isMv) return const [];
+    final isMv = song.isMv;
+    final cleanTitle = isMv ? _cleanMvTitleForLyrics(song.title) : song.title;
     final searchResponse = await _get(
       '/search/lyric',
       queryParameters: {
-        'hash': hash,
-        'keywords': '${song.artist} - ${song.title}',
+        'hash': isMv ? '' : hash,
+        'keywords': '${song.artist} - $cleanTitle',
         'duration': song.duration.inMilliseconds,
-        if (song.albumAudioId != null) 'album_audio_id': song.albumAudioId,
+        if (!isMv && song.albumAudioId != null)
+          'album_audio_id': song.albumAudioId,
         'man': 'no',
       },
       bypassCache: true,
     );
-    final candidate = _lyricCandidate(searchResponse.data);
+    var candidate = _lyricCandidate(searchResponse.data);
+    if (candidate == null && isMv && cleanTitle != song.title) {
+      final retryResponse = await _get(
+        '/search/lyric',
+        queryParameters: {
+          'hash': '',
+          'keywords': '${song.artist} - ${song.title}',
+          'duration': song.duration.inMilliseconds,
+          'man': 'no',
+        },
+        bypassCache: true,
+      );
+      candidate = _lyricCandidate(retryResponse.data);
+    }
     if (candidate == null) return const [];
 
     final lyricResponse = await _get(
@@ -1698,6 +1789,124 @@ class KugouApiClient {
     return null;
   }
 
+  Future<Song?> _findPlayableMvReplacement(Song song) async {
+    // Tier 1: 酷狗官方强关联接口 /audio/mv (通过 album_audio_id 精准匹配)
+    final albumAudioId = song.albumAudioId;
+    if (albumAudioId != null && albumAudioId > 0) {
+      try {
+        final response = await _post(
+          '/audio/mv',
+          authenticated: true,
+          queryParameters: {
+            'album_audio_id': albumAudioId.toString(),
+            'fields': 'mkv,tags,h264,h265,authors',
+          },
+        );
+        final body = _map(response.data);
+        final data = body['data'];
+        final records = _list(
+          data is List && data.isNotEmpty && data.first is List
+              ? data.first
+              : data,
+        );
+        for (final item in records) {
+          final m = _map(item);
+          final isShort = _toInt(m['is_short']) == 1;
+          var durationSeconds = _toInt(m['duration'] ?? m['timelength']);
+          if (durationSeconds > 10000) durationSeconds ~/= 1000;
+          if (isShort || (durationSeconds > 0 && durationSeconds < 90)) {
+            continue;
+          }
+          final h264 = _map(m['h264']);
+          final mvdata = _list(m['mvdata']);
+          final firstMvData = mvdata.isNotEmpty
+              ? _map(mvdata.first)
+              : const <String, Object?>{};
+          var hash = _read(h264, [
+            'sd_hash',
+            'ld_hash',
+            'hd_hash',
+            'fhd_hash',
+            'qhd_hash',
+          ]);
+          if (hash.isEmpty) {
+            hash = _read(firstMvData, ['hash']);
+          }
+          if (hash.isEmpty) {
+            hash = _read(m, ['hash']);
+          }
+          if (hash.isNotEmpty) {
+            try {
+              final resolved = await _resolveMvPlayback(
+                song.copyWith(hash: hash, isMv: true),
+              );
+              if (resolved.audioUrl.isNotEmpty) {
+                playbackQualityController?.markAvailabilityChecked(song);
+                return song.copyWith(
+                  audioUrl: resolved.audioUrl,
+                  playbackQuality: 'MV',
+                  playbackNotice: '已切换MV音源',
+                );
+              }
+            } catch (_) {
+              // 继续尝试下一个或降级至搜索
+            }
+          }
+        }
+      } catch (_) {
+        // 降级至 Tier 2 搜索
+      }
+    }
+
+    // Tier 2: 智能多策略文本检索与匹配
+    try {
+      final primaryArtist = song.artist.split(RegExp(r'[/,、&;]')).first.trim();
+      final baseTitle = _extractBaseSongTitle(song.title);
+
+      final queries = <String>{
+        if (primaryArtist.isNotEmpty) '${song.title} $primaryArtist'.trim(),
+        if (baseTitle.isNotEmpty && primaryArtist.isNotEmpty)
+          '$baseTitle $primaryArtist'.trim(),
+        song.title.trim(),
+        if (baseTitle.isNotEmpty) baseTitle,
+      }.where((q) => q.isNotEmpty).toList();
+
+      final candidates = <SearchCatalogItem>[];
+      final seenHashes = <String>{};
+      for (final query in queries) {
+        final matches = await searchCatalog(query, SearchCategory.mv);
+        for (final item in matches) {
+          final h = item.hash ?? item.listId ?? '';
+          if (h.isNotEmpty && seenHashes.add(h.toLowerCase())) {
+            candidates.add(item);
+          }
+        }
+        if (candidates.isNotEmpty) break;
+      }
+
+      for (final candidate in candidates) {
+        if (!_isMvReplacementCandidate(song, candidate)) continue;
+        final mvSong = candidate.toSong();
+        try {
+          final resolved = await _resolveMvPlayback(mvSong);
+          if (resolved.audioUrl.isNotEmpty) {
+            playbackQualityController?.markAvailabilityChecked(song);
+            return song.copyWith(
+              audioUrl: resolved.audioUrl,
+              playbackQuality: 'MV',
+              playbackNotice: '已切换MV音源',
+            );
+          }
+        } catch (_) {
+          continue;
+        }
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
   Future<Response<Object?>> _get(
     String path, {
     Map<String, Object?>? queryParameters,
@@ -1884,6 +2093,71 @@ class KugouApiClient {
         data['msg']?.toString() ??
         '操作失败，请稍后重试';
     throw KugouApiException(message);
+  }
+
+  Song? _songFromArtistVideo(Object? value, {String fallbackArtist = ''}) {
+    final json = _map(value);
+    final h264 = _map(json['h264']);
+    final hash = _read(
+      h264,
+      ['sd_hash', 'ld_hash', 'hd_hash', 'fhd_hash', 'qhd_hash'],
+      fallback: _read(json, [
+        'mkv_sd_hash',
+        'mkv_hd_hash',
+        'mkv_qhd_hash',
+        'mv_hash',
+        'hash',
+        'audio_hash',
+      ]),
+    );
+    final videoId = _read(json, ['video_id', 'id', 'mvid']);
+    var title = _read(json, [
+      'video_name',
+      'name',
+      'title',
+      'mv_name',
+      'filename',
+    ]);
+    if (title.isEmpty) return null;
+    var artist = _read(json, [
+      'author_name',
+      'singer_name',
+      'singername',
+      'singer',
+    ], fallback: fallbackArtist);
+    final prefix = '$artist - ';
+    if (title.startsWith(prefix)) title = title.substring(prefix.length);
+    final extractedArtists = _extractArtists(json, fallbackName: artist);
+    final normalized = _normalizeTitleAndArtist(
+      title,
+      artist,
+      extractedArtists,
+    );
+    title = normalized.title;
+    artist = normalized.artist;
+
+    var duration = _toInt(json['timelength'] ?? json['duration']);
+    if (duration > 10000) duration ~/= 1000;
+    final rawCover = _read(json, ['hdpic', 'cover', 'pic', 'img']);
+    final cover = rawCover.isEmpty
+        ? null
+        : rawCover.replaceAll('{size}', '240');
+    final identity = hash.isNotEmpty
+        ? hash
+        : (videoId.isNotEmpty ? 'mv_$videoId' : 'mv_${title.hashCode}');
+
+    return Song(
+      id: identity,
+      title: title,
+      artist: artist,
+      album: 'MV音源',
+      duration: Duration(seconds: duration),
+      audioUrl: '',
+      hash: hash.isEmpty ? null : hash,
+      coverUrl: cover,
+      isMv: true,
+      artists: _displayArtists(artist, extractedArtists),
+    );
   }
 
   Song? _songFromSearch(Object? value) {
@@ -2262,6 +2536,34 @@ class KugouApiClient {
           ),
         ),
       ),
+      SearchCategory.mv => (
+        id: _read(json, [
+          'MvID',
+          'mvid',
+          'video_id',
+          'id',
+          'MvHash',
+          'mv_hash',
+          'hash',
+        ]),
+        title: _read(json, [
+          'MvName',
+          'mv_name',
+          'FileName',
+          'filename',
+          'name',
+          'title',
+        ]),
+        subtitle: _read(json, [
+          'SingerName',
+          'singer_name',
+          'singer',
+          'author_name',
+        ], fallback: '未知歌手'),
+        image: _read(json, ['Pic', 'pic', 'hdpic', 'thumb', 'img']),
+        listId: _read(json, ['MvHash', 'mv_hash', 'hash']),
+        ownerId: '',
+      ),
       SearchCategory.song => (
         id: '',
         title: '',
@@ -2275,17 +2577,40 @@ class KugouApiClient {
     final releaseDate = category == SearchCategory.album
         ? _read(json, ['pubdate', 'publish_date', 'publishtime', 'pub_date'])
         : '';
+    final String? imageUrl;
+    if (fields.image.isEmpty) {
+      imageUrl = null;
+    } else if (category == SearchCategory.mv &&
+        !fields.image.startsWith('http://') &&
+        !fields.image.startsWith('https://')) {
+      imageUrl = 'https://imge.kugou.com/mvhdpic/400/${fields.image}';
+    } else {
+      imageUrl = fields.image.replaceAll('{size}', '240');
+    }
     return SearchCatalogItem(
       id: fields.id,
       title: fields.title,
       subtitle: fields.subtitle,
       category: category,
-      imageUrl: fields.image.isEmpty
-          ? null
-          : fields.image.replaceAll('{size}', '240'),
+      imageUrl: imageUrl,
       listId: fields.listId.isEmpty ? null : fields.listId,
       ownerId: fields.ownerId.isEmpty ? null : fields.ownerId,
       releaseDate: releaseDate.isEmpty ? null : releaseDate,
+      duration: category == SearchCategory.mv
+          ? () {
+              var dur = _toInt(
+                json['Duration'] ??
+                    json['duration'] ??
+                    json['timelength'] ??
+                    json['timelen'],
+              );
+              if (dur > 10000) dur ~/= 1000;
+              return Duration(seconds: dur);
+            }()
+          : null,
+      hash: category == SearchCategory.mv
+          ? _read(json, ['MvHash', 'mv_hash', 'hash'])
+          : null,
     );
   }
 
@@ -2484,6 +2809,39 @@ String _cleanLyricText(String value) {
       .replaceAll('&apos;', "'")
       .replaceAll('&quot;', '"')
       .replaceAll('&amp;', '&')
+      .trim();
+}
+
+String _cleanMvTitleForLyrics(String title) {
+  return title
+      .replaceAll(
+        RegExp(
+          r'[（\(][^）\)]*(?:MV|官方|修复|完整|现场|live|Live|4K|1080P|超清|高清|独家|首发|纯享|原版)[^）\)]*[）\)]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'[【\[][^】\]]*(?:MV|官方|修复|完整|现场|live|Live|4K|1080P|超清|高清|独家|首发|纯享|原版)[^】\]]*[】\]]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\s+-\s+(?:MV|官方|修复|完整|现场|live|Live|4K|超清|高清).*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\s*(?:MV|Official Music Video|Official Video|1080P|4K)\s*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
       .trim();
 }
 
@@ -2826,11 +3184,141 @@ bool _isReplacementCandidate(Song source, Song target) {
       });
 }
 
+bool _isMvReplacementCandidate(Song source, SearchCatalogItem candidate) =>
+    isMvReplacementCandidate(source, candidate);
+
+@visibleForTesting
+bool isMvReplacementCandidate(Song source, SearchCatalogItem candidate) {
+  final candidateHash =
+      candidate.hash?.toLowerCase() ?? candidate.listId?.toLowerCase() ?? '';
+  if (candidateHash.isEmpty) return false;
+
+  // 1. 时长门槛：必须在 90 秒（1分半）以上，过滤几十秒的片花、片段、预告与短视频
+  final candidateSeconds = candidate.duration?.inSeconds ?? 0;
+  if (candidateSeconds > 0 && candidateSeconds < 90) return false;
+
+  // 2. 过滤预告片、片段、花絮、片花等非完整MV
+  final lowerCandidateTitle = candidate.title.toLowerCase();
+  final lowerSubtitle = candidate.subtitle.toLowerCase();
+  final isTeaserOrClip = RegExp(
+    r'(预告|片花|片段|花絮|teaser|trailer|preview|shorts|clip|behind the scene)',
+    caseSensitive: false,
+  );
+  if (isTeaserOrClip.hasMatch(lowerCandidateTitle) ||
+      isTeaserOrClip.hasMatch(lowerSubtitle)) {
+    return false;
+  }
+
+  final sourceFullTitle = _normalizeSongText(source.title);
+  final sourceBaseTitle = _normalizeSongText(
+    _extractBaseSongTitle(source.title),
+  );
+  if (sourceFullTitle.isEmpty && sourceBaseTitle.isEmpty) return false;
+
+  final cleanedMvTitle = _cleanMvTitleForMatching(candidate.title);
+  var mvTitlePart = cleanedMvTitle;
+  final dashIndex = cleanedMvTitle.indexOf(' - ');
+  if (dashIndex > 0) {
+    mvTitlePart = cleanedMvTitle.substring(dashIndex + 3).trim();
+  }
+
+  final targetTitle = _normalizeSongText(mvTitlePart);
+  final targetBaseTitle = _normalizeSongText(
+    _extractBaseSongTitle(mvTitlePart),
+  );
+  final fullTargetTitle = _normalizeSongText(cleanedMvTitle);
+  final fullTargetBaseTitle = _normalizeSongText(
+    _extractBaseSongTitle(cleanedMvTitle),
+  );
+
+  final titleMatches =
+      sourceFullTitle == targetTitle ||
+      sourceFullTitle == fullTargetTitle ||
+      sourceBaseTitle == targetTitle ||
+      sourceBaseTitle == targetBaseTitle ||
+      sourceBaseTitle == fullTargetTitle ||
+      sourceBaseTitle == fullTargetBaseTitle ||
+      (sourceFullTitle.isNotEmpty && targetTitle.contains(sourceFullTitle)) ||
+      (sourceFullTitle.isNotEmpty &&
+          fullTargetTitle.contains(sourceFullTitle)) ||
+      (sourceBaseTitle.isNotEmpty && targetTitle.contains(sourceBaseTitle)) ||
+      (sourceBaseTitle.isNotEmpty &&
+          fullTargetTitle.contains(sourceBaseTitle)) ||
+      (targetTitle.isNotEmpty && sourceFullTitle.contains(targetTitle)) ||
+      (targetBaseTitle.isNotEmpty && sourceBaseTitle.contains(targetBaseTitle));
+
+  if (!titleMatches) return false;
+
+  final sourceArtists = _normalizedArtistSet(source);
+  if (sourceArtists.isEmpty) return true;
+
+  final combinedCandidateArtist = _normalizeArtistText(
+    '${candidate.subtitle} ${candidate.title}',
+  );
+  return sourceArtists.any(
+    (artist) => combinedCandidateArtist.contains(artist),
+  );
+}
+
+String _extractBaseSongTitle(String title) {
+  return title
+      .replaceAll(
+        RegExp(
+          r'[（\(][^）\)]*(?:feat|ft|prod|with|remix|live|version|edit|edition|soundtrack|ost)[^）\)]*[）\)]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'[【\[][^】\]]*(?:feat|ft|prod|with|remix|live|version|edit|edition|soundtrack|ost)[^】\]]*[】\]]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(RegExp(r"""['"“”‘’]"""), '')
+      .trim();
+}
+
+String _cleanMvTitleForMatching(String title) {
+  return title
+      .replaceAll(
+        RegExp(
+          r'[（\(][^）\)]*(?:MV|官方|修复|完整|现场|live|Live|4K|1080P|超清|高清|独家|首发|纯享|原版|Official)[^）\)]*[）\)]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'[【\[][^】\]]*(?:MV|官方|修复|完整|现场|live|Live|4K|1080P|超清|高清|独家|首发|纯享|原版|Official)[^】\]]*[】\]]',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\s+-\s+(?:MV|官方|修复|完整|现场|live|Live|4K|超清|高清).*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(
+        RegExp(
+          r'\s*(?:OFFICIAL MV|OFFICIAL PERFORMANCE FILM|Official Film|Official Visualizer|Official Music Video|Official Video|MV|1080P|4K)\s*$',
+          caseSensitive: false,
+        ),
+        '',
+      )
+      .replaceAll(RegExp(r"""['"“”‘’]"""), '')
+      .trim();
+}
+
 String _normalizeSongText(String value) {
   return value
       .toLowerCase()
       .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac)$'), '')
-      .replaceAll(RegExp(r'[\s《》〈〉「」『』【】\[\]（）()_-]+'), '')
+      .replaceAll(RegExp(r"""[\s《》〈〉「」『』【】\[\]（）()_'"\-\.\/·]+"""), '')
       .trim();
 }
 
@@ -2852,7 +3340,7 @@ Set<String> _normalizedArtistSet(Song song) {
 String _normalizeArtistText(String value) {
   return value
       .toLowerCase()
-      .replaceAll(RegExp(r'\s+'), '')
+      .replaceAll(RegExp(r"""[\s《》〈〉「」『』【】\[\]（）()_'"\-\.\/·]+"""), '')
       .replaceAll(RegExp(r'(、|,|，|/|&|feat\.?|ft\.?).*'), '')
       .trim();
 }

@@ -27,6 +27,7 @@ class SearchPage extends StatefulWidget {
     required this.onAddToPlaylist,
     required this.onOpenArtist,
     required this.onOpenAlbum,
+    this.isFavorite,
   });
 
   final MusicSearchController controller;
@@ -40,6 +41,7 @@ class SearchPage extends StatefulWidget {
   final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
+  final bool Function(Song)? isFavorite;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -232,6 +234,7 @@ class _SearchPageState extends State<SearchPage> {
         onAddToPlaylist: widget.onAddToPlaylist,
         onOpenArtist: widget.onOpenArtist,
         onOpenAlbum: widget.onOpenAlbum,
+        isFavorite: widget.isFavorite,
       );
     }
 
@@ -479,6 +482,7 @@ class _SearchResults extends StatefulWidget {
     required this.onAddToPlaylist,
     required this.onOpenArtist,
     required this.onOpenAlbum,
+    this.isFavorite,
   });
 
   final MusicSearchController controller;
@@ -492,6 +496,7 @@ class _SearchResults extends StatefulWidget {
   final ValueChanged<Song> onAddToPlaylist;
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
+  final bool Function(Song)? isFavorite;
 
   @override
   State<_SearchResults> createState() => _SearchResultsState();
@@ -509,7 +514,10 @@ class _SearchResultsState extends State<_SearchResults> {
   int? get _currentIndex {
     final current = widget.currentSong;
     if (current == null) return null;
-    final results = widget.controller.results;
+    final isMv = widget.controller.category == SearchCategory.mv;
+    final results = isMv
+        ? widget.controller.catalogResults.map((item) => item.toSong()).toList()
+        : widget.controller.results;
     for (var i = 0; i < results.length; i++) {
       if (results[i].id == current.id) return i;
     }
@@ -533,12 +541,28 @@ class _SearchResultsState extends State<_SearchResults> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text('搜索结果', style: AppTypography.panelTitle),
-                if (controller.category == SearchCategory.song &&
-                    controller.results.isNotEmpty) ...[
+                if ((controller.category == SearchCategory.song &&
+                        controller.results.isNotEmpty) ||
+                    (controller.category == SearchCategory.mv &&
+                        controller.catalogResults.isNotEmpty)) ...[
                   const SizedBox(width: 8),
                   PlayAllHeaderButton(
-                    onTap: () => widget.onPlayAll(controller.results),
-                    songCount: controller.results.length,
+                    onTap: () {
+                      if (controller.category == SearchCategory.song) {
+                        widget.onPlayAll(controller.results);
+                      } else {
+                        final mvSongs = controller.catalogResults
+                            .map((item) => item.toSong())
+                            .map((s) => s.copyWith(
+                                  liked: widget.isFavorite?.call(s) ?? s.liked,
+                                ))
+                            .toList();
+                        widget.onPlayAll(mvSongs);
+                      }
+                    },
+                    songCount: controller.category == SearchCategory.song
+                        ? controller.results.length
+                        : controller.catalogResults.length,
                     size: 36,
                   ),
                 ],
@@ -591,7 +615,8 @@ class _SearchResultsState extends State<_SearchResults> {
                       top: 0,
                       child: LinearProgressIndicator(minHeight: 2),
                     ),
-                  if (controller.category == SearchCategory.song)
+                  if (controller.category == SearchCategory.song ||
+                      controller.category == SearchCategory.mv)
                     ListScrollActions(
                       controller: _scrollController,
                       currentIndex: _currentIndex,
@@ -619,11 +644,22 @@ class _SearchResultsState extends State<_SearchResults> {
         onLogin: widget.onLogin,
       );
     }
-    if (controller.category == SearchCategory.song) {
-      if (controller.results.isEmpty) {
+    if (controller.category == SearchCategory.song ||
+        controller.category == SearchCategory.mv) {
+      final isMv = controller.category == SearchCategory.mv;
+      final songs = isMv
+          ? controller.catalogResults
+              .map((item) => item.toSong())
+              .map((song) => song.copyWith(
+                    liked: widget.isFavorite?.call(song) ?? song.liked,
+                  ))
+              .toList()
+          : controller.results;
+
+      if (songs.isEmpty) {
         return Center(
           child: Text(
-            '没有找到相关单曲',
+            isMv ? '没有找到相关MV' : '没有找到相关单曲',
             style: AppTypography.style(13, 500, color: AppColors.faint),
           ),
         );
@@ -632,13 +668,13 @@ class _SearchResultsState extends State<_SearchResults> {
         controller: _scrollController,
         child: ListView.separated(
           key: PageStorageKey(
-            'search-song-${controller.keyword.trim().toLowerCase()}',
+            'search-${controller.category.name}-${controller.keyword.trim().toLowerCase()}',
           ),
           controller: _scrollController,
           physics: const ClampingScrollPhysics(),
           padding: const EdgeInsets.only(top: 6, bottom: 20),
           scrollCacheExtent: const ScrollCacheExtent.pixels(900),
-          itemCount: controller.results.length,
+          itemCount: songs.length,
           separatorBuilder: (_, _) => Divider(
             height: 1,
             thickness: 0.5,
@@ -647,16 +683,16 @@ class _SearchResultsState extends State<_SearchResults> {
             ),
           ),
           itemBuilder: (context, index) {
-            final song = controller.results[index];
+            final song = songs[index];
             return SongRow(
               song: song,
               index: index,
               compact: true,
               isCurrent: widget.currentSong?.id == song.id,
               isPlaying: widget.isPlaying,
-              onPlay: () => widget.onPlay(song, controller.results),
+              onPlay: () => widget.onPlay(song, songs),
               onLike: () => widget.onLike(song),
-              onAddToPlaylist: () => widget.onAddToPlaylist(song),
+              onAddToPlaylist: isMv ? null : () => widget.onAddToPlaylist(song),
               onArtist: () => widget.onOpenArtist(song),
               onArtistLink: (artist) => widget.onOpenArtist(
                 song.copyWith(

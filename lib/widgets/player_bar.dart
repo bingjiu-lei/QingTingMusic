@@ -301,7 +301,9 @@ class _TrackSection extends StatelessWidget {
         ),
         if (song != null) ...[
           _ControlIconButton(
-            tooltip: song!.liked ? '取消收藏' : '收藏',
+            tooltip: song!.isMv
+                ? (song!.liked ? '取消收藏MV' : '收藏MV')
+                : (song!.liked ? '取消收藏' : '收藏'),
             onPressed: onLike == null ? null : () => onLike!(song!),
             icon: song!.liked
                 ? Icons.favorite_rounded
@@ -312,6 +314,7 @@ class _TrackSection extends StatelessWidget {
           ),
           GestureDetector(
             onSecondaryTapDown: (details) async {
+              if (song!.isMv) return;
               final isCurrentCreated =
                   currentPlayingPlaylist != null &&
                   currentPlayingPlaylist!.kind ==
@@ -401,14 +404,16 @@ class _TrackSection extends StatelessWidget {
               }
             },
             child: _ControlIconButton(
-              tooltip: isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单',
-              onPressed: onAddToPlaylist == null
+              tooltip: song!.isMv
+                  ? 'MV音源暂不支持加入自建歌单'
+                  : (isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单'),
+              onPressed: (song!.isMv || onAddToPlaylist == null)
                   ? null
                   : () => onAddToPlaylist!(song!),
               icon: isAddedToPlaylist
                   ? Icons.playlist_add_check_rounded
                   : Icons.playlist_add_rounded,
-              selected: isAddedToPlaylist,
+              selected: isAddedToPlaylist && !song!.isMv,
               selectedColor: AppColors.primary,
               selectedBackgroundColor: Colors.transparent,
               size: 38,

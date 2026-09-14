@@ -32,6 +32,9 @@ class SongPanel extends StatefulWidget {
     this.showHeader = false,
     this.filterText = '',
     this.reversed = false,
+    this.canLoadMore = false,
+    this.loadingMore = false,
+    this.onLoadMore,
   });
 
   final String title;
@@ -50,6 +53,9 @@ class SongPanel extends StatefulWidget {
   final bool showHeader;
   final String filterText;
   final bool reversed;
+  final bool canLoadMore;
+  final bool loadingMore;
+  final VoidCallback? onLoadMore;
 
   @override
   State<SongPanel> createState() => _SongPanelState();
@@ -59,9 +65,36 @@ class _SongPanelState extends State<SongPanel> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void didUpdateWidget(covariant SongPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.canLoadMore && widget.songs.length != oldWidget.songs.length) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handleScroll());
+    }
+  }
+
+  @override
   void dispose() {
-    _scrollController.dispose();
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
     super.dispose();
+  }
+
+  void _handleScroll() {
+    if (!widget.canLoadMore ||
+        widget.loadingMore ||
+        !_scrollController.hasClients) {
+      return;
+    }
+    if (_scrollController.position.extentAfter < 600) {
+      widget.onLoadMore?.call();
+    }
   }
 
   List<Song> get _visibleSongs {
@@ -134,12 +167,27 @@ class _SongPanelState extends State<SongPanel> {
                           controller: _scrollController,
                           physics: const ClampingScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(4, 6, 4, 20),
-                          itemCount: visibleSongs.length,
+                          itemCount: visibleSongs.length + (widget.loadingMore ? 1 : 0),
                           itemExtent: itemExtent,
                           scrollCacheExtent: ScrollCacheExtent.pixels(
                             itemExtent * 14,
                           ),
                           itemBuilder: (context, index) {
+                            if (index >= visibleSongs.length) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
                             final song = visibleSongs[index];
                             return Column(
                               children: [

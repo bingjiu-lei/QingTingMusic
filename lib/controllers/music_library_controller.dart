@@ -6,19 +6,25 @@ import '../data/music_repository.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
+import '../services/favorite_mv_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/music_library_cache_service.dart';
 
-enum LibrarySection { songs, playlists, albums, artists, cloud, recent }
+enum LibrarySection { songs, playlists, albums, artists, cloud, mv, recent }
 
 class MusicLibraryController extends ChangeNotifier {
   MusicLibraryController(
     this.repository, {
     MusicLibraryCacheService? cacheService,
-  }) : cacheService = cacheService ?? MusicLibraryCacheService();
+    FavoriteMvService? favoriteMvService,
+  }) : cacheService = cacheService ?? MusicLibraryCacheService(),
+       favoriteMvService = favoriteMvService ?? FavoriteMvService() {
+    this.favoriteMvService.addListener(notifyListeners);
+  }
 
   final MusicRepository repository;
   final MusicLibraryCacheService cacheService;
+  final FavoriteMvService favoriteMvService;
 
   List<MusicPlaylist> playlists = const [];
   List<Song> favorites = const [];
@@ -67,6 +73,8 @@ class MusicLibraryController extends ChangeNotifier {
 
   List<Song> get sortedCloudSongs => cloudSongs.reversed.toList();
 
+  List<Song> get favoriteMvs => favoriteMvService.mvs;
+
   bool isLoading(LibrarySection section) => loading.contains(section);
 
   bool hasData(LibrarySection section) => switch (section) {
@@ -76,6 +84,7 @@ class MusicLibraryController extends ChangeNotifier {
     LibrarySection.albums => albums.isNotEmpty,
     LibrarySection.artists => followedArtists.isNotEmpty,
     LibrarySection.cloud => cloudSongs.isNotEmpty,
+    LibrarySection.mv => favoriteMvs.isNotEmpty,
     LibrarySection.recent => true,
   };
 
@@ -118,7 +127,7 @@ class MusicLibraryController extends ChangeNotifier {
     LibrarySection section, {
     bool refresh = false,
   }) async {
-    if (section == LibrarySection.recent) return;
+    if (section == LibrarySection.recent || section == LibrarySection.mv) return;
     if (!refresh && (loaded.contains(section) || loading.contains(section))) {
       return;
     }
@@ -173,6 +182,7 @@ class MusicLibraryController extends ChangeNotifier {
           if (nextCloudSongs.isNotEmpty || cloudSongs.isEmpty) {
             cloudSongs = nextCloudSongs;
           }
+        case LibrarySection.mv:
         case LibrarySection.recent:
           break;
       }
@@ -362,7 +372,12 @@ class MusicLibraryController extends ChangeNotifier {
     return cached;
   }
 
-  bool isFavorite(Song song) => favorites.any((item) => _sameSong(item, song));
+  bool isFavorite(Song song) {
+    if (song.isMv) {
+      return favoriteMvService.isFavorite(song);
+    }
+    return favorites.any((item) => _sameSong(item, song));
+  }
 
   Song withFavoriteState(Song song) {
     return song.copyWith(liked: isFavorite(song));
@@ -457,6 +472,7 @@ class MusicLibraryController extends ChangeNotifier {
             )
             .toList();
       case SearchCategory.song:
+      case SearchCategory.mv:
         break;
     }
   }
@@ -470,6 +486,7 @@ class MusicLibraryController extends ChangeNotifier {
       case SearchCategory.artist:
         await ensureLoaded(LibrarySection.artists, refresh: true);
       case SearchCategory.song:
+      case SearchCategory.mv:
         break;
     }
   }
@@ -531,12 +548,18 @@ class MusicLibraryController extends ChangeNotifier {
           }
         }
       case SearchCategory.song:
+      case SearchCategory.mv:
         return null;
     }
     return null;
   }
 
   Future<void> toggleFavorite(Song song) async {
+    if (song.isMv) {
+      await favoriteMvService.toggleFavorite(song);
+      notifyListeners();
+      return;
+    }
     final favorite = favoritePlaylist;
     if (favorite == null) {
       throw const KugouApiException('没有找到默认收藏歌单');
@@ -559,6 +582,9 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   Future<void> addToPlaylist(MusicPlaylist playlist, Song song) async {
+    if (song.isMv) {
+      throw const KugouApiException('MV音源暂不支持加入自建歌单');
+    }
     final cacheKey = _playlistCacheKey(playlist);
     try {
       final existingSongs = await loadPlaylist(playlist);
@@ -795,5 +821,11 @@ class MusicLibraryController extends ChangeNotifier {
         ? playlist.sourceId!
         : playlist.id;
     return '${playlist.kind.name}:$identity';
+  }
+
+  @override
+  void dispose() {
+    favoriteMvService.removeListener(notifyListeners);
+    super.dispose();
   }
 }

@@ -96,6 +96,7 @@ class _MusicShellState extends State<MusicShell>
   String? detailHeaderArtistName;
   String? detailImageUrl;
   List<Song> detailSongs = [];
+  List<Song> detailArtistMvs = [];
   List<SearchCatalogItem> detailRelatedItems = [];
   List<SearchCatalogItem> detailSimilarArtists = [];
   bool detailLoading = false;
@@ -131,6 +132,9 @@ class _MusicShellState extends State<MusicShell>
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
   int detailRelatedPage = 1;
+  bool detailArtistMvsLoadingMore = false;
+  bool detailArtistMvsHasMore = false;
+  int detailArtistMvsPage = 1;
   final Map<String, List<LyricLine>> _lyricsCache = {};
   final Map<String, Future<List<LyricLine>>> _lyricsRequests = {};
   String? _lastPreloadedLyricKey;
@@ -860,6 +864,9 @@ class _MusicShellState extends State<MusicShell>
     try {
       await libraryController.toggleFavorite(song);
       _applyFavoriteState(song, libraryController.isFavorite(song));
+      if (song.isMv) {
+        _showNotice(desired ? '已收藏到我的MV' : '已取消收藏MV');
+      }
     } catch (error) {
       _applyFavoriteState(song, previous);
       if (!mounted) return;
@@ -872,6 +879,17 @@ class _MusicShellState extends State<MusicShell>
   void _applyFavoriteState(Song song, bool liked) {
     detailSongs = detailSongs
         .map((item) => item.id == song.id ? item.copyWith(liked: liked) : item)
+        .toList();
+    detailArtistMvs = detailArtistMvs
+        .map(
+          (item) =>
+              (item.id == song.id ||
+                  (item.hash != null &&
+                      item.hash!.isNotEmpty &&
+                      item.hash == song.hash))
+              ? item.copyWith(liked: liked)
+              : item,
+        )
         .toList();
     searchController.results = searchController.results
         .map((item) => item.id == song.id ? item.copyWith(liked: liked) : item)
@@ -893,11 +911,15 @@ class _MusicShellState extends State<MusicShell>
           : null;
       detailImageUrl = item.imageUrl;
       detailSongs = [];
+      detailArtistMvs = [];
       detailRelatedItems = [];
       detailSimilarArtists = [];
       detailRelatedLoadingMore = false;
       detailRelatedHasMore = false;
       detailRelatedPage = 1;
+      detailArtistMvsLoadingMore = false;
+      detailArtistMvsHasMore = false;
+      detailArtistMvsPage = 1;
       detailLoading = true;
       detailKind = item.category == SearchCategory.artist
           ? CollectionDetailKind.artist
@@ -923,11 +945,22 @@ class _MusicShellState extends State<MusicShell>
               .catchError((_) => <SearchCatalogItem>[])
         else
           Future<List<SearchCatalogItem>>.value([]),
+        if (item.category == SearchCategory.artist)
+          repository.getArtistMvs(item, page: 1).catchError((_) => <Song>[])
+        else
+          Future<List<Song>>.value([]),
       ]);
       if (!mounted) return;
       final songs = (results[0] as List<Song>)
           .map(libraryController.withFavoriteState)
           .toList();
+      final artistMvs =
+          ((item.category == SearchCategory.artist
+                      ? results[3]
+                      : const <Song>[])
+                  as List<Song>)
+              .map(libraryController.withFavoriteState)
+              .toList();
       final finalItem = item.category == SearchCategory.album
           ? await _hydrateAlbumReleaseDate(item, songs)
           : item;
@@ -942,8 +975,11 @@ class _MusicShellState extends State<MusicShell>
         if (item.category == SearchCategory.artist) {
           detailRelatedItems = results[1] as List<SearchCatalogItem>;
           detailSimilarArtists = results[2] as List<SearchCatalogItem>;
+          detailArtistMvs = artistMvs;
           detailRelatedPage = 1;
           detailRelatedHasMore = detailRelatedItems.isNotEmpty;
+          detailArtistMvsPage = 1;
+          detailArtistMvsHasMore = detailArtistMvs.length >= 30;
         }
         detailLoading = false;
       });
@@ -1000,6 +1036,46 @@ class _MusicShellState extends State<MusicShell>
       setState(() {
         detailRelatedHasMore = false;
         detailRelatedLoadingMore = false;
+      });
+      _showNotice(error.toString(), kind: AppNoticeKind.error);
+    }
+  }
+
+  Future<void> _loadMoreArtistMvs() async {
+    final item = detailCatalogItem;
+    if (item == null ||
+        item.category != SearchCategory.artist ||
+        detailArtistMvsLoadingMore ||
+        !detailArtistMvsHasMore) {
+      return;
+    }
+    setState(() => detailArtistMvsLoadingMore = true);
+    try {
+      final nextPage = detailArtistMvsPage + 1;
+      final more = await repository.getArtistMvs(item, page: nextPage);
+      if (!mounted) return;
+      final mapped = more.map(libraryController.withFavoriteState).toList();
+      setState(() {
+        final beforeCount = detailArtistMvs.length;
+        final merged = <Song>[...detailArtistMvs];
+        final seen = <String>{
+          for (final s in detailArtistMvs)
+            s.id.isNotEmpty ? s.id : (s.hash ?? s.title),
+        };
+        for (final s in mapped) {
+          final key = s.id.isNotEmpty ? s.id : (s.hash ?? s.title);
+          if (seen.add(key)) merged.add(s);
+        }
+        detailArtistMvsPage = nextPage;
+        detailArtistMvsHasMore = more.isNotEmpty && merged.length > beforeCount;
+        detailArtistMvs = merged;
+        detailArtistMvsLoadingMore = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        detailArtistMvsHasMore = false;
+        detailArtistMvsLoadingMore = false;
       });
       _showNotice(error.toString(), kind: AppNoticeKind.error);
     }
@@ -1243,6 +1319,10 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _showAddToPlaylist(Song song) async {
+    if (song.isMv) {
+      _showNotice('MV音源暂不支持加入自建歌单');
+      return;
+    }
     if (_playlistOperationBusy) return;
     setState(() {
       _playlistOperationBusy = true;
@@ -1551,11 +1631,15 @@ class _MusicShellState extends State<MusicShell>
         headerArtistName: detailHeaderArtistName,
         imageUrl: detailImageUrl,
         songs: detailSongs,
+        artistMvs: detailArtistMvs,
         relatedItems: detailRelatedItems,
         similarArtists: detailSimilarArtists,
         relatedPage: detailRelatedPage,
         relatedHasMore: detailRelatedHasMore,
         relatedLoadingMore: detailRelatedLoadingMore,
+        artistMvsPage: detailArtistMvsPage,
+        artistMvsHasMore: detailArtistMvsHasMore,
+        artistMvsLoadingMore: detailArtistMvsLoadingMore,
         isLoading: detailLoading,
         kind: detailKind,
         playlist: detailPlaylist,
@@ -1580,6 +1664,10 @@ class _MusicShellState extends State<MusicShell>
         detailRelatedLoadingMore = false;
         detailRelatedHasMore = false;
         detailRelatedPage = 1;
+        detailArtistMvs = [];
+        detailArtistMvsLoadingMore = false;
+        detailArtistMvsHasMore = false;
+        detailArtistMvsPage = 1;
       });
       return;
     }
@@ -1591,11 +1679,15 @@ class _MusicShellState extends State<MusicShell>
       detailHeaderArtistName = previous.headerArtistName;
       detailImageUrl = previous.imageUrl;
       detailSongs = previous.songs;
+      detailArtistMvs = previous.artistMvs;
       detailRelatedItems = previous.relatedItems;
       detailSimilarArtists = previous.similarArtists;
       detailRelatedPage = previous.relatedPage;
       detailRelatedHasMore = previous.relatedHasMore;
       detailRelatedLoadingMore = previous.relatedLoadingMore;
+      detailArtistMvsPage = previous.artistMvsPage;
+      detailArtistMvsHasMore = previous.artistMvsHasMore;
+      detailArtistMvsLoadingMore = previous.artistMvsLoadingMore;
       detailLoading = previous.isLoading;
       detailKind = previous.kind;
       detailPlaylist = previous.playlist;
@@ -1920,11 +2012,15 @@ class _MusicShellState extends State<MusicShell>
         releaseDate:
             detailCatalogItem?.releaseDate ?? detailPlaylist?.releaseDate,
         songs: detailSongs,
+        artistMvs: detailArtistMvs,
         relatedItems: detailRelatedItems,
         similarArtists: detailSimilarArtists,
         relatedItemsLoadingMore: detailRelatedLoadingMore,
         relatedItemsCanLoadMore: detailRelatedHasMore,
         onLoadMoreRelatedItems: _loadMoreArtistAlbums,
+        artistMvsLoadingMore: detailArtistMvsLoadingMore,
+        artistMvsCanLoadMore: detailArtistMvsHasMore,
+        onLoadMoreArtistMvs: _loadMoreArtistMvs,
         isLoading: detailLoading,
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
@@ -2004,6 +2100,7 @@ class _MusicShellState extends State<MusicShell>
         onAddToPlaylist: _showAddToPlaylist,
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
+        isFavorite: libraryController.isFavorite,
       ),
       2 => RecommendationPage(
         controller: recommendationController,
@@ -2173,11 +2270,15 @@ class _DetailSnapshot {
     required this.headerArtistName,
     required this.imageUrl,
     required this.songs,
+    required this.artistMvs,
     required this.relatedItems,
     required this.similarArtists,
     required this.relatedPage,
     required this.relatedHasMore,
     required this.relatedLoadingMore,
+    required this.artistMvsPage,
+    required this.artistMvsHasMore,
+    required this.artistMvsLoadingMore,
     required this.isLoading,
     required this.kind,
     required this.playlist,
@@ -2192,11 +2293,15 @@ class _DetailSnapshot {
   final String? headerArtistName;
   final String? imageUrl;
   final List<Song> songs;
+  final List<Song> artistMvs;
   final List<SearchCatalogItem> relatedItems;
   final List<SearchCatalogItem> similarArtists;
   final int relatedPage;
   final bool relatedHasMore;
   final bool relatedLoadingMore;
+  final int artistMvsPage;
+  final bool artistMvsHasMore;
+  final bool artistMvsLoadingMore;
   final bool isLoading;
   final CollectionDetailKind kind;
   final MusicPlaylist? playlist;

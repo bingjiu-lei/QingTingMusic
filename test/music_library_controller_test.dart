@@ -513,6 +513,13 @@ class _FakeMusicRepository implements MusicRepository {
   Future<List<Song>> getCatalogSongs(SearchCatalogItem item) async => const [];
 
   @override
+  Future<List<Song>> getArtistMvs(
+    SearchCatalogItem artist, {
+    int page = 1,
+    int pageSize = 30,
+  }) async => const [];
+
+  @override
   Future<List<Song>> getCloudSongs() async => const [];
 
   @override

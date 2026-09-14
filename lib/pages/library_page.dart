@@ -72,6 +72,7 @@ class _LibraryPageState extends State<LibraryPage> {
     ('专辑', LibrarySection.albums),
     ('歌手', LibrarySection.artists),
     ('云盘', LibrarySection.cloud),
+    ('MV', LibrarySection.mv),
     ('最近播放', LibrarySection.recent),
   ];
 
@@ -164,6 +165,7 @@ class _LibraryPageState extends State<LibraryPage> {
     return switch (section) {
       LibrarySection.songs => widget.controller.sortedFavorites,
       LibrarySection.cloud => widget.controller.sortedCloudSongs,
+      LibrarySection.mv => widget.controller.favoriteMvs,
       LibrarySection.recent => widget.recentSongs,
       _ => null,
     };
@@ -203,6 +205,12 @@ class _LibraryPageState extends State<LibraryPage> {
         controller.sortedCloudSongs,
         '云盘中还没有歌曲',
         storageKey: const PageStorageKey('library-cloud-scroll'),
+      ),
+      LibrarySection.mv => _songs(
+        'MV',
+        controller.favoriteMvs,
+        '还没有收藏的MV',
+        storageKey: const PageStorageKey('library-mv-scroll'),
       ),
       LibrarySection.recent => _songs(
         '最近播放',

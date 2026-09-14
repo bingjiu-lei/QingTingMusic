@@ -24,6 +24,10 @@ class CollectionDetailPage extends StatefulWidget {
     required this.relatedItemsLoadingMore,
     required this.relatedItemsCanLoadMore,
     required this.isLoading,
+    this.artistMvs = const [],
+    this.artistMvsLoadingMore = false,
+    this.artistMvsCanLoadMore = false,
+    this.onLoadMoreArtistMvs,
     required this.onBack,
     this.onOpenHeaderArtist,
     required this.onPlay,
@@ -58,6 +62,10 @@ class CollectionDetailPage extends StatefulWidget {
   final bool relatedItemsLoadingMore;
   final bool relatedItemsCanLoadMore;
   final bool isLoading;
+  final List<Song> artistMvs;
+  final bool artistMvsLoadingMore;
+  final bool artistMvsCanLoadMore;
+  final VoidCallback? onLoadMoreArtistMvs;
   final VoidCallback onBack;
   final VoidCallback? onOpenHeaderArtist;
   final SongPlayRequest onPlay;
@@ -98,9 +106,10 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
     _filterFocusNode.dispose();
     super.dispose();
   }
+
   List<String> get tabs => switch (widget.kind) {
     CollectionDetailKind.playlist => ['歌曲'],
-    CollectionDetailKind.artist => ['歌曲', '专辑', '相似歌手'],
+    CollectionDetailKind.artist => ['歌曲', '专辑', 'MV', '相似歌手'],
     CollectionDetailKind.album => ['歌曲'],
   };
 
@@ -137,11 +146,12 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
               const SizedBox(width: 12),
               AlbumArt(
                 size: 80,
-                imageUrl: (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
+                imageUrl:
+                    (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
                     ? widget.imageUrl
                     : (widget.songs.isNotEmpty
-                        ? widget.songs.first.coverUrl
-                        : null),
+                          ? widget.songs.first.coverUrl
+                          : null),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -251,11 +261,10 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                           runSpacing: 8,
                           crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
-                            if (_songsForDisplay().isNotEmpty)
+                            if (_activeTabSongs.isNotEmpty)
                               PlayAllHeaderButton(
-                                onTap: () =>
-                                    widget.onPlayAll(_songsForDisplay()),
-                                songCount: _songsForDisplay().length,
+                                onTap: () => widget.onPlayAll(_activeTabSongs),
+                                songCount: _activeTabSongs.length,
                                 size: 36,
                               ),
                             if (widget.collectionItem != null)
@@ -271,10 +280,10 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                     ? AppColors.favorite
                                     : AppColors.muted,
                                 hoverIconColor: AppColors.favorite,
-                                hoverBackgroundColor:
-                                    AppColors.favorite.withValues(
-                                  alpha: AppColors.isDark ? 0.18 : 0.10,
-                                ),
+                                hoverBackgroundColor: AppColors.favorite
+                                    .withValues(
+                                      alpha: AppColors.isDark ? 0.18 : 0.10,
+                                    ),
                                 shadowColor: AppColors.favorite,
                               ),
                             if (widget.onDeletePlaylist != null)
@@ -286,15 +295,16 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                 iconSize: 18,
                                 iconColor: AppColors.muted,
                                 hoverIconColor: AppColors.danger,
-                                hoverBackgroundColor:
-                                    AppColors.danger.withValues(
-                                  alpha: AppColors.isDark ? 0.18 : 0.10,
-                                ),
+                                hoverBackgroundColor: AppColors.danger
+                                    .withValues(
+                                      alpha: AppColors.isDark ? 0.18 : 0.10,
+                                    ),
                                 shadowColor: AppColors.danger,
                               ),
                           ],
                         ),
-                        if (tabs.length <= 1 && _songsForDisplay().isNotEmpty) ...[
+                        if (tabs.length <= 1 &&
+                            _songsForDisplay().isNotEmpty) ...[
                           const Spacer(),
                           SongHeaderActions(
                             songs: _songsForDisplay(),
@@ -342,13 +352,13 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                   onChanged: widget.onTabChanged,
                 ),
                 const Spacer(),
-                if (tabs[selectedTab] == '歌曲')
+                if (tabs[selectedTab] == '歌曲' || tabs[selectedTab] == 'MV')
                   SongHeaderActions(
-                    songs: _songsForDisplay(),
+                    songs: _activeTabSongs,
                     showPlayAll: false,
-                    onPlayAll: _songsForDisplay().isEmpty
+                    onPlayAll: _activeTabSongs.isEmpty
                         ? null
-                        : () => widget.onPlayAll(_songsForDisplay()),
+                        : () => widget.onPlayAll(_activeTabSongs),
                     filterController: _filterController,
                     filterFocusNode: _filterFocusNode,
                     filterExpanded: _filterExpanded,
@@ -359,8 +369,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                         if (mounted) _filterFocusNode.requestFocus();
                       });
                     },
-                    onChangedFilter: (val) =>
-                        setState(() => _filterText = val),
+                    onChangedFilter: (val) => setState(() => _filterText = val),
                     onClearFilter: () {
                       _filterController.clear();
                       setState(() {
@@ -370,8 +379,7 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                       _filterFocusNode.unfocus();
                     },
                     reversed: _reversed,
-                    onToggleSort: () =>
-                        setState(() => _reversed = !_reversed),
+                    onToggleSort: () => setState(() => _reversed = !_reversed),
                   ),
               ],
             ),
@@ -385,6 +393,15 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
         ],
       ),
     );
+  }
+
+  List<Song> get _activeTabSongs {
+    if (widget.kind == CollectionDetailKind.artist &&
+        selectedTab < tabs.length &&
+        tabs[selectedTab] == 'MV') {
+      return widget.artistMvs;
+    }
+    return _songsForDisplay();
   }
 
   Widget _content() {
@@ -410,6 +427,29 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
             : widget.onOpenAlbum,
         showAlbum: widget.kind != CollectionDetailKind.album,
         emptyText: '暂无歌曲',
+      );
+    }
+    if (widget.kind == CollectionDetailKind.artist && tab == 'MV') {
+      return SongPanel(
+        key: PageStorageKey('${widget.storageKeyPrefix}:artist-mvs'),
+        title: 'MV',
+        songs: widget.artistMvs,
+        currentSong: widget.currentSong,
+        isPlaying: widget.isPlaying,
+        compactRows: true,
+        filterText: _filterText,
+        reversed: _reversed,
+        onPlay: widget.onPlay,
+        onLike: widget.onLike,
+        onAddToPlaylist: null,
+        onRemoveFromPlaylist: null,
+        onArtist: null,
+        onAlbum: null,
+        showAlbum: true,
+        emptyText: '暂无MV',
+        canLoadMore: widget.artistMvsCanLoadMore,
+        loadingMore: widget.artistMvsLoadingMore,
+        onLoadMore: widget.onLoadMoreArtistMvs,
       );
     }
     if (widget.kind == CollectionDetailKind.artist &&
