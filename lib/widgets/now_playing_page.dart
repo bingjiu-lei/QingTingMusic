@@ -207,7 +207,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
             child: Padding(
               padding: EdgeInsets.fromLTRB(
                 compact ? 16 : (isNarrow ? 24 : 48),
-                compact ? 12 : (isNarrow ? 18 : 28),
+                compact ? 12 : 52,
                 compact ? 16 : (isNarrow ? 24 : 48),
                 compact ? 12 : 18,
               ),
@@ -429,10 +429,8 @@ class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground>
             // Light glass wash / dark scrim overlay to guarantee text legibility
             DecoratedBox(
               decoration: BoxDecoration(
-                color:
-                    (dark ? const Color(0xFF080A10) : Colors.white).withValues(
-                  alpha: dark ? 0.24 : 0.50,
-                ),
+                color: (dark ? const Color(0xFF080A10) : Colors.white)
+                    .withValues(alpha: dark ? 0.24 : 0.50),
               ),
             ),
             DecoratedBox(
@@ -1014,56 +1012,42 @@ class _WideContent extends StatelessWidget {
         final isLarge = totalWidth >= 1350;
         final isNarrow = totalWidth < 1000;
         final maxStageWidth = isLarge
-            ? 1440.0
+            ? 1280.0
             : (isNarrow ? double.infinity : 1180.0);
-        final columnGap = isLarge
-            ? 96.0
-            : (isNarrow ? 36.0 : 60.0);
-
-        final double rightOffset;
-        if (totalWidth >= 1600) {
-          rightOffset = 120.0;
-        } else if (totalWidth >= 1350) {
-          rightOffset = 100.0;
-        } else if (totalWidth >= 1000) {
-          rightOffset = 76.0;
-        } else {
-          rightOffset = 32.0;
-        }
+        final columnGap = isLarge ? 72.0 : (isNarrow ? 36.0 : 56.0);
 
         return Center(
-          child: Transform.translate(
-            offset: Offset(rightOffset, 0),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxWidth: maxStageWidth),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  Expanded(
-                    flex: isNarrow ? 4 : 5,
-                    child: Center(
-                      child:
-                          _SongIdentity(song: song, onOpenArtist: onOpenArtist),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxStageWidth),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  flex: isNarrow ? 4 : 5,
+                  child: Center(
+                    child: _SongIdentity(
+                      song: song,
+                      onOpenArtist: onOpenArtist,
                     ),
                   ),
-                  SizedBox(width: columnGap),
-                  Expanded(
-                    flex: isNarrow ? 5 : 6,
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: _LyricsPanel(
-                        song: song,
-                        controller: controller,
-                        loadLyrics: loadLyrics,
-                        showTranslation: showTranslation,
-                        showTransliteration: showTransliteration,
-                        onTranslationChanged: onTranslationChanged,
-                        onTransliterationChanged: onTransliterationChanged,
-                      ),
+                ),
+                SizedBox(width: columnGap),
+                Expanded(
+                  flex: isNarrow ? 5 : 6,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: _LyricsPanel(
+                      song: song,
+                      controller: controller,
+                      loadLyrics: loadLyrics,
+                      showTranslation: showTranslation,
+                      showTransliteration: showTransliteration,
+                      onTranslationChanged: onTranslationChanged,
+                      onTransliterationChanged: onTransliterationChanged,
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         );
@@ -1121,10 +1105,7 @@ class _CompactContent extends StatelessWidget {
 }
 
 class _SongIdentity extends StatefulWidget {
-  const _SongIdentity({
-    required this.song,
-    this.onOpenArtist,
-  });
+  const _SongIdentity({required this.song, this.onOpenArtist});
 
   final Song song;
   final ValueChanged<Song>? onOpenArtist;
@@ -1198,9 +1179,7 @@ class _SongIdentityState extends State<_SongIdentity> {
                   borderRadius: BorderRadius.circular(20),
                   boxShadow: [
                     BoxShadow(
-                      color: glowColor.withValues(
-                        alpha: isDark ? 0.38 : 0.22,
-                      ),
+                      color: glowColor.withValues(alpha: isDark ? 0.38 : 0.22),
                       blurRadius: 36,
                       spreadRadius: 1.5,
                       offset: const Offset(0, 12),
@@ -1418,7 +1397,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
       }
     }
     if (nextIndex == _activeIndex && !forceScroll) {
-      if (nextIndex >= 0 && _lines[nextIndex].hasExactTiming && mounted) {
+      if (nextIndex >= 0 && mounted) {
         setState(() {});
       }
       return;
@@ -1461,15 +1440,15 @@ class _LyricsPanelState extends State<_LyricsPanel> {
           final maxH = constraints.maxHeight.isFinite
               ? constraints.maxHeight
               : 380.0;
-          final layerHeight = (hasTranslation || hasTransliteration) ? 34.0 : 0.0;
+          final layerHeight = (hasTranslation || hasTransliteration)
+              ? 34.0
+              : 0.0;
           final viewportHeight = math.max(120.0, maxH - layerHeight);
 
           final body = _lyricsContent(viewportHeight);
 
           return ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: widget.centered ? 640 : 540,
-            ),
+            constraints: BoxConstraints(maxWidth: widget.centered ? 680 : 640),
             child: Column(
               mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: widget.centered
@@ -1542,7 +1521,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
       return _LyricEmptyText(text: '暂无歌词', centered: widget.centered);
     }
 
-    final focalOffset = viewportHeight * 0.38;
+    final focalOffset = viewportHeight * 0.42;
     final bottomPadding = math.max(
       0.0,
       viewportHeight - focalOffset - _lyricRowExtent,
@@ -1551,10 +1530,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     final listView = ListView.builder(
       controller: _scrollController,
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.only(
-        top: focalOffset,
-        bottom: bottomPadding,
-      ),
+      padding: EdgeInsets.only(top: focalOffset, bottom: bottomPadding),
       itemCount: _lines.length,
       itemBuilder: (context, index) {
         final line = _lines[index];
@@ -1590,7 +1566,7 @@ class _LyricsPanelState extends State<_LyricsPanel> {
             Colors.black,
             Colors.transparent,
           ],
-          stops: [0.0, 0.12, 0.88, 1.0],
+          stops: [0.0, 0.18, 0.82, 1.0],
         ).createShader(rect);
       },
       blendMode: BlendMode.dstIn,
@@ -1664,8 +1640,8 @@ class _LyricRowState extends State<_LyricRow> {
                 opacity: active
                     ? 1.0
                     : (_hovered
-                        ? (isDark ? 0.88 : 0.84)
-                        : (isDark ? 0.38 : 0.40)),
+                          ? (isDark ? 0.88 : 0.84)
+                          : (isDark ? 0.38 : 0.40)),
                 duration: AppMotion.fast,
                 curve: Curves.easeOutCubic,
                 child: Column(
@@ -1686,7 +1662,9 @@ class _LyricRowState extends State<_LyricRow> {
                         secondary,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        textAlign: centered ? TextAlign.center : TextAlign.start,
+                        textAlign: centered
+                            ? TextAlign.center
+                            : TextAlign.start,
                         style: TextStyle(
                           fontFamily: 'NotoSansSC',
                           color: centered
@@ -1844,31 +1822,12 @@ class _KaraokeLine extends StatelessWidget {
         final maxWidth = hasBoundedWidth
             ? constraints.maxWidth
             : double.infinity;
-        var resolvedStyle = style;
-        var tp = TextPainter(
-          text: TextSpan(text: line.text, style: resolvedStyle),
+
+        final tp = TextPainter(
+          text: TextSpan(text: line.text, style: style),
           maxLines: 1,
           textDirection: TextDirection.ltr,
         )..layout();
-
-        // The active line uses a larger font. For long English lyrics that
-        // small size change can push only the final word outside the lyric
-        // column. Scale that line down just enough to keep the full sentence
-        // visible instead of clipping a word while it is being sung.
-        if (active && hasBoundedWidth && tp.width > maxWidth && maxWidth > 0) {
-          // Only make a small correction for a single trailing word. Truly
-          // long lines remain wider than the viewport and continue through
-          // the marquee path below.
-          final scale = ((maxWidth - 8) / tp.width).clamp(0.88, 1.0);
-          resolvedStyle = style.copyWith(
-            fontSize: (style.fontSize ?? 24.5) * scale,
-          );
-          tp = TextPainter(
-            text: TextSpan(text: line.text, style: resolvedStyle),
-            maxLines: 1,
-            textDirection: TextDirection.ltr,
-          )..layout();
-        }
 
         final textWidth = tp.width;
         final textHeight = tp.height;
@@ -1878,8 +1837,9 @@ class _KaraokeLine extends StatelessWidget {
         final baseText = Text(
           line.text,
           maxLines: 1,
+          overflow: isOverflow && !active ? TextOverflow.ellipsis : null,
           textAlign: centered ? TextAlign.center : TextAlign.start,
-          style: resolvedStyle,
+          style: style,
         );
 
         Widget child;
@@ -1891,8 +1851,9 @@ class _KaraokeLine extends StatelessWidget {
               Text(
                 line.text,
                 maxLines: 1,
+                overflow: isOverflow && !active ? TextOverflow.ellipsis : null,
                 textAlign: centered ? TextAlign.center : TextAlign.start,
-                style: resolvedStyle.copyWith(
+                style: style.copyWith(
                   color: (centered ? Colors.white : AppColors.text).withValues(
                     alpha: centered ? 0.40 : 0.35,
                   ),
@@ -1906,7 +1867,7 @@ class _KaraokeLine extends StatelessWidget {
                     line.text,
                     maxLines: 1,
                     textAlign: centered ? TextAlign.center : TextAlign.start,
-                    style: resolvedStyle.copyWith(
+                    style: style.copyWith(
                       color: centered ? Colors.white : AppColors.text,
                     ),
                   ),
@@ -1920,14 +1881,29 @@ class _KaraokeLine extends StatelessWidget {
           return child;
         }
 
-        // Long lyric line auto-scroll (marquee) to left
-        final overflowWidth = (textWidth - effectiveMaxWidth + 18.0).clamp(
+        if (!active) {
+          return baseText;
+        }
+
+        // 长歌词自动平滑跑马灯滑动 (marquee)
+        final overflowWidth = (textWidth - effectiveMaxWidth + 28.0).clamp(
           0.0,
           double.infinity,
         );
-        final scrollOffset = active
-            ? -overflowWidth * progress.clamp(0.0, 1.0)
-            : 0.0;
+
+        // 跑马灯推进曲线：
+        // 0.0 ~ 0.12：保持开头静止，确保开头歌词清晰可读
+        // 0.12 ~ 0.88：平滑滑动至末尾
+        // 0.88 ~ 1.0：在末尾平稳停顿，确保结尾歌词清晰可读
+        double marqueeCurve(double p) {
+          if (p <= 0.12) return 0.0;
+          if (p >= 0.88) return 1.0;
+          final t = (p - 0.12) / (0.88 - 0.12);
+          return Curves.easeInOutCubic.transform(t);
+        }
+
+        final scrollOffset =
+            -overflowWidth * marqueeCurve(progress.clamp(0.0, 1.0));
 
         return SizedBox(
           height: textHeight,
@@ -2039,105 +2015,110 @@ class _PlaybackControls extends StatelessWidget {
             constraints: const BoxConstraints(maxWidth: 480),
             child: SizedBox(
               height: 50,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.surface.withValues(
-                  alpha: AppColors.isDark ? 0.42 : 0.58,
-                ),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: AppColors.border.withValues(
-                    alpha: AppColors.isDark ? 0.32 : 0.45,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: AppColors.surface.withValues(
+                    alpha: AppColors.isDark ? 0.42 : 0.58,
                   ),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.shadow.withValues(
-                      alpha: AppColors.isDark ? 0.25 : 0.08,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: AppColors.border.withValues(
+                      alpha: AppColors.isDark ? 0.32 : 0.45,
                     ),
-                    blurRadius: 18,
-                    offset: const Offset(0, 5),
                   ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: _NowPlayingActions(
-                        song: song,
-                        controller: controller,
-                        onLike: onLike,
-                        onAddToPlaylist: onAddToPlaylist,
-                        isAddedToPlaylist: isAddedToPlaylist,
-                        compact: true,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.shadow.withValues(
+                        alpha: AppColors.isDark ? 0.25 : 0.08,
                       ),
+                      blurRadius: 18,
+                      offset: const Offset(0, 5),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isFm)
-                        _GlassControlButton(
-                          tooltip: '不喜欢',
-                          onPressed: onDislikeFm,
-                          child: const HeartOffIcon(size: 20, strokeWidth: 1.7),
-                        )
-                      else
-                        _GlassControlButton(
-                          tooltip: '上一首',
-                          icon: Icons.skip_previous_rounded,
-                          onPressed: controller.playPrevious,
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _NowPlayingActions(
+                          song: song,
+                          controller: controller,
+                          onLike: onLike,
+                          onAddToPlaylist: onAddToPlaylist,
+                          isAddedToPlaylist: isAddedToPlaylist,
+                          compact: true,
                         ),
-                      _PlayControlButton(
-                        isPlaying: controller.isPlaying,
-                        preparing: controller.isPreparing,
-                        onPressed: controller.togglePlay,
-                      ),
-                      _GlassControlButton(
-                        tooltip: '下一首',
-                        icon: Icons.skip_next_rounded,
-                        onPressed: () => controller.playNext(),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Align(
-                      alignment: Alignment.centerLeft,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          PlaybackQualityMenu(
-                            controller: playbackQualityController,
-                            playerController: controller,
-                            compact: true,
-                          ),
-                          _DesktopLyricControlButton(
-                            tooltip: desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词',
-                            selected: desktopLyricsVisible,
-                            onPressed: () =>
-                                onDesktopLyricsChanged(!desktopLyricsVisible),
-                          ),
-                          _PortraitModeButton(
-                            selected: portraitSelected,
-                            available: portraitAvailable,
-                            onPressed: onTogglePortrait,
-                          ),
-                        ],
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (isFm)
+                          _GlassControlButton(
+                            tooltip: '不喜欢',
+                            onPressed: onDislikeFm,
+                            child: const HeartOffIcon(
+                              size: 20,
+                              strokeWidth: 1.7,
+                            ),
+                          )
+                        else
+                          _GlassControlButton(
+                            tooltip: '上一首',
+                            icon: Icons.skip_previous_rounded,
+                            onPressed: controller.playPrevious,
+                          ),
+                        _PlayControlButton(
+                          isPlaying: controller.isPlaying,
+                          preparing: controller.isPreparing,
+                          onPressed: controller.togglePlay,
+                        ),
+                        _GlassControlButton(
+                          tooltip: '下一首',
+                          icon: Icons.skip_next_rounded,
+                          onPressed: () => controller.playNext(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            PlaybackQualityMenu(
+                              controller: playbackQualityController,
+                              playerController: controller,
+                              compact: true,
+                            ),
+                            _DesktopLyricControlButton(
+                              tooltip: desktopLyricsVisible
+                                  ? '关闭桌面歌词'
+                                  : '打开桌面歌词',
+                              selected: desktopLyricsVisible,
+                              onPressed: () =>
+                                  onDesktopLyricsChanged(!desktopLyricsVisible),
+                            ),
+                            _PortraitModeButton(
+                              selected: portraitSelected,
+                              available: portraitAvailable,
+                              onPressed: onTogglePortrait,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
   }
 }
 

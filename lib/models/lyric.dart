@@ -34,15 +34,21 @@ class LyricLine {
   bool get hasExactTiming =>
       timingSource == LyricTimingSource.exact && words.isNotEmpty;
 
-  LyricLine copyWith({String? translation, String? transliteration}) {
+  LyricLine copyWith({
+    Duration? duration,
+    List<LyricWord>? words,
+    String? translation,
+    String? transliteration,
+    LyricTimingSource? timingSource,
+  }) {
     return LyricLine(
       time: time,
       text: text,
-      duration: duration,
-      words: words,
+      duration: duration ?? this.duration,
+      words: words ?? this.words,
       translation: translation ?? this.translation,
       transliteration: transliteration ?? this.transliteration,
-      timingSource: timingSource,
+      timingSource: timingSource ?? this.timingSource,
     );
   }
 }

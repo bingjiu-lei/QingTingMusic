@@ -150,6 +150,19 @@ class KrcLyricParser {
       }
     }
     lines.sort((left, right) => left.time.compareTo(right.time));
-    return List.unmodifiable(lines);
+    final enriched = <LyricLine>[];
+    for (var i = 0; i < lines.length; i++) {
+      final current = lines[i];
+      final nextTime = i + 1 < lines.length
+          ? lines[i + 1].time
+          : current.time + const Duration(seconds: 6);
+      var lineDuration = nextTime - current.time;
+      if (lineDuration <= Duration.zero ||
+          lineDuration > const Duration(seconds: 30)) {
+        lineDuration = const Duration(seconds: 5);
+      }
+      enriched.add(current.copyWith(duration: lineDuration));
+    }
+    return List.unmodifiable(enriched);
   }
 }
