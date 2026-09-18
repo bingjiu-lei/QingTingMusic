@@ -76,7 +76,6 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   void initState() {
     super.initState();
     widget.controller.addListener(_handleSongChanged);
-    widget.controller.progress.addListener(_handleProgressChanged);
     _handleSongChanged();
   }
 
@@ -85,9 +84,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.controller != widget.controller) {
       oldWidget.controller.removeListener(_handleSongChanged);
-      oldWidget.controller.progress.removeListener(_handleProgressChanged);
       widget.controller.addListener(_handleSongChanged);
-      widget.controller.progress.addListener(_handleProgressChanged);
       _portraitSongKey = null;
       _handleSongChanged();
     }
@@ -96,14 +93,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   @override
   void dispose() {
     widget.controller.removeListener(_handleSongChanged);
-    widget.controller.progress.removeListener(_handleProgressChanged);
     super.dispose();
-  }
-
-  void _handleProgressChanged() {
-    if (mounted) {
-      setState(() {});
-    }
   }
 
   void _handleSongChanged() {
@@ -244,21 +234,23 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
                   ),
                   if (song != null) ...[
                     const SizedBox(height: 14),
-                    _PlaybackControls(
-                      controller: widget.controller,
-                      playbackQualityController:
-                          widget.playbackQualityController,
-                      song: song,
-                      onLike: widget.onLike,
-                      onAddToPlaylist: widget.onAddToPlaylist,
-                      isAddedToPlaylist: widget.isAddedToPlaylist,
-                      portraitSelected: _portraitMode,
-                      portraitAvailable: true,
-                      onTogglePortrait: _togglePortraitMode,
-                      desktopLyricsVisible: widget.desktopLyricsVisible,
-                      onDesktopLyricsChanged: widget.onDesktopLyricsChanged,
-                      isFm: widget.isFm,
-                      onDislikeFm: widget.onDislikeFm,
+                    RepaintBoundary(
+                      child: _PlaybackControls(
+                        controller: widget.controller,
+                        playbackQualityController:
+                            widget.playbackQualityController,
+                        song: song,
+                        onLike: widget.onLike,
+                        onAddToPlaylist: widget.onAddToPlaylist,
+                        isAddedToPlaylist: widget.isAddedToPlaylist,
+                        portraitSelected: _portraitMode,
+                        portraitAvailable: true,
+                        onTogglePortrait: _togglePortraitMode,
+                        desktopLyricsVisible: widget.desktopLyricsVisible,
+                        onDesktopLyricsChanged: widget.onDesktopLyricsChanged,
+                        isFm: widget.isFm,
+                        onDislikeFm: widget.onDislikeFm,
+                      ),
                     ),
                   ],
                 ],
@@ -294,19 +286,13 @@ class _FluidAmbientBackground extends StatefulWidget {
       _FluidAmbientBackgroundState();
 }
 
-class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground> {
   Color? _extractedColor;
   String? _lastCoverUrl;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 22),
-    )..repeat();
     _resolveColor();
   }
 
@@ -316,12 +302,6 @@ class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground>
     if (oldWidget.song?.coverUrl != widget.song?.coverUrl) {
       _resolveColor();
     }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
   }
 
   void _resolveColor() {
@@ -388,72 +368,60 @@ class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground>
         .withValue((hsv.value * 0.95).clamp(0.44, 0.85))
         .toColor();
 
-    final reduceMotion = MediaQuery.disableAnimationsOf(context);
-
     return Positioned.fill(
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: dark ? const Color(0xFF080A10) : const Color(0xFFF5F7FB),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // RepaintBoundary isolates canvas aurora painting
-            RepaintBoundary(
-              child: ImageFiltered(
-                imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
-                child: reduceMotion
-                    ? CustomPaint(
-                        painter: _FluidAuroraPainter(
-                          progress: 0.25,
-                          isDark: dark,
-                          c1: c1,
-                          c2: c2,
-                          c3: c3,
-                        ),
-                      )
-                    : AnimatedBuilder(
-                        animation: _controller,
-                        builder: (context, _) => CustomPaint(
-                          painter: _FluidAuroraPainter(
-                            progress: _controller.value,
-                            isDark: dark,
-                            c1: c1,
-                            c2: c2,
-                            c3: c3,
-                          ),
-                        ),
-                      ),
-              ),
-            ),
-            // Light glass wash / dark scrim overlay to guarantee text legibility
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: (dark ? const Color(0xFF080A10) : Colors.white)
-                    .withValues(alpha: dark ? 0.24 : 0.50),
-              ),
-            ),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: dark
-                      ? [
-                          Colors.black.withValues(alpha: 0.28),
-                          Colors.black.withValues(alpha: 0.08),
-                          Colors.black.withValues(alpha: 0.38),
-                        ]
-                      : [
-                          Colors.white.withValues(alpha: 0.55),
-                          Colors.white.withValues(alpha: 0.18),
-                          Colors.white.withValues(alpha: 0.62),
-                        ],
-                  stops: const [0.0, 0.48, 1.0],
+      child: RepaintBoundary(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: dark ? const Color(0xFF080A10) : const Color(0xFFF5F7FB),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              RepaintBoundary(
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 500),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: CustomPaint(
+                    key: ValueKey('aurora-${baseAccent.toARGB32()}-$dark'),
+                    size: Size.infinite,
+                    painter: _FluidAuroraPainter(
+                      isDark: dark,
+                      c1: c1,
+                      c2: c2,
+                      c3: c3,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: (dark ? const Color(0xFF080A10) : Colors.white)
+                      .withValues(alpha: dark ? 0.24 : 0.50),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: dark
+                        ? [
+                            Colors.black.withValues(alpha: 0.28),
+                            Colors.black.withValues(alpha: 0.08),
+                            Colors.black.withValues(alpha: 0.38),
+                          ]
+                        : [
+                            Colors.white.withValues(alpha: 0.55),
+                            Colors.white.withValues(alpha: 0.18),
+                            Colors.white.withValues(alpha: 0.62),
+                          ],
+                    stops: const [0.0, 0.48, 1.0],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -462,14 +430,12 @@ class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground>
 
 class _FluidAuroraPainter extends CustomPainter {
   const _FluidAuroraPainter({
-    required this.progress,
     required this.isDark,
     required this.c1,
     required this.c2,
     required this.c3,
   });
 
-  final double progress;
   final bool isDark;
   final Color c1;
   final Color c2;
@@ -478,58 +444,58 @@ class _FluidAuroraPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
-    final t = progress * 2 * math.pi;
     final w = size.width;
     final h = size.height;
-    final radius = math.max(w, h) * 0.52;
+    final radius = math.max(w, h) * 0.55;
 
-    // Blob 1: upper-left orbital drift
-    final p1 = Offset(
-      w * 0.26 + w * 0.12 * math.sin(t),
-      h * 0.30 + h * 0.10 * math.cos(t),
-    );
+    // Multi-stop radial gradients provide ultra-smooth, native GPU hardware falloff
+    // with zero offscreen blur buffer overhead and zero banding.
+    // Blob 1: upper-left ambient halo behind cover
+    final p1 = Offset(w * 0.36, h * 0.32);
     final paint1 = Paint()
       ..shader = RadialGradient(
         colors: [
-          c1.withValues(alpha: isDark ? 0.48 : 0.35),
+          c1.withValues(alpha: isDark ? 0.38 : 0.28),
+          c1.withValues(alpha: isDark ? 0.20 : 0.15),
+          c1.withValues(alpha: isDark ? 0.06 : 0.04),
           c1.withValues(alpha: 0.0),
         ],
+        stops: const [0.0, 0.35, 0.70, 1.0],
       ).createShader(Rect.fromCircle(center: p1, radius: radius));
     canvas.drawCircle(p1, radius, paint1);
 
-    // Blob 2: upper-right counter drift
-    final p2 = Offset(
-      w * 0.74 + w * 0.10 * math.cos(t * 0.78),
-      h * 0.28 + h * 0.12 * math.sin(t * 0.78),
-    );
+    // Blob 2: upper-right gentle light behind lyrics
+    final p2 = Offset(w * 0.74, h * 0.36);
     final paint2 = Paint()
       ..shader = RadialGradient(
         colors: [
-          c2.withValues(alpha: isDark ? 0.42 : 0.30),
+          c2.withValues(alpha: isDark ? 0.34 : 0.24),
+          c2.withValues(alpha: isDark ? 0.18 : 0.12),
+          c2.withValues(alpha: isDark ? 0.05 : 0.03),
           c2.withValues(alpha: 0.0),
         ],
+        stops: const [0.0, 0.35, 0.70, 1.0],
       ).createShader(Rect.fromCircle(center: p2, radius: radius * 0.95));
     canvas.drawCircle(p2, radius * 0.95, paint2);
 
-    // Blob 3: bottom-center floating pulse
-    final p3 = Offset(
-      w * 0.50 + w * 0.14 * math.sin(t * 1.18),
-      h * 0.74 + h * 0.08 * math.cos(t * 1.18),
-    );
+    // Blob 3: bottom-center subtle foundation behind controls
+    final p3 = Offset(w * 0.54, h * 0.72);
     final paint3 = Paint()
       ..shader = RadialGradient(
         colors: [
-          c3.withValues(alpha: isDark ? 0.38 : 0.26),
+          c3.withValues(alpha: isDark ? 0.30 : 0.20),
+          c3.withValues(alpha: isDark ? 0.15 : 0.10),
+          c3.withValues(alpha: isDark ? 0.04 : 0.02),
           c3.withValues(alpha: 0.0),
         ],
-      ).createShader(Rect.fromCircle(center: p3, radius: radius * 1.08));
-    canvas.drawCircle(p3, radius * 1.08, paint3);
+        stops: const [0.0, 0.35, 0.70, 1.0],
+      ).createShader(Rect.fromCircle(center: p3, radius: radius * 1.05));
+    canvas.drawCircle(p3, radius * 1.05, paint3);
   }
 
   @override
   bool shouldRepaint(covariant _FluidAuroraPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.isDark != isDark ||
+    return oldDelegate.isDark != isDark ||
         oldDelegate.c1 != c1 ||
         oldDelegate.c2 != c2 ||
         oldDelegate.c3 != c3;
@@ -1014,40 +980,50 @@ class _WideContent extends StatelessWidget {
         final maxStageWidth = isLarge
             ? 1280.0
             : (isNarrow ? double.infinity : 1180.0);
-        final columnGap = isLarge ? 72.0 : (isNarrow ? 36.0 : 56.0);
+        final columnGap = isLarge ? 64.0 : (isNarrow ? 36.0 : 52.0);
+        // Visual balance: shift stage rightward to balance left-aligned lyrics with album cover
+        final shiftRight = isLarge ? 96.0 : (isNarrow ? 32.0 : 72.0);
 
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(maxWidth: maxStageWidth),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  flex: isNarrow ? 4 : 5,
-                  child: Center(
-                    child: _SongIdentity(
-                      song: song,
-                      onOpenArtist: onOpenArtist,
+            child: Padding(
+              padding: EdgeInsets.only(left: shiftRight),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Align(
+                      alignment: const Alignment(0.48, 0.0),
+                      child: RepaintBoundary(
+                        child: _SongIdentity(
+                          song: song,
+                          onOpenArtist: onOpenArtist,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(width: columnGap),
-                Expanded(
-                  flex: isNarrow ? 5 : 6,
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: _LyricsPanel(
-                      song: song,
-                      controller: controller,
-                      loadLyrics: loadLyrics,
-                      showTranslation: showTranslation,
-                      showTransliteration: showTransliteration,
-                      onTranslationChanged: onTranslationChanged,
-                      onTransliterationChanged: onTransliterationChanged,
+                  SizedBox(width: columnGap),
+                  Expanded(
+                    flex: 1,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: RepaintBoundary(
+                        child: _LyricsPanel(
+                          song: song,
+                          controller: controller,
+                          loadLyrics: loadLyrics,
+                          showTranslation: showTranslation,
+                          showTransliteration: showTransliteration,
+                          onTranslationChanged: onTranslationChanged,
+                          onTransliterationChanged: onTransliterationChanged,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -1172,33 +1148,34 @@ class _SongIdentityState extends State<_SongIdentity> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Pure album cover with ambient glow drop shadow (NO vinyl)
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 380),
-                curve: Curves.easeOutCubic,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: glowColor.withValues(alpha: isDark ? 0.38 : 0.22),
-                      blurRadius: 36,
-                      spreadRadius: 1.5,
-                      offset: const Offset(0, 12),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(
-                        alpha: isDark ? 0.36 : 0.10,
+              RepaintBoundary(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 380),
+                  curve: Curves.easeOutCubic,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: glowColor.withValues(alpha: isDark ? 0.32 : 0.18),
+                        blurRadius: 30,
+                        offset: const Offset(0, 10),
                       ),
-                      blurRadius: 20,
-                      offset: const Offset(0, 6),
+                      BoxShadow(
+                        color: Colors.black.withValues(
+                          alpha: isDark ? 0.30 : 0.08,
+                        ),
+                        blurRadius: 18,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: AlbumArt(
+                      size: coverSize,
+                      emphasized: false,
+                      imageUrl: song.coverUrl,
                     ),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: AlbumArt(
-                    size: coverSize,
-                    emphasized: true,
-                    imageUrl: song.coverUrl,
                   ),
                 ),
               ),
@@ -1293,7 +1270,7 @@ class _LyricsPanel extends StatefulWidget {
 }
 
 class _LyricsPanelState extends State<_LyricsPanel> {
-  static const double _lyricRowExtent = 78.0;
+  static const double _lyricRowExtent = 60.0;
 
   final _scrollController = ScrollController();
   List<LyricLine> _lines = const [];
@@ -1628,7 +1605,7 @@ class _LyricRowState extends State<_LyricRow> {
         behavior: HitTestBehavior.opaque,
         onDoubleTap: widget.onDoubleTap,
         child: SizedBox(
-          height: 78.0,
+          height: 60.0,
           child: Align(
             alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: AnimatedScale(
@@ -1641,7 +1618,7 @@ class _LyricRowState extends State<_LyricRow> {
                     ? 1.0
                     : (_hovered
                           ? (isDark ? 0.88 : 0.84)
-                          : (isDark ? 0.38 : 0.40)),
+                          : (isDark ? 0.45 : 0.48)),
                 duration: AppMotion.fast,
                 curve: Curves.easeOutCubic,
                 child: Column(
@@ -1657,7 +1634,7 @@ class _LyricRowState extends State<_LyricRow> {
                       centered: centered,
                     ),
                     if (secondary.isNotEmpty) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
                         secondary,
                         maxLines: 1,
@@ -1674,8 +1651,8 @@ class _LyricRowState extends State<_LyricRow> {
                               : active
                               ? AppColors.primary.withValues(alpha: 0.90)
                               : AppColors.muted,
-                          fontSize: active ? 13 : 11.5,
-                          fontWeight: FontWeight.w600,
+                          fontSize: active ? 12.0 : 11.0,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
@@ -1807,10 +1784,10 @@ class _KaraokeLine extends StatelessWidget {
       color: centered
           ? Colors.white.withValues(alpha: active ? 0.98 : 0.66)
           : AppColors.text,
-      fontSize: active ? 26.0 : 18.5,
-      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
-      height: 1.28,
-      letterSpacing: active ? -0.2 : 0.0,
+      fontSize: active ? 21.5 : 15.5,
+      fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+      height: 1.30,
+      letterSpacing: active ? -0.1 : 0.0,
     );
 
     final progress = resolveLyricProgress(line, position).progress;
@@ -1986,7 +1963,7 @@ class _PlaybackControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: controller,
+    animation: Listenable.merge([controller, controller.progress]),
     builder: (context, _) => _buildControls(context),
   );
 
