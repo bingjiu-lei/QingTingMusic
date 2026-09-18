@@ -1111,7 +1111,18 @@ class KugouApiClient {
       if (records.length < pageSize) break;
       if (added == 0 && songs.isNotEmpty) break;
     }
-    return songs.values.toList();
+    final result = songs.values.toList();
+    result.sort((a, b) {
+      final aTime = a.addTime ?? 0;
+      final bTime = b.addTime ?? 0;
+      if (aTime != bTime) {
+        return bTime.compareTo(aTime);
+      }
+      final aId = a.cloudAudioId ?? 0;
+      final bId = b.cloudAudioId ?? 0;
+      return bId.compareTo(aId);
+    });
+    return result;
   }
 
   Future<List<SearchCatalogItem>> getFollowedArtists() async {
@@ -2436,6 +2447,14 @@ class KugouApiClient {
             json['mixsongid'] ??
             json['album_audio_id'] ??
             base['audio_id'],
+      ),
+      addTime: _nullableInt(
+        json['add_time'] ??
+            json['addtime'] ??
+            json['upload_time'] ??
+            json['uploadtime'] ??
+            base['add_time'] ??
+            base['addtime'],
       ),
       liked: liked,
       cloudQuality: cloudQuality,

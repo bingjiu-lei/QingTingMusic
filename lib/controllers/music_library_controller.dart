@@ -71,7 +71,24 @@ class MusicLibraryController extends ChangeNotifier {
 
   List<MusicPlaylist> get sortedAlbums => albums.reversed.toList();
 
-  List<Song> get sortedCloudSongs => cloudSongs.reversed.toList();
+  List<Song> get sortedCloudSongs {
+    final list = List.of(cloudSongs);
+    final hasAnyAddTime = list.any((s) => s.addTime != null);
+    if (!hasAnyAddTime) {
+      return list.reversed.toList();
+    }
+    list.sort((a, b) {
+      final aTime = a.addTime ?? 0;
+      final bTime = b.addTime ?? 0;
+      if (aTime != bTime) {
+        return bTime.compareTo(aTime);
+      }
+      final aId = a.cloudAudioId ?? 0;
+      final bId = b.cloudAudioId ?? 0;
+      return bId.compareTo(aId);
+    });
+    return list;
+  }
 
   List<Song> get favoriteMvs => favoriteMvService.mvs;
 
@@ -128,7 +145,10 @@ class MusicLibraryController extends ChangeNotifier {
     bool refresh = false,
   }) async {
     if (section == LibrarySection.recent || section == LibrarySection.mv) return;
-    if (!refresh && (loaded.contains(section) || loading.contains(section))) {
+    if (loading.contains(section)) {
+      return;
+    }
+    if (!refresh && loaded.contains(section)) {
       return;
     }
     loading.add(section);
@@ -179,9 +199,7 @@ class MusicLibraryController extends ChangeNotifier {
           }
         case LibrarySection.cloud:
           final nextCloudSongs = await repository.getCloudSongs();
-          if (nextCloudSongs.isNotEmpty || cloudSongs.isEmpty) {
-            cloudSongs = nextCloudSongs;
-          }
+          cloudSongs = nextCloudSongs;
         case LibrarySection.mv:
         case LibrarySection.recent:
           break;

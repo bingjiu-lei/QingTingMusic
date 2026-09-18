@@ -266,6 +266,8 @@ class SongHeaderActions extends StatelessWidget {
     required this.reversed,
     required this.onToggleSort,
     this.showPlayAll = true,
+    this.onRefresh,
+    this.isRefreshing = false,
   });
 
   final List<Song> songs;
@@ -280,6 +282,8 @@ class SongHeaderActions extends StatelessWidget {
   final bool reversed;
   final VoidCallback onToggleSort;
   final bool showPlayAll;
+  final VoidCallback? onRefresh;
+  final bool isRefreshing;
 
   @override
   Widget build(BuildContext context) {
@@ -307,6 +311,13 @@ class SongHeaderActions extends StatelessWidget {
           _ListSortButton(
             reversed: reversed,
             onTap: onToggleSort,
+          ),
+        ],
+        if (onRefresh != null) ...[
+          if (songs.isNotEmpty) const SizedBox(width: 4),
+          _ListRefreshButton(
+            onTap: onRefresh,
+            loading: isRefreshing,
           ),
         ],
       ],
@@ -369,6 +380,71 @@ class _ListSortButton extends StatelessWidget {
       hoverIconColor: AppColors.primary,
       selectedColor: AppColors.primary,
       shadowColor: AppColors.primary,
+    );
+  }
+}
+
+class _ListRefreshButton extends StatefulWidget {
+  const _ListRefreshButton({required this.onTap, this.loading = false});
+
+  final VoidCallback? onTap;
+  final bool loading;
+
+  @override
+  State<_ListRefreshButton> createState() => _ListRefreshButtonState();
+}
+
+class _ListRefreshButtonState extends State<_ListRefreshButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    );
+    if (widget.loading) _animController.repeat();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ListRefreshButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.loading != oldWidget.loading) {
+      if (widget.loading) {
+        _animController.repeat();
+      } else {
+        _animController.stop();
+        _animController.reset();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppIconButton.filled(
+      tooltip: widget.loading ? '正在刷新...' : '刷新',
+      onPressed: widget.loading ? null : widget.onTap,
+      size: 36,
+      iconSize: 18,
+      iconColor: widget.loading ? AppColors.primary : AppColors.muted,
+      hoverIconColor: AppColors.primary,
+      shadowColor: AppColors.primary,
+      child: RotationTransition(
+        turns: _animController,
+        child: Icon(
+          Icons.refresh_rounded,
+          size: 18,
+          color: widget.loading ? AppColors.primary : null,
+        ),
+      ),
     );
   }
 }

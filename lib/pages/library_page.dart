@@ -117,6 +117,12 @@ class _LibraryPageState extends State<LibraryPage> {
                       widget.onTabChanged(index);
                       widget.controller.ensureLoaded(tabs[index].$2);
                     },
+                    onReselect: (index) {
+                      widget.controller.ensureLoaded(
+                        tabs[index].$2,
+                        refresh: true,
+                      );
+                    },
                   ),
                 ),
               ),
@@ -149,6 +155,16 @@ class _LibraryPageState extends State<LibraryPage> {
                   },
                   reversed: _reversed,
                   onToggleSort: () => setState(() => _reversed = !_reversed),
+                  onRefresh: tabs[widget.selectedTab].$2 == LibrarySection.cloud ||
+                          tabs[widget.selectedTab].$2 == LibrarySection.songs
+                      ? () => widget.controller.ensureLoaded(
+                            tabs[widget.selectedTab].$2,
+                            refresh: true,
+                          )
+                      : null,
+                  isRefreshing: widget.controller.isLoading(
+                    tabs[widget.selectedTab].$2,
+                  ),
                 ),
               ],
             ],

@@ -48,6 +48,7 @@ class Song {
     this.cloudQuality,
     this.playbackSource,
     this.climaxSegments = const [],
+    this.addTime,
   });
 
   final String id;
@@ -73,6 +74,7 @@ class Song {
   final String? cloudQuality;
   final String? playbackSource;
   final List<SongClimaxSegment> climaxSegments;
+  final int? addTime;
 
   Song copyWith({
     String? audioUrl,
@@ -89,6 +91,7 @@ class Song {
     String? cloudQuality,
     String? playbackSource,
     List<SongClimaxSegment>? climaxSegments,
+    int? addTime,
   }) {
     return Song(
       id: id,
@@ -114,6 +117,7 @@ class Song {
       cloudQuality: cloudQuality ?? this.cloudQuality,
       playbackSource: playbackSource ?? this.playbackSource,
       climaxSegments: climaxSegments ?? this.climaxSegments,
+      addTime: addTime ?? this.addTime,
     );
   }
 
@@ -134,6 +138,7 @@ class Song {
     'artists': artists.map((item) => item.toJson()).toList(),
     'isCloud': isCloud,
     'cloudAudioId': cloudAudioId,
+    'addTime': addTime,
     'isMv': isMv,
     'liked': liked,
     'playbackQuality': playbackQuality,
@@ -164,6 +169,7 @@ class Song {
           .toList(),
       isCloud: json['isCloud'] == true,
       cloudAudioId: readInt(json['cloudAudioId']),
+      addTime: readInt(json['addTime']),
       isMv: json['isMv'] == true,
       liked: json['liked'] == true,
       playbackQuality: json['playbackQuality']?.toString(),

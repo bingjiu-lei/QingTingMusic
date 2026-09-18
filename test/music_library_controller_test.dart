@@ -124,6 +124,60 @@ void main() {
     expect(controller.playlists.single.songCount, 12);
   });
 
+  test('refreshes cloud songs tab and updates list unconditionally', () async {
+    final song1 = _song('cloud-1');
+    final song2 = _song('cloud-2');
+    final repository = _FakeMusicRepository(
+      playlists: const [],
+      favoriteSongs: const [],
+    )..cloudSongs = [song1];
+    final controller = _controller(repository);
+
+    await controller.ensureLoaded(LibrarySection.cloud);
+    expect(controller.cloudSongs, [song1]);
+    expect(repository.cloudRequests, 1);
+
+    // Ensure it doesn't refetch without refresh flag when already loaded
+    await controller.ensureLoaded(LibrarySection.cloud);
+    expect(repository.cloudRequests, 1);
+
+    // Refresh with new song uploaded
+    repository.cloudSongs = [song1, song2];
+    await controller.ensureLoaded(LibrarySection.cloud, refresh: true);
+    expect(controller.cloudSongs, [song1, song2]);
+    expect(repository.cloudRequests, 2);
+
+    // Refresh when all songs deleted
+    repository.cloudSongs = [];
+    await controller.ensureLoaded(LibrarySection.cloud, refresh: true);
+    expect(controller.cloudSongs, isEmpty);
+    expect(repository.cloudRequests, 3);
+  });
+
+  test('sorts cloud songs descending by addTime (latest uploaded first)', () async {
+    final songOld = _song('cloud-old').copyWith(addTime: 1517468162);
+    final songMid = _song('cloud-mid').copyWith(addTime: 1782640807);
+    final songNew = _song('cloud-new').copyWith(addTime: 1789277682);
+    final repository = _FakeMusicRepository(
+      playlists: const [],
+      favoriteSongs: const [],
+    )..cloudSongs = [songNew, songOld, songMid];
+    final controller = _controller(repository);
+
+    await controller.ensureLoaded(LibrarySection.cloud);
+    expect(controller.sortedCloudSongs.map((s) => s.id), [
+      'cloud-new',
+      'cloud-mid',
+      'cloud-old',
+    ]);
+  });
+
+  test('preserves addTime across song serialization and deserialization', () {
+    final song = _song('cloud-1').copyWith(addTime: 1789277682);
+    final restored = Song.fromJson(song.toJson());
+    expect(restored.addTime, 1789277682);
+  });
+
   test('keeps created and collected playlists separated', () async {
     final created = _playlist(
       'created',
@@ -434,8 +488,10 @@ class _FakeMusicRepository implements MusicRepository {
   final List<SearchCatalogItem> uncollectedCatalogs = [];
   final List<Song> _favoriteSongs;
   final Map<String, List<Song>> playlistTracks;
+  List<Song> cloudSongs = const [];
   int playlistRequests = 0;
   int playlistSongRequests = 0;
+  int cloudRequests = 0;
 
   @override
   Future<List<MusicPlaylist>> getUserPlaylists() async {
@@ -520,7 +576,10 @@ class _FakeMusicRepository implements MusicRepository {
   }) async => const [];
 
   @override
-  Future<List<Song>> getCloudSongs() async => const [];
+  Future<List<Song>> getCloudSongs() async {
+    cloudRequests++;
+    return List.unmodifiable(cloudSongs);
+  }
 
   @override
   Future<List<SearchCatalogItem>> getFollowedArtists() async => const [];

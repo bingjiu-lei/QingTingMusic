@@ -90,12 +90,14 @@ class GlassTabBar extends StatelessWidget {
     required this.selectedIndex,
     required this.onChanged,
     this.dense = false,
+    this.onReselect,
   });
 
   final List<String> tabs;
   final int selectedIndex;
   final ValueChanged<int> onChanged;
   final bool dense;
+  final ValueChanged<int>? onReselect;
 
   @override
   Widget build(BuildContext context) {
@@ -116,7 +118,9 @@ class GlassTabBar extends StatelessWidget {
               dense: dense,
               selected: i == selectedIndex,
               pillRadius: tabRadius,
-              onTap: i == selectedIndex ? null : () => onChanged(i),
+              onTap: i == selectedIndex
+                  ? (onReselect != null ? () => onReselect!(i) : null)
+                  : () => onChanged(i),
             ),
           ],
         ],
