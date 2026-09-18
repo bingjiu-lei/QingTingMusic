@@ -1341,7 +1341,10 @@ class _MusicShellState extends State<MusicShell>
         song,
         editable,
       );
-      final containingIdsFuture = containingIds.isEmpty && editable.isNotEmpty
+      final hasUncachedPlaylists = editable.any(
+        (playlist) => !libraryController.isPlaylistCached(playlist),
+      );
+      final containingIdsFuture = hasUncachedPlaylists
           ? libraryController.getPlaylistIdsContainingSong(song, editable)
           : null;
       setState(() {
@@ -1349,7 +1352,8 @@ class _MusicShellState extends State<MusicShell>
         _playlistOperationMessage = '正在检查歌单状态…';
       });
       if (!mounted) return;
-      final isCurrent = playerController.currentSong?.id == song.id;
+      final isCurrent = playerController.currentSong != null &&
+          libraryController.sameSong(playerController.currentSong!, song);
       final currentPlaylist = isCurrent ? _currentPlayingPlaylist : null;
 
       await showDialog<void>(

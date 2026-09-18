@@ -638,6 +638,12 @@ class MusicLibraryController extends ChangeNotifier {
     return getPlaylistIdsContainingSongSync(song, editablePlaylists).isNotEmpty;
   }
 
+  bool isPlaylistCached(MusicPlaylist playlist) {
+    final cacheKey = _playlistCacheKey(playlist);
+    return _playlistTracksInMemory.containsKey(cacheKey) ||
+        cacheService.getPlaylistSongsSync(cacheKey).isNotEmpty;
+  }
+
   Set<String> getPlaylistIdsContainingSongSync(
     Song song,
     List<MusicPlaylist> targetPlaylists,
@@ -664,9 +670,11 @@ class MusicLibraryController extends ChangeNotifier {
       song,
       targetPlaylists,
     );
-    if (containingIds.isNotEmpty) return containingIds;
+    final uncached =
+        targetPlaylists.where((p) => !isPlaylistCached(p)).toList();
+    if (uncached.isEmpty) return containingIds;
     await Future.wait(
-      targetPlaylists.map((playlist) async {
+      uncached.map((playlist) async {
         try {
           final songs = await loadPlaylist(playlist);
           if (songs.any((item) => _sameSong(item, song))) {
@@ -783,30 +791,84 @@ class MusicLibraryController extends ChangeNotifier {
     if (leftHash != null &&
         leftHash.isNotEmpty &&
         rightHash != null &&
-        rightHash.isNotEmpty) {
-      return leftHash == rightHash;
+        rightHash.isNotEmpty &&
+        leftHash == rightHash) {
+      return true;
     }
+
     final leftCatalogHash = left.catalogHash?.trim().toLowerCase();
     final rightCatalogHash = right.catalogHash?.trim().toLowerCase();
     if (leftCatalogHash != null &&
         leftCatalogHash.isNotEmpty &&
         rightCatalogHash != null &&
-        rightCatalogHash.isNotEmpty) {
-      return leftCatalogHash == rightCatalogHash;
+        rightCatalogHash.isNotEmpty &&
+        leftCatalogHash == rightCatalogHash) {
+      return true;
     }
+
+    // Cross-check: Cloud song catalogHash vs regular song direct hash
+    if (leftCatalogHash != null &&
+        leftCatalogHash.isNotEmpty &&
+        rightHash != null &&
+        rightHash.isNotEmpty &&
+        leftCatalogHash == rightHash) {
+      return true;
+    }
+    if (rightCatalogHash != null &&
+        rightCatalogHash.isNotEmpty &&
+        leftHash != null &&
+        leftHash.isNotEmpty &&
+        rightCatalogHash == leftHash) {
+      return true;
+    }
+
+    // Match by albumAudioId (mixsongid) if both have a valid non-zero id
+    if (left.albumAudioId != null &&
+        left.albumAudioId != 0 &&
+        right.albumAudioId != null &&
+        right.albumAudioId != 0 &&
+        left.albumAudioId == right.albumAudioId) {
+      return true;
+    }
+
+    // Match by cloudAudioId if both are cloud songs with identical cloudAudioId
+    if (left.cloudAudioId != null &&
+        left.cloudAudioId != 0 &&
+        right.cloudAudioId != null &&
+        right.cloudAudioId != 0 &&
+        left.cloudAudioId == right.cloudAudioId) {
+      return true;
+    }
+
     final leftId = left.id.trim().toLowerCase();
     final rightId = right.id.trim().toLowerCase();
     if (leftId.isNotEmpty && rightId.isNotEmpty && leftId == rightId) {
       return true;
     }
-    final leftTitle = left.title.trim().toLowerCase();
-    final rightTitle = right.title.trim().toLowerCase();
-    final leftArtist = left.artist.trim().toLowerCase();
-    final rightArtist = right.artist.trim().toLowerCase();
-    return leftTitle.isNotEmpty &&
+
+    final leftTitle = _canonicalString(left.title);
+    final rightTitle = _canonicalString(right.title);
+    final leftArtist = _canonicalString(left.artist);
+    final rightArtist = _canonicalString(right.artist);
+    if (leftTitle.isNotEmpty &&
         leftArtist.isNotEmpty &&
         leftTitle == rightTitle &&
-        leftArtist == rightArtist;
+        leftArtist == rightArtist) {
+      return true;
+    }
+
+    return false;
+  }
+
+  static String _canonicalString(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(' / ', '/')
+        .replaceAll('、', '/')
+        .replaceAll(',', '/')
+        .replaceAll('&', '/');
   }
 
   bool _sameCatalog(

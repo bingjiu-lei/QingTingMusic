@@ -911,8 +911,52 @@ class PlayerController extends ChangeNotifier {
   }
 
   void updateSongFavorite(Song song, bool liked) {
-    bool sameSong(Song item) =>
-        item.id == song.id || (song.hash != null && item.hash == song.hash);
+    bool sameSong(Song item) {
+      if (item.id.isNotEmpty && item.id.toLowerCase() == song.id.toLowerCase()) {
+        return true;
+      }
+      final itemHash = item.hash?.trim().toLowerCase();
+      final songHash = song.hash?.trim().toLowerCase();
+      if (itemHash != null &&
+          itemHash.isNotEmpty &&
+          songHash != null &&
+          songHash.isNotEmpty &&
+          itemHash == songHash) {
+        return true;
+      }
+      final itemCat = item.catalogHash?.trim().toLowerCase();
+      final songCat = song.catalogHash?.trim().toLowerCase();
+      if (itemCat != null &&
+          itemCat.isNotEmpty &&
+          songCat != null &&
+          songCat.isNotEmpty &&
+          itemCat == songCat) {
+        return true;
+      }
+      if (itemCat != null &&
+          itemCat.isNotEmpty &&
+          songHash != null &&
+          songHash.isNotEmpty &&
+          itemCat == songHash) {
+        return true;
+      }
+      if (songCat != null &&
+          songCat.isNotEmpty &&
+          itemHash != null &&
+          itemHash.isNotEmpty &&
+          songCat == itemHash) {
+        return true;
+      }
+      if (item.albumAudioId != null &&
+          item.albumAudioId != 0 &&
+          song.albumAudioId != null &&
+          song.albumAudioId != 0 &&
+          item.albumAudioId == song.albumAudioId) {
+        return true;
+      }
+      return item.title.trim().toLowerCase() == song.title.trim().toLowerCase() &&
+          item.artist.trim().toLowerCase() == song.artist.trim().toLowerCase();
+    }
     if (currentSong != null && sameSong(currentSong!)) {
       currentSong = currentSong!.copyWith(liked: liked);
     }

@@ -1292,6 +1292,36 @@ class KugouApiClient {
               itemHash == songHash) {
             return true;
           }
+          final itemCat = item.catalogHash?.trim().toLowerCase();
+          final songCat = song.catalogHash?.trim().toLowerCase();
+          if (itemCat != null &&
+              itemCat.isNotEmpty &&
+              songCat != null &&
+              songCat.isNotEmpty &&
+              itemCat == songCat) {
+            return true;
+          }
+          if (itemCat != null &&
+              itemCat.isNotEmpty &&
+              songHash != null &&
+              songHash.isNotEmpty &&
+              itemCat == songHash) {
+            return true;
+          }
+          if (songCat != null &&
+              songCat.isNotEmpty &&
+              itemHash != null &&
+              itemHash.isNotEmpty &&
+              songCat == itemHash) {
+            return true;
+          }
+          if (item.albumAudioId != null &&
+              item.albumAudioId != 0 &&
+              song.albumAudioId != null &&
+              song.albumAudioId != 0 &&
+              item.albumAudioId == song.albumAudioId) {
+            return true;
+          }
           if (item.id.trim().toLowerCase() == song.id.trim().toLowerCase()) {
             return true;
           }
@@ -2277,20 +2307,18 @@ class KugouApiClient {
         : _map(relateGoodsList.first);
     final relateInfo = _map(relateGoods['info']);
     final transParam = _map(json['trans_param']);
-    final catalogHash = cloud
-        ? _read(
-            json,
-            ['hash_std', 'hashstd'],
-            fallback: _read(
-              audio,
-              ['hash_std', 'hashstd'],
-              fallback: _read(relateGoods, [
-                'hash_std',
-                'hashstd',
-              ], fallback: _read(relateInfo, ['hash_std', 'hashstd'])),
-            ),
-          )
-        : '';
+    final catalogHash = _read(
+      json,
+      ['hash_std', 'hashstd'],
+      fallback: _read(
+        audio,
+        ['hash_std', 'hashstd'],
+        fallback: _read(relateGoods, [
+          'hash_std',
+          'hashstd',
+        ], fallback: _read(relateInfo, ['hash_std', 'hashstd'])),
+      ),
+    );
     final cloudQuality = cloud
         ? _cloudQuality(
             json['bitrate'] ?? audio['bitrate'] ?? relateGoods['bitrate'],

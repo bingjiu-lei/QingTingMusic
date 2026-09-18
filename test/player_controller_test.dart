@@ -518,6 +518,117 @@ void main() {
 
     controller.dispose();
   });
+
+  test('matches cloud songs with catalog hash against playlist songs', () {
+    final libraryController = MusicLibraryController(
+      DemoMusicRepository(),
+    );
+
+    // Scenario from user:
+    // Cloud song with user upload hash and standard catalog hash
+    const cloudSong = Song(
+      id: 'cloud-file-hash-1',
+      hash: 'cloud-file-hash-1',
+      catalogHash: 'std-catalog-hash-1',
+      title: '퇴사할게여 (Narr. 기안84)',
+      artist: '田小娟 / 기안84',
+      album: 'album',
+      duration: Duration(seconds: 211),
+      audioUrl: '',
+      isCloud: true,
+      cloudAudioId: 1001,
+      albumAudioId: 2002,
+    );
+
+    // Playlist song with standard catalog hash
+    const playlistSong = Song(
+      id: 'std-catalog-hash-1',
+      hash: 'std-catalog-hash-1',
+      title: '퇴사할게여 (Narr. 기안84)',
+      artist: '田小娟 / 기안84',
+      album: 'album',
+      duration: Duration(seconds: 211),
+      audioUrl: '',
+      isCloud: false,
+      albumAudioId: 2002,
+    );
+
+    expect(libraryController.sameSong(cloudSong, playlistSong), isTrue);
+    expect(libraryController.sameSong(playlistSong, cloudSong), isTrue);
+
+    // Unmatched cloud song where only hash matches
+    const unmatchedCloudSong = Song(
+      id: 'unmatched-hash-9',
+      hash: 'unmatched-hash-9',
+      title: 'bangbang改编版',
+      artist: 'IVE',
+      album: 'album',
+      duration: Duration(seconds: 158),
+      audioUrl: '',
+      isCloud: true,
+    );
+    const unmatchedPlaylistSong = Song(
+      id: 'unmatched-hash-9',
+      hash: 'unmatched-hash-9',
+      title: 'bangbang改编版',
+      artist: 'IVE',
+      album: 'album',
+      duration: Duration(seconds: 158),
+      audioUrl: '',
+      isCloud: false,
+    );
+
+    expect(libraryController.sameSong(unmatchedCloudSong, unmatchedPlaylistSong), isTrue);
+
+    // Different song should not match
+    const differentSong = Song(
+      id: 'diff-hash',
+      hash: 'diff-hash',
+      title: '九月九的酒',
+      artist: '卓依婷',
+      album: 'album',
+      duration: Duration(seconds: 266),
+      audioUrl: '',
+    );
+    expect(libraryController.sameSong(cloudSong, differentSong), isFalse);
+
+    libraryController.dispose();
+  });
+
+  test('player controller updates favorite state across cloud and catalog songs', () {
+    final controller = PlayerController(
+      audioService: _FakeAudioPlayerService(),
+    );
+
+    const catalogSong = Song(
+      id: 'std-catalog-hash-1',
+      hash: 'std-catalog-hash-1',
+      title: '퇴사할게여 (Narr. 기안84)',
+      artist: '田小娟 / 기안84',
+      album: 'album',
+      duration: Duration(seconds: 211),
+      audioUrl: '',
+    );
+
+    const cloudSong = Song(
+      id: 'cloud-file-hash-1',
+      hash: 'cloud-file-hash-1',
+      catalogHash: 'std-catalog-hash-1',
+      title: '퇴사할게여 (Narr. 기안84)',
+      artist: '田小娟 / 기안84',
+      album: 'album',
+      duration: Duration(seconds: 211),
+      audioUrl: '',
+      isCloud: true,
+    );
+
+    controller.queue = [catalogSong];
+    controller.updateSongFavorite(cloudSong, true);
+
+    expect(controller.queue.first.liked, isTrue);
+
+    controller.dispose();
+  });
 }
 
 Song _song(String id) => Song(
