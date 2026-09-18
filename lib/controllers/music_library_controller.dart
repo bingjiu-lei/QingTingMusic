@@ -27,7 +27,57 @@ class MusicLibraryController extends ChangeNotifier {
   final FavoriteMvService favoriteMvService;
 
   List<MusicPlaylist> playlists = const [];
-  List<Song> favorites = const [];
+  List<Song> _favorites = const [];
+  List<Song> get favorites => _favorites;
+  set favorites(List<Song> value) {
+    _favorites = value;
+    _rebuildFavoriteIndex();
+  }
+
+  final Set<String> _favoriteHashes = <String>{};
+  final Set<String> _favoriteCatalogHashes = <String>{};
+  final Set<int> _favoriteAlbumAudioIds = <int>{};
+  final Set<int> _favoriteCloudAudioIds = <int>{};
+  final Set<String> _favoriteIds = <String>{};
+  final Set<String> _favoriteTitleArtists = <String>{};
+
+  void _rebuildFavoriteIndex() {
+    _favoriteHashes.clear();
+    _favoriteCatalogHashes.clear();
+    _favoriteAlbumAudioIds.clear();
+    _favoriteCloudAudioIds.clear();
+    _favoriteIds.clear();
+    _favoriteTitleArtists.clear();
+
+    for (final song in _favorites) {
+      final hash = song.hash?.trim().toLowerCase();
+      if (hash != null && hash.isNotEmpty) {
+        _favoriteHashes.add(hash);
+      }
+      final catalogHash = song.catalogHash?.trim().toLowerCase();
+      if (catalogHash != null && catalogHash.isNotEmpty) {
+        _favoriteCatalogHashes.add(catalogHash);
+      }
+      final albumAudioId = song.albumAudioId;
+      if (albumAudioId != null && albumAudioId != 0) {
+        _favoriteAlbumAudioIds.add(albumAudioId);
+      }
+      final cloudAudioId = song.cloudAudioId;
+      if (cloudAudioId != null && cloudAudioId != 0) {
+        _favoriteCloudAudioIds.add(cloudAudioId);
+      }
+      final id = song.id.trim().toLowerCase();
+      if (id.isNotEmpty) {
+        _favoriteIds.add(id);
+      }
+      final title = _canonicalString(song.title);
+      final artist = _canonicalString(song.artist);
+      if (title.isNotEmpty && artist.isNotEmpty) {
+        _favoriteTitleArtists.add('$title|||$artist');
+      }
+    }
+  }
+
   List<Song> cloudSongs = const [];
   List<SearchCatalogItem> followedArtists = const [];
   List<MusicPlaylist> albums = const [];
@@ -144,7 +194,9 @@ class MusicLibraryController extends ChangeNotifier {
     LibrarySection section, {
     bool refresh = false,
   }) async {
-    if (section == LibrarySection.recent || section == LibrarySection.mv) return;
+    if (section == LibrarySection.recent || section == LibrarySection.mv) {
+      return;
+    }
     if (loading.contains(section)) {
       return;
     }
@@ -394,7 +446,44 @@ class MusicLibraryController extends ChangeNotifier {
     if (song.isMv) {
       return favoriteMvService.isFavorite(song);
     }
-    return favorites.any((item) => _sameSong(item, song));
+    final hash = song.hash?.trim().toLowerCase();
+    if (hash != null && hash.isNotEmpty) {
+      if (_favoriteHashes.contains(hash) ||
+          _favoriteCatalogHashes.contains(hash)) {
+        return true;
+      }
+    }
+    final catalogHash = song.catalogHash?.trim().toLowerCase();
+    if (catalogHash != null && catalogHash.isNotEmpty) {
+      if (_favoriteCatalogHashes.contains(catalogHash) ||
+          _favoriteHashes.contains(catalogHash)) {
+        return true;
+      }
+    }
+    final albumAudioId = song.albumAudioId;
+    if (albumAudioId != null && albumAudioId != 0) {
+      if (_favoriteAlbumAudioIds.contains(albumAudioId)) {
+        return true;
+      }
+    }
+    final cloudAudioId = song.cloudAudioId;
+    if (cloudAudioId != null && cloudAudioId != 0) {
+      if (_favoriteCloudAudioIds.contains(cloudAudioId)) {
+        return true;
+      }
+    }
+    final id = song.id.trim().toLowerCase();
+    if (id.isNotEmpty && _favoriteIds.contains(id)) {
+      return true;
+    }
+    final title = _canonicalString(song.title);
+    final artist = _canonicalString(song.artist);
+    if (title.isNotEmpty && artist.isNotEmpty) {
+      if (_favoriteTitleArtists.contains('$title|||$artist')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Song withFavoriteState(Song song) {
@@ -670,8 +759,9 @@ class MusicLibraryController extends ChangeNotifier {
       song,
       targetPlaylists,
     );
-    final uncached =
-        targetPlaylists.where((p) => !isPlaylistCached(p)).toList();
+    final uncached = targetPlaylists
+        .where((p) => !isPlaylistCached(p))
+        .toList();
     if (uncached.isEmpty) return containingIds;
     await Future.wait(
       uncached.map((playlist) async {
@@ -786,6 +876,8 @@ class MusicLibraryController extends ChangeNotifier {
   bool sameSong(Song left, Song right) => _sameSong(left, right);
 
   bool _sameSong(Song left, Song right) {
+    if (identical(left, right)) return true;
+
     final leftHash = left.hash?.trim().toLowerCase();
     final rightHash = right.hash?.trim().toLowerCase();
     if (leftHash != null &&
@@ -846,6 +938,12 @@ class MusicLibraryController extends ChangeNotifier {
       return true;
     }
 
+    if (left.title.isEmpty || right.title.isEmpty) return false;
+    if (left.title.trim().toLowerCase() == right.title.trim().toLowerCase() &&
+        left.artist.trim().toLowerCase() == right.artist.trim().toLowerCase()) {
+      return true;
+    }
+
     final leftTitle = _canonicalString(left.title);
     final rightTitle = _canonicalString(right.title);
     final leftArtist = _canonicalString(left.artist);
@@ -860,11 +958,14 @@ class MusicLibraryController extends ChangeNotifier {
     return false;
   }
 
+  static final RegExp _whitespaceRegExp = RegExp(r'\s+');
+
   static String _canonicalString(String value) {
+    if (value.isEmpty) return '';
     return value
         .trim()
         .toLowerCase()
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(_whitespaceRegExp, ' ')
         .replaceAll(' / ', '/')
         .replaceAll('、', '/')
         .replaceAll(',', '/')

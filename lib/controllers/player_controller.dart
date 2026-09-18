@@ -585,6 +585,42 @@ class PlayerController extends ChangeNotifier {
     await playSong(queue[nextIndex], fromQueue: queue);
   }
 
+  Future<void> removeMvSongsFromQueue() async {
+    final hasMvInQueue = queue.any((item) => item.isMv);
+    final isCurrentMv = currentSong?.isMv == true;
+    if (!hasMvInQueue && !isCurrentMv) return;
+
+    final nextQueue = queue.where((item) => !item.isMv).toList();
+    queue = List.unmodifiable(nextQueue);
+    _sanitizeShufflePath();
+    _schedulePlaybackStateSave();
+    notifyListeners();
+
+    if (isCurrentMv) {
+      if (queue.isEmpty) {
+        _noticeTimer?.cancel();
+        _nearEndTimer?.cancel();
+        await audioService.pause();
+        currentSong = null;
+        isPlaying = false;
+        isPreparing = false;
+        position = Duration.zero;
+        bufferedPosition = Duration.zero;
+        duration = Duration.zero;
+        _syncProgress();
+        _hasOpenSource = false;
+        _schedulePlaybackStateSave(immediate: true);
+        notifyListeners();
+      } else {
+        if (playbackMode == PlaybackMode.shuffle) {
+          await _playShuffleNext();
+        } else {
+          await playSong(queue.first, fromQueue: queue);
+        }
+      }
+    }
+  }
+
   void clearQueue() {
     final song = currentSong;
     queue = song == null ? const [] : List.unmodifiable([song]);
@@ -912,7 +948,8 @@ class PlayerController extends ChangeNotifier {
 
   void updateSongFavorite(Song song, bool liked) {
     bool sameSong(Song item) {
-      if (item.id.isNotEmpty && item.id.toLowerCase() == song.id.toLowerCase()) {
+      if (item.id.isNotEmpty &&
+          item.id.toLowerCase() == song.id.toLowerCase()) {
         return true;
       }
       final itemHash = item.hash?.trim().toLowerCase();
@@ -954,9 +991,11 @@ class PlayerController extends ChangeNotifier {
           item.albumAudioId == song.albumAudioId) {
         return true;
       }
-      return item.title.trim().toLowerCase() == song.title.trim().toLowerCase() &&
+      return item.title.trim().toLowerCase() ==
+              song.title.trim().toLowerCase() &&
           item.artist.trim().toLowerCase() == song.artist.trim().toLowerCase();
     }
+
     if (currentSong != null && sameSong(currentSong!)) {
       currentSong = currentSong!.copyWith(liked: liked);
     }

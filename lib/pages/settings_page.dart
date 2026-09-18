@@ -27,6 +27,8 @@ class SettingsPage extends StatefulWidget {
     required this.onCloseToTrayChanged,
     required this.sidebarExpanded,
     required this.onSidebarExpandedChanged,
+    this.enableMvFeature = false,
+    this.onEnableMvFeatureChanged,
     required this.playbackQualityController,
     required this.themeController,
     this.onEndpointChanged,
@@ -40,6 +42,8 @@ class SettingsPage extends StatefulWidget {
   final ValueChanged<bool> onCloseToTrayChanged;
   final bool sidebarExpanded;
   final ValueChanged<bool> onSidebarExpandedChanged;
+  final bool enableMvFeature;
+  final ValueChanged<bool>? onEnableMvFeatureChanged;
   final PlaybackQualityController playbackQualityController;
   final ThemeController themeController;
   final VoidCallback? onEndpointChanged;
@@ -601,6 +605,18 @@ class _SettingsPageState extends State<SettingsPage> {
                             subtitle: '点击侧边分割线，即可切换侧边栏的展开状态',
                             value: widget.sidebarExpanded,
                             onChanged: widget.onSidebarExpandedChanged,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _SettingSwitchRow(
+                            icon: Icons.smart_display_outlined,
+                            title: '启用 MV 功能(实验)',
+                            subtitle: '仅播放 MV 音源。开源社区暂无官方收藏接口，收藏数据仅保存在本地。',
+                            value: widget.enableMvFeature,
+                            onChanged:
+                                widget.onEnableMvFeatureChanged ?? (_) {},
                           ),
                           Divider(
                             height: 32,
@@ -1418,9 +1434,7 @@ class _VersionBadge extends StatelessWidget {
             alpha: AppColors.isDark ? 0.14 : 0.08,
           ),
           borderRadius: BorderRadius.circular(AppRadius.pill),
-          border: Border.all(
-            color: AppColors.primary.withValues(alpha: 0.22),
-          ),
+          border: Border.all(color: AppColors.primary.withValues(alpha: 0.22)),
         ),
         child: Text(
           version,

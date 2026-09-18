@@ -50,6 +50,7 @@ class CollectionDetailPage extends StatefulWidget {
     this.currentSong,
     this.isPlaying = false,
     this.releaseDate,
+    this.enableMvFeature = false,
   });
 
   final CollectionDetailKind kind;
@@ -88,6 +89,18 @@ class CollectionDetailPage extends StatefulWidget {
   final VoidCallback? onToggleCollection;
   final VoidCallback? onDeletePlaylist;
   final String? releaseDate;
+  final bool enableMvFeature;
+
+  List<String> get tabs => switch (kind) {
+    CollectionDetailKind.playlist => const ['歌曲'],
+    CollectionDetailKind.artist => [
+      '歌曲',
+      '专辑',
+      if (enableMvFeature) 'MV',
+      '相似歌手',
+    ],
+    CollectionDetailKind.album => const ['歌曲'],
+  };
 
   @override
   State<CollectionDetailPage> createState() => _CollectionDetailPageState();
@@ -107,16 +120,19 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
     super.dispose();
   }
 
-  List<String> get tabs => switch (widget.kind) {
-    CollectionDetailKind.playlist => ['歌曲'],
-    CollectionDetailKind.artist => ['歌曲', '专辑', 'MV', '相似歌手'],
-    CollectionDetailKind.album => ['歌曲'],
-  };
+  List<String> get tabs => widget.tabs;
 
   @override
   void didUpdateWidget(covariant CollectionDetailPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.selectedTab >= tabs.length) {
+    final oldTabName = oldWidget.selectedTab < oldWidget.tabs.length
+        ? oldWidget.tabs[oldWidget.selectedTab]
+        : null;
+    if (oldTabName == 'MV' && !tabs.contains('MV')) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onTabChanged(0);
+      });
+    } else if (widget.selectedTab >= tabs.length) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.onTabChanged(0);
       });

@@ -154,23 +154,26 @@ void main() {
     expect(repository.cloudRequests, 3);
   });
 
-  test('sorts cloud songs descending by addTime (latest uploaded first)', () async {
-    final songOld = _song('cloud-old').copyWith(addTime: 1517468162);
-    final songMid = _song('cloud-mid').copyWith(addTime: 1782640807);
-    final songNew = _song('cloud-new').copyWith(addTime: 1789277682);
-    final repository = _FakeMusicRepository(
-      playlists: const [],
-      favoriteSongs: const [],
-    )..cloudSongs = [songNew, songOld, songMid];
-    final controller = _controller(repository);
+  test(
+    'sorts cloud songs descending by addTime (latest uploaded first)',
+    () async {
+      final songOld = _song('cloud-old').copyWith(addTime: 1517468162);
+      final songMid = _song('cloud-mid').copyWith(addTime: 1782640807);
+      final songNew = _song('cloud-new').copyWith(addTime: 1789277682);
+      final repository = _FakeMusicRepository(
+        playlists: const [],
+        favoriteSongs: const [],
+      )..cloudSongs = [songNew, songOld, songMid];
+      final controller = _controller(repository);
 
-    await controller.ensureLoaded(LibrarySection.cloud);
-    expect(controller.sortedCloudSongs.map((s) => s.id), [
-      'cloud-new',
-      'cloud-mid',
-      'cloud-old',
-    ]);
-  });
+      await controller.ensureLoaded(LibrarySection.cloud);
+      expect(controller.sortedCloudSongs.map((s) => s.id), [
+        'cloud-new',
+        'cloud-mid',
+        'cloud-old',
+      ]);
+    },
+  );
 
   test('preserves addTime across song serialization and deserialization', () {
     final song = _song('cloud-1').copyWith(addTime: 1789277682);
@@ -405,16 +408,179 @@ void main() {
     expect(repository.uncollectedCatalogs.single.ownerId, 'artist-1');
     expect(controller.isCatalogCollected(album), isFalse);
   });
+
+  test(
+    'isFavorite performs O(1) matching with high performance for large playlists',
+    () {
+      final repository = _FakeMusicRepository(playlists: [], favoriteSongs: []);
+      final controller = _controller(repository);
+
+      // Prepare 500 favorites
+      final favoritesList = List<Song>.generate(
+        500,
+        (i) => _song(
+          'fav-$i',
+          title: 'Favorite Song $i',
+          artist: 'Artist $i',
+          album: 'Album $i',
+          hash: 'FAVORITE_HASH_$i',
+          albumAudioId: 100000 + i,
+        ),
+      );
+      controller.favorites = favoritesList;
+
+      // Prepare 2000 songs in a playlist
+      final playlistSongs = List<Song>.generate(
+        2000,
+        (i) => _song(
+          'song-$i',
+          title: 'Song $i',
+          artist: 'Artist $i',
+          album: 'Album $i',
+          hash: i % 2 == 0 ? 'FAVORITE_HASH_${i ~/ 2}' : 'NON_FAV_HASH_$i',
+          albumAudioId: 200000 + i,
+        ),
+      );
+
+      final stopwatch = Stopwatch()..start();
+      final mapped = playlistSongs.map(controller.withFavoriteState).toList();
+      stopwatch.stop();
+
+      expect(mapped, hasLength(2000));
+      expect(mapped[0].liked, isTrue);
+      expect(mapped[1].liked, isFalse);
+      expect(mapped[2].liked, isTrue);
+      expect(mapped[498].liked, isTrue);
+      // 2000 items with O(1) set lookup should execute in < 100ms (typically < 5ms)
+      expect(stopwatch.elapsedMilliseconds, lessThan(100));
+    },
+  );
+
+  test(
+    'isFavorite accurately identifies songs across hash, catalogHash, albumAudioId, and title/artist',
+    () {
+      final repository = _FakeMusicRepository(playlists: [], favoriteSongs: []);
+      final controller = _controller(repository);
+
+      controller.favorites = [
+        _song(
+          'fav-1',
+          title: '晴天',
+          artist: '周杰伦',
+          album: '叶惠美',
+          hash: 'hash_fav_1',
+        ),
+        _song(
+          'fav-2',
+          title: '稻香',
+          artist: '周杰伦',
+          album: '魔杰座',
+          catalogHash: 'catalog_hash_2',
+        ),
+        _song(
+          'fav-3',
+          title: '告白气球',
+          artist: '周杰伦',
+          album: '周杰伦的床边故事',
+          albumAudioId: 88888,
+        ),
+        _song('fav-4', title: '夜曲', artist: '周杰伦 / 周董', album: '十一月的萧邦'),
+      ];
+
+      // Direct hash match
+      expect(
+        controller.isFavorite(
+          _song(
+            'other-id-1',
+            title: 'Different Title',
+            artist: 'Different Artist',
+            hash: 'HASH_FAV_1',
+          ),
+        ),
+        isTrue,
+      );
+
+      // Cross check: cloud song catalogHash matching favorite direct hash
+      expect(
+        controller.isFavorite(
+          _song(
+            'cloud-song-1',
+            title: 'Different Title',
+            artist: 'Different Artist',
+            catalogHash: 'hash_fav_1',
+          ),
+        ),
+        isTrue,
+      );
+
+      // Cross check: regular song direct hash matching favorite catalogHash
+      expect(
+        controller.isFavorite(
+          _song(
+            'other-id-2',
+            title: 'Different Title',
+            artist: 'Different Artist',
+            hash: 'CATALOG_HASH_2',
+          ),
+        ),
+        isTrue,
+      );
+
+      // albumAudioId match
+      expect(
+        controller.isFavorite(
+          _song(
+            'other-id-3',
+            title: 'Different Title',
+            artist: 'Different Artist',
+            albumAudioId: 88888,
+          ),
+        ),
+        isTrue,
+      );
+
+      // Canonical title and artist match
+      expect(
+        controller.isFavorite(
+          _song('other-id-4', title: '  夜曲  ', artist: '周杰伦、周董'),
+        ),
+        isTrue,
+      );
+
+      // Non-favorite song
+      expect(
+        controller.isFavorite(
+          _song(
+            'not-fav',
+            title: '青花瓷',
+            artist: '周杰伦',
+            hash: 'some_other_hash',
+          ),
+        ),
+        isFalse,
+      );
+    },
+  );
 }
 
-Song _song(String id) => Song(
+Song _song(
+  String id, {
+  String? title,
+  String? artist,
+  String? album,
+  String? hash,
+  String? catalogHash,
+  int? albumAudioId,
+}) => Song(
   id: id,
-  title: id,
-  artist: 'artist',
-  album: 'album',
+  title: title ?? id,
+  artist: artist ?? 'artist',
+  album: album ?? 'album',
   duration: const Duration(minutes: 3),
   audioUrl: 'https://example.com/$id.mp3',
-  hash: 'hash-$id',
+  hash: hash ?? 'hash-$id',
+  catalogHash: catalogHash,
+  albumAudioId: albumAudioId,
 );
 
 MusicPlaylist _playlist(

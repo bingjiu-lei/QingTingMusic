@@ -28,6 +28,7 @@ class SearchPage extends StatefulWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     this.isFavorite,
+    this.enableMvFeature = false,
   });
 
   final MusicSearchController controller;
@@ -42,6 +43,7 @@ class SearchPage extends StatefulWidget {
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
   final bool Function(Song)? isFavorite;
+  final bool enableMvFeature;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -57,6 +59,15 @@ class _SearchPageState extends State<SearchPage> {
     _textController = TextEditingController(text: widget.controller.keyword);
     _textController.addListener(_handleTextControllerChanged);
     _focusNode = FocusNode()..addListener(_handleFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(SearchPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enableMvFeature &&
+        widget.controller.category == SearchCategory.mv) {
+      widget.controller.selectCategory(SearchCategory.song);
+    }
   }
 
   void _handleFocusChanged() {
@@ -235,6 +246,7 @@ class _SearchPageState extends State<SearchPage> {
         onOpenArtist: widget.onOpenArtist,
         onOpenAlbum: widget.onOpenAlbum,
         isFavorite: widget.isFavorite,
+        enableMvFeature: widget.enableMvFeature,
       );
     }
 
@@ -416,7 +428,9 @@ class _PromptTileState extends State<_PromptTile> {
                   child: Icon(
                     widget.icon,
                     size: 16,
-                    color: _hovered ? AppColors.primaryPressed : AppColors.primary,
+                    color: _hovered
+                        ? AppColors.primaryPressed
+                        : AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -428,7 +442,9 @@ class _PromptTileState extends State<_PromptTile> {
                     style: AppTypography.style(
                       14,
                       _hovered ? 700 : 600,
-                      color: _hovered ? AppColors.primaryPressed : AppColors.text,
+                      color: _hovered
+                          ? AppColors.primaryPressed
+                          : AppColors.text,
                     ),
                   ),
                 ),
@@ -483,6 +499,7 @@ class _SearchResults extends StatefulWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     this.isFavorite,
+    this.enableMvFeature = false,
   });
 
   final MusicSearchController controller;
@@ -497,6 +514,7 @@ class _SearchResults extends StatefulWidget {
   final ValueChanged<Song> onOpenArtist;
   final ValueChanged<Song> onOpenAlbum;
   final bool Function(Song)? isFavorite;
+  final bool enableMvFeature;
 
   @override
   State<_SearchResults> createState() => _SearchResultsState();
@@ -504,6 +522,20 @@ class _SearchResults extends StatefulWidget {
 
 class _SearchResultsState extends State<_SearchResults> {
   final ScrollController _scrollController = ScrollController();
+
+  List<SearchCategory> get _availableCategories => [
+    for (final category in SearchCategory.values)
+      if (widget.enableMvFeature || category != SearchCategory.mv) category,
+  ];
+
+  @override
+  void didUpdateWidget(_SearchResults oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!widget.enableMvFeature &&
+        widget.controller.category == SearchCategory.mv) {
+      widget.controller.selectCategory(SearchCategory.song);
+    }
+  }
 
   @override
   void dispose() {
@@ -553,9 +585,11 @@ class _SearchResultsState extends State<_SearchResults> {
                       } else {
                         final mvSongs = controller.catalogResults
                             .map((item) => item.toSong())
-                            .map((s) => s.copyWith(
-                                  liked: widget.isFavorite?.call(s) ?? s.liked,
-                                ))
+                            .map(
+                              (s) => s.copyWith(
+                                liked: widget.isFavorite?.call(s) ?? s.liked,
+                              ),
+                            )
                             .toList();
                         widget.onPlayAll(mvSongs);
                       }
@@ -579,12 +613,12 @@ class _SearchResultsState extends State<_SearchResults> {
           const SizedBox(height: 10),
           GlassTabBar(
             dense: true,
-            tabs: [
-              for (final category in SearchCategory.values) category.label,
-            ],
-            selectedIndex: SearchCategory.values.indexOf(controller.category),
+            tabs: [for (final category in _availableCategories) category.label],
+            selectedIndex: _availableCategories.contains(controller.category)
+                ? _availableCategories.indexOf(controller.category)
+                : 0,
             onChanged: (index) =>
-                controller.selectCategory(SearchCategory.values[index]),
+                controller.selectCategory(_availableCategories[index]),
           ),
           const SizedBox(height: 4),
           Expanded(
@@ -649,11 +683,13 @@ class _SearchResultsState extends State<_SearchResults> {
       final isMv = controller.category == SearchCategory.mv;
       final songs = isMv
           ? controller.catalogResults
-              .map((item) => item.toSong())
-              .map((song) => song.copyWith(
+                .map((item) => item.toSong())
+                .map(
+                  (song) => song.copyWith(
                     liked: widget.isFavorite?.call(song) ?? song.liked,
-                  ))
-              .toList()
+                  ),
+                )
+                .toList()
           : controller.results;
 
       if (songs.isEmpty) {
@@ -823,10 +859,12 @@ class _RecentSearchEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF2F5F8) : const Color(0xFF171A1F);
-    final mutedColor =
-        isDark ? Colors.white.withValues(alpha: 0.60) : const Color(0xFF7A8491);
+    final textColor = isDark
+        ? const Color(0xFFF2F5F8)
+        : const Color(0xFF171A1F);
+    final mutedColor = isDark
+        ? Colors.white.withValues(alpha: 0.60)
+        : const Color(0xFF7A8491);
 
     return Align(
       alignment: const Alignment(0, -0.08),

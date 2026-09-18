@@ -30,6 +30,7 @@ class LibraryPage extends StatefulWidget {
     required this.onCreatePlaylist,
     required this.selectedTab,
     required this.onTabChanged,
+    this.enableMvFeature = false,
   });
 
   final MusicLibraryController controller;
@@ -48,6 +49,7 @@ class LibraryPage extends StatefulWidget {
   final VoidCallback onCreatePlaylist;
   final int selectedTab;
   final ValueChanged<int> onTabChanged;
+  final bool enableMvFeature;
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
@@ -66,15 +68,32 @@ class _LibraryPageState extends State<LibraryPage> {
     _filterFocusNode.dispose();
     super.dispose();
   }
-  static const tabs = [
+
+  @override
+  void didUpdateWidget(LibraryPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedTab >= tabs.length) {
+      widget.onTabChanged(0);
+    }
+  }
+
+  List<(String, LibrarySection)> get tabs => [
     ('歌曲', LibrarySection.songs),
     ('歌单', LibrarySection.playlists),
     ('专辑', LibrarySection.albums),
     ('歌手', LibrarySection.artists),
     ('云盘', LibrarySection.cloud),
-    ('MV', LibrarySection.mv),
+    if (widget.enableMvFeature) ('MV', LibrarySection.mv),
     ('最近播放', LibrarySection.recent),
   ];
+
+  int get _safeSelectedTab {
+    final maxIndex = tabs.length - 1;
+    if (widget.selectedTab < 0 || widget.selectedTab > maxIndex) {
+      return 0;
+    }
+    return widget.selectedTab;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +131,7 @@ class _LibraryPageState extends State<LibraryPage> {
                   scrollDirection: Axis.horizontal,
                   child: GlassTabBar(
                     tabs: [for (final tab in tabs) tab.$1],
-                    selectedIndex: widget.selectedTab,
+                    selectedIndex: _safeSelectedTab,
                     onChanged: (index) {
                       widget.onTabChanged(index);
                       widget.controller.ensureLoaded(tabs[index].$2);
@@ -155,15 +174,16 @@ class _LibraryPageState extends State<LibraryPage> {
                   },
                   reversed: _reversed,
                   onToggleSort: () => setState(() => _reversed = !_reversed),
-                  onRefresh: tabs[widget.selectedTab].$2 == LibrarySection.cloud ||
-                          tabs[widget.selectedTab].$2 == LibrarySection.songs
+                  onRefresh:
+                      tabs[_safeSelectedTab].$2 == LibrarySection.cloud ||
+                          tabs[_safeSelectedTab].$2 == LibrarySection.songs
                       ? () => widget.controller.ensureLoaded(
-                            tabs[widget.selectedTab].$2,
-                            refresh: true,
-                          )
+                          tabs[_safeSelectedTab].$2,
+                          refresh: true,
+                        )
                       : null,
                   isRefreshing: widget.controller.isLoading(
-                    tabs[widget.selectedTab].$2,
+                    tabs[_safeSelectedTab].$2,
                   ),
                 ),
               ],
@@ -177,7 +197,7 @@ class _LibraryPageState extends State<LibraryPage> {
   }
 
   List<Song>? get _currentSectionSongs {
-    final section = tabs[widget.selectedTab].$2;
+    final section = tabs[_safeSelectedTab].$2;
     return switch (section) {
       LibrarySection.songs => widget.controller.sortedFavorites,
       LibrarySection.cloud => widget.controller.sortedCloudSongs,
@@ -189,7 +209,7 @@ class _LibraryPageState extends State<LibraryPage> {
 
   Widget _content() {
     final controller = widget.controller;
-    final section = tabs[widget.selectedTab].$2;
+    final section = tabs[_safeSelectedTab].$2;
     final content = switch (section) {
       LibrarySection.songs => _songs(
         '歌曲',
@@ -612,10 +632,7 @@ class _PlaylistTileState extends State<_PlaylistTile> {
                         '${playlist.songCount} 首',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: AppColors.muted,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: AppColors.muted, fontSize: 12),
                       ),
                     ],
                   ),

@@ -26,6 +26,7 @@ class MusicSearchController extends ChangeNotifier {
   List<Song> results = const [];
   List<SearchCatalogItem> catalogResults = const [];
   SearchCategory category = SearchCategory.song;
+  bool enableMvFeature = false;
   bool hasSearched = false;
   bool isLoading = false;
   String? errorText;
@@ -182,7 +183,7 @@ class MusicSearchController extends ChangeNotifier {
       SearchCategory.playlist,
       SearchCategory.artist,
       SearchCategory.album,
-      SearchCategory.mv,
+      if (enableMvFeature) SearchCategory.mv,
     ]) {
       final key = '${value.name}:$query';
       if (_catalogCache.containsKey(key)) continue;
