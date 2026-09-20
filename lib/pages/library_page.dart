@@ -30,7 +30,7 @@ class LibraryPage extends StatefulWidget {
     required this.onCreatePlaylist,
     required this.selectedTab,
     required this.onTabChanged,
-    this.enableMvFeature = false,
+    this.enableMvFeature = true,
   });
 
   final MusicLibraryController controller;

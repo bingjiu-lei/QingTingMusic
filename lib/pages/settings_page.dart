@@ -27,7 +27,7 @@ class SettingsPage extends StatefulWidget {
     required this.onCloseToTrayChanged,
     required this.sidebarExpanded,
     required this.onSidebarExpandedChanged,
-    this.enableMvFeature = false,
+    this.enableMvFeature = true,
     this.onEnableMvFeatureChanged,
     required this.playbackQualityController,
     required this.themeController,

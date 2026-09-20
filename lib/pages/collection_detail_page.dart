@@ -50,7 +50,7 @@ class CollectionDetailPage extends StatefulWidget {
     this.currentSong,
     this.isPlaying = false,
     this.releaseDate,
-    this.enableMvFeature = false,
+    this.enableMvFeature = true,
     this.onRefresh,
   });
 

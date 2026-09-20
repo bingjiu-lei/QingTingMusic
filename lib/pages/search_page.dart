@@ -28,7 +28,7 @@ class SearchPage extends StatefulWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     this.isFavorite,
-    this.enableMvFeature = false,
+    this.enableMvFeature = true,
   });
 
   final MusicSearchController controller;
@@ -499,7 +499,7 @@ class _SearchResults extends StatefulWidget {
     required this.onOpenArtist,
     required this.onOpenAlbum,
     this.isFavorite,
-    this.enableMvFeature = false,
+    this.enableMvFeature = true,
   });
 
   final MusicSearchController controller;

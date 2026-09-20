@@ -129,7 +129,7 @@ class _MusicShellState extends State<MusicShell>
   bool _quittingFromTray = false;
   bool _closingWindow = false;
   bool _closeToTray = true;
-  bool _enableMvFeature = false;
+  bool _enableMvFeature = true;
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
   int detailRelatedPage = 1;
@@ -272,7 +272,7 @@ class _MusicShellState extends State<MusicShell>
     if (!mounted) return;
     final closeToTray = values[0] is bool ? values[0] as bool : false;
     final sidebarExpanded = values[1] is bool ? values[1] as bool : true;
-    final enableMvFeature = values[2] is bool ? values[2] as bool : false;
+    final enableMvFeature = values[2] is bool ? values[2] as bool : true;
     setState(() {
       _closeToTray = closeToTray;
       _sidebarExpanded = sidebarExpanded;

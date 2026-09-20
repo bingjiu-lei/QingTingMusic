@@ -26,7 +26,7 @@ class MusicSearchController extends ChangeNotifier {
   List<Song> results = const [];
   List<SearchCatalogItem> catalogResults = const [];
   SearchCategory category = SearchCategory.song;
-  bool enableMvFeature = false;
+  bool enableMvFeature = true;
   bool hasSearched = false;
   bool isLoading = false;
   String? errorText;

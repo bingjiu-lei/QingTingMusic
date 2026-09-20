@@ -2358,7 +2358,7 @@ class _EmptyState extends StatelessWidget {
 
 IconData _playbackModeIcon(PlaybackMode mode) {
   return switch (mode) {
-    PlaybackMode.sequence => Icons.format_list_numbered_rounded,
+    PlaybackMode.sequence => Icons.playlist_play_rounded,
     PlaybackMode.repeatAll => Icons.repeat_rounded,
     PlaybackMode.repeatOne => Icons.repeat_one_rounded,
     PlaybackMode.shuffle => Icons.shuffle_rounded,
