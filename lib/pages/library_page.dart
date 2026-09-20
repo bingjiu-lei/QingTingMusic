@@ -61,6 +61,7 @@ class _LibraryPageState extends State<LibraryPage> {
   String _filterText = '';
   bool _filterExpanded = false;
   bool _reversed = false;
+  bool _headerHovered = false;
 
   @override
   void dispose() {
@@ -102,26 +103,38 @@ class _LibraryPageState extends State<LibraryPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Text(
-                '我的音乐',
-                style: TextStyle(
-                  color: AppColors.text,
-                  fontSize: 25,
-                  fontWeight: FontWeight.w700,
+          MouseRegion(
+            onEnter: (_) => setState(() => _headerHovered = true),
+            onExit: (_) => setState(() => _headerHovered = false),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  '我的音乐',
+                  style: TextStyle(
+                    color: AppColors.text,
+                    fontSize: 25,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
-              if (_currentSectionSongs != null &&
-                  _currentSectionSongs!.isNotEmpty) ...[
-                const SizedBox(width: 14),
-                PlayAllHeaderButton(
-                  onTap: () => widget.onPlayAll(_currentSectionSongs!),
-                  songCount: _currentSectionSongs!.length,
-                ),
+                if (_currentSectionSongs != null &&
+                    _currentSectionSongs!.isNotEmpty) ...[
+                  const SizedBox(width: 14),
+                  AnimatedOpacity(
+                    opacity: _headerHovered ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: IgnorePointer(
+                      ignoring: !_headerHovered,
+                      child: PlayAllHeaderButton(
+                        onTap: () => widget.onPlayAll(_currentSectionSongs!),
+                        songCount: _currentSectionSongs!.length,
+                      ),
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
           const SizedBox(height: 12),
           Row(

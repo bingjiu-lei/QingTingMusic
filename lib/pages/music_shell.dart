@@ -1189,6 +1189,140 @@ class _MusicShellState extends State<MusicShell>
     }
   }
 
+  Future<void> _refreshCurrentDetail() async {
+    if (detailLoading) return;
+    if (detailPlaylist != null) {
+      final playlist = detailPlaylist!;
+      setState(() => detailLoading = true);
+      try {
+        final songs = await libraryController.loadPlaylist(
+          playlist,
+          refresh: true,
+        );
+        if (!mounted) return;
+        final baseCatalogItem = detailCatalogItem;
+        final updatedCatalogItem =
+            playlist.kind == MusicPlaylistKind.album && baseCatalogItem != null
+            ? await _hydrateAlbumReleaseDate(baseCatalogItem, songs)
+            : baseCatalogItem;
+        if (!mounted) return;
+        setState(() {
+          if (updatedCatalogItem != null) {
+            detailCatalogItem = updatedCatalogItem;
+          }
+          detailSongs = songs.map(libraryController.withFavoriteState).toList();
+          if (songs.isNotEmpty) {
+            detailSubtitle = '${songs.length} 首';
+            if (!playlist.hasCustomCover &&
+                (playlist.kind == MusicPlaylistKind.createdPlaylist ||
+                    playlist.kind == MusicPlaylistKind.favoriteSongs)) {
+              final firstCover = songs.first.coverUrl;
+              if (firstCover != null && firstCover.isNotEmpty) {
+                detailImageUrl = firstCover;
+              }
+            }
+          }
+          detailLoading = false;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => detailLoading = false);
+        _showNotice(error.toString(), kind: AppNoticeKind.error);
+      }
+      return;
+    }
+
+    if (detailCatalogItem != null) {
+      final item = detailCatalogItem!;
+      setState(() {
+        detailLoading = true;
+        detailRelatedPage = 1;
+        detailArtistMvsPage = 1;
+      });
+      try {
+        final results = await Future.wait<Object>([
+          repository.getCatalogSongs(item),
+          if (item.category == SearchCategory.artist)
+            repository.getArtistAlbumsPage(item, page: 1)
+          else
+            Future<List<SearchCatalogItem>>.value([]),
+          if (item.category == SearchCategory.artist)
+            repository
+                .getSimilarArtists(item)
+                .catchError((_) => <SearchCatalogItem>[])
+          else
+            Future<List<SearchCatalogItem>>.value([]),
+          if (item.category == SearchCategory.artist && _enableMvFeature)
+            repository.getArtistMvs(item, page: 1).catchError((_) => <Song>[])
+          else
+            Future<List<Song>>.value([]),
+        ]);
+        if (!mounted) return;
+        final songs = (results[0] as List<Song>)
+            .map(libraryController.withFavoriteState)
+            .toList();
+        final relatedItems = (results[1] as List<SearchCatalogItem>);
+        final similarArtists = (results[2] as List<SearchCatalogItem>);
+        final artistMvs =
+            ((item.category == SearchCategory.artist
+                        ? results[3]
+                        : const <Song>[])
+                    as List<Song>)
+                .map(libraryController.withFavoriteState)
+                .toList();
+        final finalItem = item.category == SearchCategory.album
+            ? await _hydrateAlbumReleaseDate(item, songs)
+            : item;
+        final artistHeaderImage = item.category == SearchCategory.artist
+            ? await _resolveArtistHeaderImage(finalItem, songs)
+            : finalItem.imageUrl;
+        if (!mounted) return;
+        setState(() {
+          detailCatalogItem = finalItem;
+          detailSongs = songs;
+          detailRelatedItems = relatedItems;
+          detailSimilarArtists = similarArtists;
+          detailArtistMvs = artistMvs;
+          detailImageUrl = artistHeaderImage;
+          detailRelatedHasMore =
+              item.category == SearchCategory.artist && relatedItems.isNotEmpty;
+          detailArtistMvsHasMore =
+              item.category == SearchCategory.artist && artistMvs.isNotEmpty;
+          detailLoading = false;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => detailLoading = false);
+        _showNotice(error.toString(), kind: AppNoticeKind.error);
+      }
+      return;
+    }
+
+    if (detailTitle == '每日推荐') {
+      setState(() => detailLoading = true);
+      try {
+        await recommendationController.loadDaily(refresh: true);
+        if (!mounted) return;
+        final songs = recommendationController.dailySongs;
+        setState(() {
+          detailSongs = songs;
+          if (songs.isNotEmpty) {
+            final firstCover = songs
+                .map((song) => song.coverUrl?.trim() ?? '')
+                .firstWhere((url) => url.isNotEmpty, orElse: () => '');
+            if (firstCover.isNotEmpty) detailImageUrl = firstCover;
+          }
+          detailLoading = false;
+        });
+      } catch (error) {
+        if (!mounted) return;
+        setState(() => detailLoading = false);
+        _showNotice(error.toString(), kind: AppNoticeKind.error);
+      }
+      return;
+    }
+  }
+
   Future<void> _openArtistFromSong(Song song) async {
     final artistName = _navigableArtistName(song.artist);
     if (artistName == null) return;
@@ -2059,6 +2193,7 @@ class _MusicShellState extends State<MusicShell>
         onLoadMoreArtistMvs: _loadMoreArtistMvs,
         enableMvFeature: _enableMvFeature,
         isLoading: detailLoading,
+        onRefresh: _refreshCurrentDetail,
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
         selectedTab: detailSelectedTab,

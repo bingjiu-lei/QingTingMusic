@@ -51,6 +51,7 @@ class CollectionDetailPage extends StatefulWidget {
     this.isPlaying = false,
     this.releaseDate,
     this.enableMvFeature = false,
+    this.onRefresh,
   });
 
   final CollectionDetailKind kind;
@@ -63,6 +64,7 @@ class CollectionDetailPage extends StatefulWidget {
   final bool relatedItemsLoadingMore;
   final bool relatedItemsCanLoadMore;
   final bool isLoading;
+  final VoidCallback? onRefresh;
   final List<Song> artistMvs;
   final bool artistMvsLoadingMore;
   final bool artistMvsCanLoadMore;
@@ -320,7 +322,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                           ],
                         ),
                         if (tabs.length <= 1 &&
-                            _songsForDisplay().isNotEmpty) ...[
+                            (_songsForDisplay().isNotEmpty ||
+                                widget.onRefresh != null)) ...[
                           const Spacer(),
                           SongHeaderActions(
                             songs: _songsForDisplay(),
@@ -349,6 +352,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                             reversed: _reversed,
                             onToggleSort: () =>
                                 setState(() => _reversed = !_reversed),
+                            onRefresh: widget.onRefresh,
+                            isRefreshing: widget.isLoading,
                           ),
                         ],
                       ],
@@ -396,6 +401,8 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                     },
                     reversed: _reversed,
                     onToggleSort: () => setState(() => _reversed = !_reversed),
+                    onRefresh: widget.onRefresh,
+                    isRefreshing: widget.isLoading,
                   ),
               ],
             ),
