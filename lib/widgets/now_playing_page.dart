@@ -340,8 +340,8 @@ class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground> {
                 key: const ValueKey('portrait-mode'),
                 portraitUrl: portrait,
                 fallbackAsset: dark
-                    ? 'assets/images/artist_wallpaper_dark.png'
-                    : 'assets/images/artist_wallpaper_light.png',
+                    ? 'assets/images/artist_wallpaper_dark.webp'
+                    : 'assets/images/artist_wallpaper_light.webp',
               ),
             ),
           ),
@@ -1156,7 +1156,9 @@ class _SongIdentityState extends State<_SongIdentity> {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: glowColor.withValues(alpha: isDark ? 0.32 : 0.18),
+                        color: glowColor.withValues(
+                          alpha: isDark ? 0.32 : 0.18,
+                        ),
                         blurRadius: 30,
                         offset: const Offset(0, 10),
                       ),

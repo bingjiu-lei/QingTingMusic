@@ -129,8 +129,8 @@ class _Brand extends StatelessWidget {
                     },
                     child: Image.asset(
                       isDark
-                          ? 'assets/images/app_icon_dark.png'
-                          : 'assets/images/app_icon_light.png',
+                          ? 'assets/images/app_icon_dark.webp'
+                          : 'assets/images/app_icon_light.webp',
                       key: ValueKey(isDark),
                       width: 42,
                       height: 42,

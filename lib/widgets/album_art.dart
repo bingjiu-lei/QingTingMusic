@@ -20,7 +20,7 @@ class AlbumArt extends StatelessWidget {
       size >= 50 ? AppRadius.lg : AppRadius.sm,
     );
     final placeholder = Image.asset(
-      'assets/images/album_placeholder.png',
+      'assets/images/album_placeholder.webp',
       width: size,
       height: size,
       fit: BoxFit.cover,

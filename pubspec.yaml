@@ -67,11 +67,11 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   assets:
-    - assets/images/app_icon_light.png
-    - assets/images/app_icon_dark.png
-    - assets/images/album_placeholder.png
-    - assets/images/artist_wallpaper_light.png
-    - assets/images/artist_wallpaper_dark.png
+    - assets/images/app_icon_light.webp
+    - assets/images/app_icon_dark.webp
+    - assets/images/album_placeholder.webp
+    - assets/images/artist_wallpaper_light.webp
+    - assets/images/artist_wallpaper_dark.webp
     - windows/runner/resources/app_icon.ico
   fonts:
     - family: NotoSansSC
