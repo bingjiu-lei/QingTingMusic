@@ -955,34 +955,42 @@ class _WideContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (portraitMode) {
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: _LyricsPanel(
-            song: song,
-            controller: controller,
-            loadLyrics: loadLyrics,
-            showTranslation: showTranslation,
-            showTransliteration: showTransliteration,
-            onTranslationChanged: onTranslationChanged,
-            onTransliterationChanged: onTransliterationChanged,
-            centered: true,
-          ),
-        ),
-      );
-    }
     return LayoutBuilder(
       builder: (context, constraints) {
         final totalWidth = constraints.maxWidth;
-        final isLarge = totalWidth >= 1350;
+        final totalHeight = constraints.maxHeight;
+        final isHuge = totalWidth >= 1600 && totalHeight >= 720;
+        final isLarge = isHuge || (totalWidth >= 1350 && totalHeight >= 620);
         final isNarrow = totalWidth < 1000;
-        final maxStageWidth = isLarge
-            ? 1280.0
-            : (isNarrow ? double.infinity : 1180.0);
-        final columnGap = isLarge ? 64.0 : (isNarrow ? 36.0 : 52.0);
-        // Visual balance: shift stage rightward to balance left-aligned lyrics with album cover
-        final shiftRight = isLarge ? 96.0 : (isNarrow ? 32.0 : 72.0);
+
+        if (portraitMode) {
+          final portraitLyricsMaxWidth = isHuge
+              ? 820.0
+              : (isLarge ? 740.0 : 640.0);
+          return Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: portraitLyricsMaxWidth),
+              child: _LyricsPanel(
+                song: song,
+                controller: controller,
+                loadLyrics: loadLyrics,
+                showTranslation: showTranslation,
+                showTransliteration: showTransliteration,
+                onTranslationChanged: onTranslationChanged,
+                onTransliterationChanged: onTransliterationChanged,
+                centered: true,
+              ),
+            ),
+          );
+        }
+
+        final maxStageWidth = isHuge
+            ? 1580.0
+            : (isLarge ? 1380.0 : (isNarrow ? double.infinity : 1180.0));
+        final columnGap = isHuge
+            ? 96.0
+            : (isLarge ? 76.0 : (isNarrow ? 36.0 : 52.0));
+        final shiftRight = isLarge ? 24.0 : (isNarrow ? 12.0 : 36.0);
 
         return Center(
           child: ConstrainedBox(
@@ -995,7 +1003,9 @@ class _WideContent extends StatelessWidget {
                   Expanded(
                     flex: 1,
                     child: Align(
-                      alignment: const Alignment(0.48, 0.0),
+                      alignment: isLarge
+                          ? const Alignment(0.08, 0.0)
+                          : const Alignment(0.28, 0.0),
                       child: RepaintBoundary(
                         child: _SongIdentity(
                           song: song,
@@ -1137,12 +1147,24 @@ class _SongIdentityState extends State<_SongIdentity> {
         final availableWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : 400.0;
-        final rawSize = math.min(availableWidth - 32, availableHeight * 0.48);
-        final coverSize = rawSize.clamp(170.0, 290.0);
+        final isHuge = availableWidth >= 500 && availableHeight >= 700;
+        final isLarge =
+            isHuge || (availableWidth >= 400 && availableHeight >= 560);
+        final maxCover = isHuge ? 380.0 : (isLarge ? 340.0 : 290.0);
+        final factor = isHuge ? 0.54 : (isLarge ? 0.50 : 0.48);
+        final paddingH = isLarge ? 48.0 : 32.0;
+        final rawSize = math.min(
+          availableWidth - paddingH,
+          availableHeight * factor,
+        );
+        final coverSize = rawSize.clamp(170.0, maxCover);
 
         return ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: math.min(availableWidth, math.max(260.0, coverSize + 28)),
+            maxWidth: math.min(
+              availableWidth,
+              math.max(260.0, coverSize + (isLarge ? 48 : 28)),
+            ),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1153,14 +1175,16 @@ class _SongIdentityState extends State<_SongIdentity> {
                   duration: const Duration(milliseconds: 380),
                   curve: Curves.easeOutCubic,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(
+                      coverSize >= 340 ? 24 : 20,
+                    ),
                     boxShadow: [
                       BoxShadow(
                         color: glowColor.withValues(
-                          alpha: isDark ? 0.32 : 0.18,
+                          alpha: isDark ? 0.34 : 0.20,
                         ),
-                        blurRadius: 30,
-                        offset: const Offset(0, 10),
+                        blurRadius: coverSize >= 340 ? 38 : 30,
+                        offset: Offset(0, coverSize >= 340 ? 12 : 10),
                       ),
                       BoxShadow(
                         color: Colors.black.withValues(
@@ -1172,7 +1196,9 @@ class _SongIdentityState extends State<_SongIdentity> {
                     ],
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(
+                      coverSize >= 340 ? 24 : 20,
+                    ),
                     child: AlbumArt(
                       size: coverSize,
                       emphasized: false,
@@ -1181,7 +1207,11 @@ class _SongIdentityState extends State<_SongIdentity> {
                   ),
                 ),
               ),
-              SizedBox(height: availableHeight < 420 ? 12 : 18),
+              SizedBox(
+                height: coverSize >= 340
+                    ? 20
+                    : (availableHeight < 420 ? 12 : 18),
+              ),
               Tooltip(
                 message: song.title,
                 waitDuration: const Duration(milliseconds: 500),
@@ -1193,7 +1223,9 @@ class _SongIdentityState extends State<_SongIdentity> {
                   style: TextStyle(
                     fontFamily: 'NotoSansSC',
                     color: AppColors.text,
-                    fontSize: availableWidth < 340 ? 19.5 : 22.5,
+                    fontSize: coverSize >= 340
+                        ? 26.0
+                        : (availableWidth < 340 ? 19.5 : 22.5),
                     fontWeight: FontWeight.w800,
                     height: 1.22,
                     letterSpacing: -0.2,
@@ -1208,7 +1240,9 @@ class _SongIdentityState extends State<_SongIdentity> {
                     Flexible(
                       child: SongArtistLine(
                         song: song,
-                        fontSize: availableWidth < 340 ? 13.0 : 14.0,
+                        fontSize: coverSize >= 340
+                            ? 15.5
+                            : (availableWidth < 340 ? 13.0 : 14.0),
                         onArtistLink: widget.onOpenArtist == null
                             ? null
                             : (artist) => widget.onOpenArtist!(
@@ -1229,7 +1263,7 @@ class _SongIdentityState extends State<_SongIdentity> {
                           style: TextStyle(
                             fontFamily: 'NotoSansSC',
                             color: AppColors.muted,
-                            fontSize: 13.5,
+                            fontSize: coverSize >= 340 ? 15.0 : 13.5,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -1272,8 +1306,6 @@ class _LyricsPanel extends StatefulWidget {
 }
 
 class _LyricsPanelState extends State<_LyricsPanel> {
-  static const double _lyricRowExtent = 60.0;
-
   final _scrollController = ScrollController();
   List<LyricLine> _lines = const [];
   bool _loading = true;
@@ -1281,6 +1313,16 @@ class _LyricsPanelState extends State<_LyricsPanel> {
   int _activeIndex = -1;
   Timer? _layerControlsTimer;
   bool _showLayerControls = false;
+
+  double _getRowExtent(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (size.width >= 1600 && size.height >= 720) {
+      return 78.0;
+    } else if (size.width >= 1350 && size.height >= 620) {
+      return 72.0;
+    }
+    return 60.0;
+  }
 
   @override
   void initState() {
@@ -1389,7 +1431,8 @@ class _LyricsPanelState extends State<_LyricsPanel> {
     if (index < 0) return;
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted || !_scrollController.hasClients) return;
-      final target = index * _lyricRowExtent;
+      final rowExtent = _getRowExtent(context);
+      final target = index * rowExtent;
       final safeTarget = target.clamp(
         _scrollController.position.minScrollExtent,
         _scrollController.position.maxScrollExtent,
@@ -1426,8 +1469,15 @@ class _LyricsPanelState extends State<_LyricsPanel> {
 
           final body = _lyricsContent(viewportHeight);
 
+          final size = MediaQuery.sizeOf(context);
+          final isHuge = size.width >= 1600;
+          final isLarge = isHuge || size.width >= 1350;
+          final panelMaxWidth = widget.centered
+              ? (isHuge ? 820.0 : (isLarge ? 740.0 : 680.0))
+              : (isHuge ? 780.0 : (isLarge ? 700.0 : 640.0));
+
           return ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: widget.centered ? 680 : 640),
+            constraints: BoxConstraints(maxWidth: panelMaxWidth),
             child: Column(
               mainAxisSize: MainAxisSize.max,
               crossAxisAlignment: widget.centered
@@ -1500,10 +1550,19 @@ class _LyricsPanelState extends State<_LyricsPanel> {
       return _LyricEmptyText(text: '暂无歌词', centered: widget.centered);
     }
 
+    final size = MediaQuery.sizeOf(context);
+    final isHuge = size.width >= 1600 && size.height >= 720;
+    final isLarge = isHuge || (size.width >= 1350 && size.height >= 620);
+    final rowExtent = isHuge ? 78.0 : (isLarge ? 72.0 : 60.0);
+    final activeFontSize = isHuge ? 29.0 : (isLarge ? 26.5 : 21.5);
+    final inactiveFontSize = isHuge ? 19.0 : (isLarge ? 17.5 : 15.5);
+    final activeSecondaryFontSize = isHuge ? 15.0 : (isLarge ? 14.0 : 12.0);
+    final inactiveSecondaryFontSize = isHuge ? 13.5 : (isLarge ? 12.5 : 11.0);
+
     final focalOffset = viewportHeight * 0.42;
     final bottomPadding = math.max(
       0.0,
-      viewportHeight - focalOffset - _lyricRowExtent,
+      viewportHeight - focalOffset - rowExtent,
     );
 
     final listView = ListView.builder(
@@ -1522,6 +1581,11 @@ class _LyricsPanelState extends State<_LyricsPanel> {
           centered: widget.centered,
           showTranslation: widget.showTranslation,
           showTransliteration: widget.showTransliteration,
+          rowExtent: rowExtent,
+          activeFontSize: activeFontSize,
+          inactiveFontSize: inactiveFontSize,
+          activeSecondaryFontSize: activeSecondaryFontSize,
+          inactiveSecondaryFontSize: inactiveSecondaryFontSize,
           onDoubleTap: () async {
             await widget.controller.seek(line.time);
             if (!widget.controller.isPlaying) {
@@ -1567,6 +1631,11 @@ class _LyricRow extends StatefulWidget {
     required this.showTranslation,
     required this.showTransliteration,
     required this.onDoubleTap,
+    this.rowExtent = 60.0,
+    this.activeFontSize = 21.5,
+    this.inactiveFontSize = 15.5,
+    this.activeSecondaryFontSize = 12.0,
+    this.inactiveSecondaryFontSize = 11.0,
   });
 
   final LyricLine line;
@@ -1576,6 +1645,11 @@ class _LyricRow extends StatefulWidget {
   final bool showTranslation;
   final bool showTransliteration;
   final VoidCallback onDoubleTap;
+  final double rowExtent;
+  final double activeFontSize;
+  final double inactiveFontSize;
+  final double activeSecondaryFontSize;
+  final double inactiveSecondaryFontSize;
 
   @override
   State<_LyricRow> createState() => _LyricRowState();
@@ -1607,7 +1681,7 @@ class _LyricRowState extends State<_LyricRow> {
         behavior: HitTestBehavior.opaque,
         onDoubleTap: widget.onDoubleTap,
         child: SizedBox(
-          height: 60.0,
+          height: widget.rowExtent,
           child: Align(
             alignment: centered ? Alignment.center : Alignment.centerLeft,
             child: AnimatedScale(
@@ -1634,6 +1708,8 @@ class _LyricRowState extends State<_LyricRow> {
                       position: widget.position,
                       active: active,
                       centered: centered,
+                      activeFontSize: widget.activeFontSize,
+                      inactiveFontSize: widget.inactiveFontSize,
                     ),
                     if (secondary.isNotEmpty) ...[
                       const SizedBox(height: 3),
@@ -1653,7 +1729,9 @@ class _LyricRowState extends State<_LyricRow> {
                               : active
                               ? AppColors.primary.withValues(alpha: 0.90)
                               : AppColors.muted,
-                          fontSize: active ? 12.0 : 11.0,
+                          fontSize: active
+                              ? widget.activeSecondaryFontSize
+                              : widget.inactiveSecondaryFontSize,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -1772,12 +1850,16 @@ class _KaraokeLine extends StatelessWidget {
     required this.position,
     required this.active,
     this.centered = false,
+    this.activeFontSize = 21.5,
+    this.inactiveFontSize = 15.5,
   });
 
   final LyricLine line;
   final Duration position;
   final bool active;
   final bool centered;
+  final double activeFontSize;
+  final double inactiveFontSize;
 
   @override
   Widget build(BuildContext context) {
@@ -1786,9 +1868,9 @@ class _KaraokeLine extends StatelessWidget {
       color: centered
           ? Colors.white.withValues(alpha: active ? 0.98 : 0.66)
           : AppColors.text,
-      fontSize: active ? 21.5 : 15.5,
+      fontSize: active ? activeFontSize : inactiveFontSize,
       fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-      height: 1.30,
+      height: 1.28,
       letterSpacing: active ? -0.1 : 0.0,
     );
 
