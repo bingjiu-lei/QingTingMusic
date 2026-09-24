@@ -80,6 +80,7 @@ class PlayerController extends ChangeNotifier {
   final RecentSongsService? recentSongsService;
   final PlaybackStateService? playbackStateService;
   final MusicRepository? repository;
+  void Function(Song song, Duration duration)? onDurationDetected;
   int _climaxRequestEpoch = 0;
   late final List<StreamSubscription<Object?>> _subscriptions;
 
@@ -427,6 +428,7 @@ class PlayerController extends ChangeNotifier {
     final updated = song.copyWith(duration: value);
     currentSong = updated;
     _replaceSongInQueue(updated);
+    onDurationDetected?.call(updated, value);
   }
 
   void _replaceSongInQueue(Song song) {
@@ -951,6 +953,12 @@ class PlayerController extends ChangeNotifier {
       if (item.id.isNotEmpty &&
           item.id.toLowerCase() == song.id.toLowerCase()) {
         return true;
+      }
+      if (item.isCloud && song.isCloud) {
+        if (item.fileId != null && song.fileId != null) {
+          return item.fileId == song.fileId;
+        }
+        return false;
       }
       final itemHash = item.hash?.trim().toLowerCase();
       final songHash = song.hash?.trim().toLowerCase();

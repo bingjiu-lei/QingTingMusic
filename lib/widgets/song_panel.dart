@@ -192,6 +192,7 @@ class _SongPanelState extends State<SongPanel> {
                             return Column(
                               children: [
                                 SongRow(
+                                  key: ValueKey(song.id),
                                   song: song,
                                   index: index,
                                   compact: widget.compactRows,

@@ -3,14 +3,17 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../controllers/music_library_controller.dart';
 import '../controllers/playback_quality_controller.dart';
 import '../controllers/player_controller.dart';
 import '../models/music_playlist.dart';
 import '../models/song.dart';
+import '../services/kugou_api_client.dart';
 import '../theme/app_theme.dart';
 import 'album_art.dart';
 import 'app_dialog.dart';
 import 'app_icon_button.dart';
+import 'cloud_upload_dialog.dart';
 import 'heart_off_icon.dart';
 import 'preparing_dots.dart';
 import 'playback_progress.dart';
@@ -22,6 +25,8 @@ class PlayerBar extends StatelessWidget {
     super.key,
     required this.controller,
     required this.playbackQualityController,
+    this.apiClient,
+    this.libraryController,
     this.onQueuePressed,
     this.onNowPlayingPressed,
     this.onOpenAlbum,
@@ -39,6 +44,8 @@ class PlayerBar extends StatelessWidget {
 
   final PlayerController controller;
   final PlaybackQualityController playbackQualityController;
+  final KugouApiClient? apiClient;
+  final MusicLibraryController? libraryController;
   final VoidCallback? onQueuePressed;
   final VoidCallback? onNowPlayingPressed;
   final ValueChanged<Song>? onOpenAlbum;
@@ -127,14 +134,11 @@ class PlayerBar extends StatelessWidget {
                                     controller.cyclePlaybackMode,
                                 subtitle:
                                     controller.errorText ??
-                                    controller.playbackNotice ??
                                     (controller.isPreparing
                                         ? '正在准备播放'
                                         : song?.artist ?? ''),
                                 subtitleColor: controller.errorText != null
                                     ? AppColors.danger
-                                    : controller.playbackNotice != null
-                                    ? AppColors.primary
                                     : AppColors.muted,
                               ),
                             ),
@@ -159,6 +163,8 @@ class PlayerBar extends StatelessWidget {
                                 desktopLyricsVisible: desktopLyricsVisible,
                                 onDesktopLyricsChanged: onDesktopLyricsChanged,
                                 onQueuePressed: onQueuePressed,
+                                apiClient: apiClient,
+                                libraryController: libraryController,
                               ),
                             ),
                           ],
@@ -491,6 +497,8 @@ class _ToolSection extends StatelessWidget {
     required this.desktopLyricsVisible,
     required this.onDesktopLyricsChanged,
     required this.onQueuePressed,
+    this.apiClient,
+    this.libraryController,
   });
 
   final PlayerController controller;
@@ -502,6 +510,8 @@ class _ToolSection extends StatelessWidget {
   final bool desktopLyricsVisible;
   final ValueChanged<bool> onDesktopLyricsChanged;
   final VoidCallback? onQueuePressed;
+  final KugouApiClient? apiClient;
+  final MusicLibraryController? libraryController;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -520,6 +530,24 @@ class _ToolSection extends StatelessWidget {
         playerController: controller,
         compact: true,
       ),
+      if (song != null &&
+          song!.isEligibleForCloudUpload &&
+          apiClient != null) ...[
+        const SizedBox(width: 4),
+        _ControlIconButton(
+          tooltip: '转存到个人云盘',
+          onPressed: () {
+            CloudUploadDialog.show(
+              context,
+              song: song!,
+              apiClient: apiClient!,
+              libraryController: libraryController,
+            );
+          },
+          icon: Icons.cloud_upload_outlined,
+          size: 38,
+        ),
+      ],
       const SizedBox(width: 4),
       _ControlIconButton(
         tooltip: desktopLyricsVisible ? '关闭桌面歌词' : '打开桌面歌词',

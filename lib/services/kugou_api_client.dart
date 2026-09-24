@@ -20,6 +20,9 @@ import 'session_expired_service.dart';
 
 class AuthenticationRequiredException implements Exception {
   const AuthenticationRequiredException();
+
+  @override
+  String toString() => '登录状态无效，请重新登录后重试';
 }
 
 class KugouApiException implements Exception {
@@ -32,11 +35,17 @@ class KugouApiException implements Exception {
 }
 
 class _PlaybackCandidate {
-  const _PlaybackCandidate({required this.hash, this.quality, this.url});
+  const _PlaybackCandidate({
+    required this.hash,
+    this.quality,
+    this.url,
+    this.isSubstitute = false,
+  });
 
   final String hash;
   final Object? quality;
   final String? url;
+  final bool isSubstitute;
 }
 
 class _ResolvedPlayback {
@@ -704,6 +713,77 @@ class KugouApiClient {
     }
   }
 
+  Future<List<Song>> getFavoriteMvs() async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    const pageSize = 100;
+    final videos = <String, Song>{};
+    for (var page = 1; page <= 20; page++) {
+      final response = await _post(
+        '/user/video/collect',
+        authenticated: true,
+        queryParameters: {'page': page, 'pagesize': pageSize},
+      );
+      _throwIfAuthFailed(response.data);
+      final records = _findRecords(response.data);
+      if (records.isEmpty) break;
+      var added = 0;
+      for (final value in records) {
+        final song = _songFromFavoriteMv(value);
+        if (song == null) continue;
+        final key = song.mvId?.trim().isNotEmpty == true
+            ? song.mvId!.trim()
+            : (song.hash ?? song.id);
+        if (!videos.containsKey(key)) added++;
+        videos[key] = song;
+      }
+      if (records.length < pageSize || added == 0) break;
+    }
+    return videos.values.toList(growable: false);
+  }
+
+  Future<void> collectMv(Song song) async {
+    await _changeMvCollection(song, collect: true);
+  }
+
+  Future<void> uncollectMv(Song song) async {
+    await _changeMvCollection(song, collect: false);
+  }
+
+  Future<void> _changeMvCollection(Song song, {required bool collect}) async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    var mvId = song.mvId?.trim() ?? '';
+    if (mvId.isEmpty || int.tryParse(mvId) == null) {
+      if (song.title.isNotEmpty) {
+        try {
+          final query = '${song.artist} ${song.title}'.trim();
+          final results = await searchCatalog(query, SearchCategory.mv);
+          final match = results.cast<SearchCatalogItem?>().firstWhere(
+            (item) =>
+                item != null &&
+                int.tryParse(item.id) != null &&
+                (_normalizeSongText(item.title) ==
+                        _normalizeSongText(song.title) ||
+                    (song.hash != null &&
+                        item.hash?.toLowerCase() == song.hash?.toLowerCase())),
+            orElse: () => null,
+          );
+          if (match != null && int.tryParse(match.id) != null) {
+            mvId = match.id.trim();
+          }
+        } catch (_) {}
+      }
+    }
+    if (mvId.isEmpty || int.tryParse(mvId) == null) {
+      throw const KugouApiException('MV缺少视频ID，请刷新后重试');
+    }
+    final response = await _post(
+      collect ? '/mv/collect' : '/mv/collect/del',
+      authenticated: true,
+      queryParameters: {'id': mvId},
+    );
+    _ensureOperationSucceeded(response.data);
+  }
+
   Future<List<SearchCatalogItem>> getSimilarArtists(
     SearchCatalogItem artist,
   ) async {
@@ -1102,9 +1182,7 @@ class KugouApiClient {
           .whereType<Song>();
       var added = 0;
       for (final song in pageSongs) {
-        final hash = song.hash ?? '';
-        final key =
-            song.cloudAudioId?.toString() ?? (hash.isNotEmpty ? hash : song.id);
+        final key = song.fileId?.toString() ?? song.id;
         if (!songs.containsKey(key)) added++;
         songs[key] = song;
       }
@@ -1118,11 +1196,95 @@ class KugouApiClient {
       if (aTime != bTime) {
         return bTime.compareTo(aTime);
       }
-      final aId = a.cloudAudioId ?? 0;
-      final bId = b.cloudAudioId ?? 0;
+      final aId = a.fileId ?? a.cloudAudioId ?? 0;
+      final bId = b.fileId ?? b.cloudAudioId ?? 0;
       return bId.compareTo(aId);
     });
     return result;
+  }
+
+  Future<Map<String, Object?>> uploadSongToCloud({
+    required Uint8List fileBytes,
+    required String name,
+    required String extendname,
+    required String authorName,
+    int audioId = 0,
+    int albumAudioId = 0,
+    String hashStd = '',
+    int durationSeconds = 0,
+    CancelToken? cancelToken,
+    void Function(double progress)? onProgress,
+  }) async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    try {
+      if (await _usesOfficialApi()) {
+        return await _officialClient.uploadCloudSong(
+          fileBytes: fileBytes,
+          name: name,
+          extendname: extendname,
+          authorName: authorName,
+          audioId: audioId,
+          albumAudioId: albumAudioId,
+          hashStd: hashStd,
+          session: session,
+          durationSeconds: durationSeconds,
+          cancelToken: cancelToken,
+          onProgress: onProgress,
+        );
+      }
+
+      await _configureEndpoint();
+      final cleanExt = extendname.replaceAll('.', '').trim();
+      final response = await _dio.post<dynamic>(
+        '/user/cloud/upload',
+        data: fileBytes,
+        cancelToken: cancelToken,
+        queryParameters: {
+          'name': name,
+          'extendname': cleanExt,
+          if (authorName.isNotEmpty) 'author_name': authorName,
+          if (audioId > 0) 'audio_id': audioId,
+          if (albumAudioId > 0) 'album_audio_id': albumAudioId,
+          if (hashStd.isNotEmpty) 'hash_std': hashStd,
+          if (durationSeconds > 0) 'timelen': durationSeconds,
+        },
+        options: Options(
+          headers: {
+            if (session.authorization.isNotEmpty)
+              'Authorization': session.authorization,
+            'Content-Type': 'application/octet-stream',
+            'Content-Length': fileBytes.length,
+          },
+        ),
+        onSendProgress: (sent, total) {
+          if (total > 0 && onProgress != null) {
+            onProgress(sent / total);
+          }
+        },
+      );
+      final body = _map(response.data);
+      final errorCode = _toInt(body['error_code'] ?? body['code']);
+      final status = _toInt(body['status'] ?? 1);
+      if (errorCode != 0 || status != 1) {
+        throw KugouApiException(
+          _read(body, ['message', 'msg'], fallback: '上传到云盘失败'),
+        );
+      }
+      return body;
+    } on KugouOfficialException catch (e) {
+      throw KugouApiException(e.message);
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      String? msg;
+      if (data is Map) {
+        msg =
+            data['msg']?.toString() ??
+            data['message']?.toString() ??
+            data['error']?.toString();
+      }
+      msg ??= e.message;
+      throw KugouApiException(msg?.isNotEmpty == true ? msg! : '云盘上传网络异常');
+    }
   }
 
   Future<List<SearchCatalogItem>> getFollowedArtists() async {
@@ -1414,6 +1576,7 @@ class KugouApiClient {
           return song.copyWith(
             audioUrl: candidateUrl,
             playbackQuality: _normalizedQuality(candidate.quality),
+            isSpecialSource: candidate.isSubstitute,
           );
         }
       }
@@ -1424,6 +1587,7 @@ class KugouApiClient {
       return song.copyWith(
         audioUrl: directPlayback.url,
         playbackQuality: _normalizedQuality(directPlayback.quality),
+        isSpecialSource: false,
       );
     }
 
@@ -1451,7 +1615,24 @@ class KugouApiClient {
   }
 
   Future<Song> _resolveMvPlayback(Song song) async {
-    final hash = song.hash?.trim() ?? '';
+    var hash = song.hash?.trim() ?? '';
+    if (hash.isEmpty) {
+      final mvId = song.mvId?.trim() ?? '';
+      if (mvId.isNotEmpty) {
+        try {
+          final detail = await _post(
+            '/video/detail',
+            authenticated: true,
+            queryParameters: {'id': mvId},
+          );
+          final detailSong = _songFromFavoriteMv(detail.data);
+          hash = detailSong?.hash?.trim() ?? '';
+          if (hash.isNotEmpty) song = song.copyWith(hash: hash);
+        } catch (_) {
+          // The video URL endpoint below remains the final source of truth.
+        }
+      }
+    }
     if (hash.isEmpty) {
       throw const KugouApiException('MV缺少音频信息');
     }
@@ -1473,7 +1654,11 @@ class KugouApiClient {
     if (url.isEmpty) {
       throw const KugouApiException('获取MV播放地址失败');
     }
-    return song.copyWith(audioUrl: url, playbackQuality: 'MV');
+    return song.copyWith(
+      audioUrl: url,
+      playbackQuality: 'MV',
+      isSpecialSource: true,
+    );
   }
 
   Future<void> loadAvailableQualities(Song song) async {
@@ -1739,6 +1924,13 @@ class KugouApiClient {
         bypassCache: true,
         queryParameters: {'hash': hash, 'album_id': song.albumId ?? 0},
       );
+      final body = _map(response.data);
+      final dataList = _list(body['data']);
+      final firstItem = dataList.isNotEmpty
+          ? _map(dataList.first)
+          : const <String, Object?>{};
+      final isDenied =
+          firstItem['_msg']?.toString().toLowerCase().contains('deny') == true;
       final goods = _findRelateGoods(response.data);
       final playable = <_PlaybackCandidate>[];
       for (final candidate in goods) {
@@ -1758,6 +1950,7 @@ class KugouApiClient {
               hash: candidate.hash,
               quality: candidate.quality,
               url: url,
+              isSubstitute: isDenied,
             ),
           );
         }
@@ -1773,7 +1966,12 @@ class KugouApiClient {
         );
         if (standardUrl != null) {
           playable.add(
-            _PlaybackCandidate(hash: hash, quality: '128', url: standardUrl),
+            _PlaybackCandidate(
+              hash: hash,
+              quality: '128',
+              url: standardUrl,
+              isSubstitute: isDenied,
+            ),
           );
         }
       }
@@ -1821,7 +2019,7 @@ class KugouApiClient {
         return song.copyWith(
           audioUrl: candidatePlayback.url,
           playbackQuality: _normalizedQuality(candidatePlayback.quality),
-          playbackNotice: '已切换可播放版本',
+          isSpecialSource: true,
         );
       }
     } catch (_) {
@@ -1886,7 +2084,7 @@ class KugouApiClient {
                 return song.copyWith(
                   audioUrl: resolved.audioUrl,
                   playbackQuality: 'MV',
-                  playbackNotice: '已切换MV音源',
+                  isSpecialSource: true,
                 );
               }
             } catch (_) {
@@ -1935,7 +2133,7 @@ class KugouApiClient {
             return song.copyWith(
               audioUrl: resolved.audioUrl,
               playbackQuality: 'MV',
-              playbackNotice: '已切换MV音源',
+              isSpecialSource: true,
             );
           }
         } catch (_) {
@@ -2141,17 +2339,24 @@ class KugouApiClient {
     final h264 = _map(json['h264']);
     final hash = _read(
       h264,
-      ['sd_hash', 'ld_hash', 'hd_hash', 'fhd_hash', 'qhd_hash'],
+      ['sd_hash', 'hd_hash', 'fhd_hash', 'qhd_hash', 'ld_hash'],
       fallback: _read(json, [
+        'sd_hash',
+        'hd_hash',
         'mkv_sd_hash',
         'mkv_hd_hash',
-        'mkv_qhd_hash',
         'mv_hash',
+        'MvHash',
+        'video_hash',
+        'videohash',
+        'fhd_hash',
+        'qhd_hash',
+        'mkv_qhd_hash',
         'hash',
         'audio_hash',
       ]),
     );
-    final videoId = _read(json, ['video_id', 'id', 'mvid']);
+    final videoId = _read(json, ['video_id', 'obj_id', 'mvid', 'MvID', 'id']);
     var title = _read(json, [
       'video_name',
       'name',
@@ -2165,9 +2370,31 @@ class KugouApiClient {
       'singer_name',
       'singername',
       'singer',
+      'provider',
     ], fallback: fallbackArtist);
+    if (artist.isEmpty) {
+      final relateSongs = _list(_map(json['relate_song'])['relate_songs']);
+      if (relateSongs.isNotEmpty) {
+        final firstRelate = _map(relateSongs.first);
+        artist = _read(firstRelate, [
+          'author_name',
+          'singer_name',
+          'singername',
+          'singer',
+        ]);
+      }
+    }
+    if (artist.isEmpty && title.contains(' - ')) {
+      final parts = title.split(' - ');
+      if (parts.length >= 2 && parts.first.trim().isNotEmpty) {
+        artist = parts.first.trim();
+        title = parts.sublist(1).join(' - ').trim();
+      }
+    }
     final prefix = '$artist - ';
-    if (title.startsWith(prefix)) title = title.substring(prefix.length);
+    if (artist.isNotEmpty && title.startsWith(prefix)) {
+      title = title.substring(prefix.length);
+    }
     final extractedArtists = _extractArtists(json, fallbackName: artist);
     final normalized = _normalizeTitleAndArtist(
       title,
@@ -2197,8 +2424,22 @@ class KugouApiClient {
       hash: hash.isEmpty ? null : hash,
       coverUrl: cover,
       isMv: true,
+      mvId: videoId.isEmpty ? null : videoId,
       artists: _displayArtists(artist, extractedArtists),
     );
+  }
+
+  Song? _songFromFavoriteMv(Object? value) {
+    final json = _map(value);
+    final nestedValue =
+        json['video_info'] ?? json['video'] ?? json['mv_info'] ?? json['info'];
+    final nested = nestedValue is List && nestedValue.isNotEmpty
+        ? _map(nestedValue.first)
+        : _map(nestedValue);
+    final merged = <String, Object?>{...nested, ...json};
+    final song = _songFromArtistVideo(merged);
+    if (song == null) return null;
+    return song.copyWith(isMv: true, liked: true);
   }
 
   Song? _songFromSearch(Object? value) {
@@ -2266,6 +2507,7 @@ class KugouApiClient {
       artistId: _nullableInt(
         json['SingerId'] ?? json['singerid'] ?? json['author_id'],
       ),
+      privilege: _nullableInt(json['Privilege'] ?? json['privilege']),
       artists: _displayArtists(artist, extractedArtists),
     );
   }
@@ -2370,7 +2612,10 @@ class KugouApiClient {
     title = normalized.title;
     artist = normalized.artist;
     title = title.replaceFirst(
-      RegExp(r'\.(mp3|m4a|flac|wav|aac)$', caseSensitive: false),
+      RegExp(
+        r'\.(mp3|m4a|flac|wav|aac|mp4|m4v|mkv|ogg)$',
+        caseSensitive: false,
+      ),
       '',
     );
     final cloudIdentity = _read(json, [
@@ -2380,7 +2625,20 @@ class KugouApiClient {
       'album_audio_id',
     ], fallback: _read(audio, ['audio_id']));
     final identity = hash.isNotEmpty ? hash : cloudIdentity;
-    if (identity.isEmpty || title.isEmpty) return null;
+    final cloudFileId = _read(json, [
+      'kv_id',
+      'kvid',
+      'fileid',
+      'file_id',
+      'f_id',
+      'id',
+    ]);
+    final resolvedId = cloud
+        ? (cloudFileId.isNotEmpty
+              ? 'cloud_$cloudFileId'
+              : (identity.isNotEmpty ? 'cloud_$identity' : ''))
+        : identity;
+    if (resolvedId.isEmpty || title.isEmpty) return null;
 
     final cover = _read(
       json,
@@ -2411,7 +2669,7 @@ class KugouApiClient {
     if (duration > 10000) duration ~/= 1000;
 
     return Song(
-      id: identity,
+      id: resolvedId,
       title: title,
       artist: artist,
       album: _read(
@@ -2459,7 +2717,9 @@ class KugouApiClient {
             relateGoods['album_audio_id'],
       ),
       coverUrl: cover.isEmpty ? null : cover.replaceAll('{size}', '240'),
-      fileId: _nullableInt(json['fileid'] ?? json['file_id']),
+      fileId: _nullableInt(
+        json['kv_id'] ?? json['kvid'] ?? json['fileid'] ?? json['file_id'],
+      ),
       artistId: _nullableInt(
         json['singerid'] ??
             json['author_id'] ??
@@ -2485,6 +2745,12 @@ class KugouApiClient {
             base['addtime'],
       ),
       liked: liked,
+      privilege: _nullableInt(
+        json['privilege'] ??
+            json['Privilege'] ??
+            base['privilege'] ??
+            relateGoods['privilege'],
+      ),
       cloudQuality: cloudQuality,
     );
   }
@@ -3364,7 +3630,7 @@ String _cleanMvTitleForMatching(String title) {
 String _normalizeSongText(String value) {
   return value
       .toLowerCase()
-      .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac)$'), '')
+      .replaceAll(RegExp(r'\.(mp3|m4a|flac|wav|aac|mp4|m4v|mkv|ogg)$'), '')
       .replaceAll(RegExp(r"""[\s《》〈〉「」『』【】\[\]（）()_'"\-\.\/·]+"""), '')
       .trim();
 }

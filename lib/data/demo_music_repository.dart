@@ -110,6 +110,15 @@ class DemoMusicRepository implements MusicRepository {
   }) async => const [];
 
   @override
+  Future<List<Song>> getFavoriteMvs() async => const [];
+
+  @override
+  Future<void> collectMv(Song song) async {}
+
+  @override
+  Future<void> uncollectMv(Song song) async {}
+
+  @override
   Future<List<MusicPlaylist>> getUserPlaylists() async => const [
     MusicPlaylist(
       id: 'demo-favorites',

@@ -47,6 +47,12 @@ abstract interface class MusicRepository {
     int pageSize = 30,
   });
 
+  Future<List<Song>> getFavoriteMvs();
+
+  Future<void> collectMv(Song song);
+
+  Future<void> uncollectMv(Song song);
+
   Future<List<MusicPlaylist>> getUserPlaylists();
 
   Future<List<Song>> getPlaylistSongs(MusicPlaylist playlist);

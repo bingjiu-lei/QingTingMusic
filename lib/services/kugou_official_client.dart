@@ -11,7 +11,13 @@ import 'package:pointycastle/export.dart' hide State;
 
 import '../models/kugou_session.dart';
 
-// ignore_for_file: unused_field
+class KugouOfficialException implements Exception {
+  const KugouOfficialException(this.message);
+  final String message;
+
+  @override
+  String toString() => message;
+}
 
 class KugouOfficialClient {
   KugouOfficialClient({Dio? dio}) : _dio = dio ?? _createDio();
@@ -36,6 +42,7 @@ class KugouOfficialClient {
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDECi0Np2UR87scwrvTr72L6oO01rBbbBPriSDFPxr3Z5syug0O24QyQO8bg27+0+4kBzTBTBOZ/WWU0WryL1JSXRTXLgFVxtzIY41Pe7lPOgsfTCn5kZcvKhYKJesKnnJDNr5/abvTGf+rHG3YRwsCHcQ08/q6ifSioBszvb3QiwIDAQAB
 -----END PUBLIC KEY-----
 ''';
+  // ignore: unused_field
   static const _publicRsaKey = '''
 -----BEGIN PUBLIC KEY-----
 MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HXqTW6lQ7LC8jr9fWZTwusknp+sVGzwd40MwP6U5yDE27M/X1+UR4tvOGOqp94TJtQ1EPnWGWXngpeIW5GxoQGao1rmYWAu6oi1z9XkChrsUdC6DJE5E221wf/4WLFxwAtRQIDAQAB
@@ -250,8 +257,12 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       '/playlist/del' => _playlistDel(params, cookie),
       '/artist/follow' => _artistFollow(params, cookie, follow: true),
       '/artist/unfollow' => _artistFollow(params, cookie, follow: false),
+      '/mv/collect' => _mvCollect(params, cookie, collect: true),
+      '/mv/collect/del' => _mvCollect(params, cookie, collect: false),
       '/user/cloud' => _cloudSongs(params, cookie),
+      '/user/cloud/del' => _cloudSongsDel(params, cookie),
       '/user/cloud/url' => _cloudSongUrl(params, cookie),
+      '/user/video/collect' => _userVideoCollect(params, cookie),
       '/user/follow' => _userFollow(cookie),
       '/recommend/daily' => _android(
         '/everyday_song_recommend',
@@ -461,6 +472,7 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
         encryptKey: true,
         headers: {'x-router': 'trackermv.kugou.com'},
       ),
+      '/video/detail' => _videoDetail(params, cookie),
       _ => _android(path, params, cookie, method: method),
     };
   }
@@ -599,6 +611,116 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     );
   }
 
+  _OfficialRequest _userVideoCollect(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    return _android(
+      '/collectservice/v2/collect_list_mixvideo',
+      {'plat': 1},
+      cookie,
+      method: 'POST',
+      data: {
+        'userid': cookie['userid'] ?? '0',
+        'token': cookie['token'] ?? '',
+        'page': params['page'] ?? 1,
+        'pagesize': params['pagesize'] ?? 30,
+      },
+    );
+  }
+
+  _OfficialRequest _mvCollect(
+    Map<String, Object?> params,
+    Map<String, String> cookie, {
+    required bool collect,
+  }) {
+    // The app logs in through the concept-version client. Keep the MV
+    // collection request on the same appid/clientver/RSA key as that session.
+    const requestAppid = liteAppid;
+    const requestClientver = liteClientver;
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final aes = _playlistAesEncrypt({
+      'ctype': 2,
+      'data': [
+        {'obj_id': _toInt(params['id'])},
+      ],
+    });
+    final p = _rsaEncrypt2({
+      'aes': aes.key,
+      'uid': cookie['userid'] ?? 0,
+      'token': cookie['token'] ?? '',
+    }).toUpperCase();
+    return _android(
+      collect ? '/v1/collect' : '/v1/cancel_collect',
+      {
+        'clienttime': clienttime,
+        'mid': cookie['KUGOU_API_MID'] ?? randomMid(),
+        'dfid': cookie['dfid'] ?? '-',
+        'key': _signParamsKey(
+          clienttime.toString(),
+          appId: requestAppid,
+          clientVersion: requestClientver,
+        ),
+        'clientver': requestClientver,
+        'appid': requestAppid,
+        'p': p,
+      },
+      cookie,
+      baseUrl: 'https://collectservice.kugou.com',
+      method: 'POST',
+      data: base64Decode(aes.data),
+      responseType: ResponseType.bytes,
+      decryptKey: aes.key,
+      notSignature: true,
+      headers: {
+        'User-Agent':
+            'Android9-1070-$requestClientver-18-0-MV/${collect ? 'Care' : 'UnCare'}-wifi',
+        'KG-THash': _random.nextInt(0xfffffff).toString(),
+        'Content-Type': 'application/json',
+      },
+    );
+  }
+
+  _OfficialRequest _videoDetail(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    const requestAppid = liteAppid;
+    const requestClientver = liteClientver;
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final dfid = cookie['dfid']?.isNotEmpty == true ? cookie['dfid']! : '-';
+    final mid = cookie['KUGOU_API_MID']?.isNotEmpty == true
+        ? cookie['KUGOU_API_MID']!
+        : randomMid();
+    return _android(
+      '/v1/video',
+      const {},
+      cookie,
+      method: 'POST',
+      clearDefaultParams: true,
+      notSignature: true,
+      headers: {'x-router': 'kmr.service.kugou.com'},
+      data: {
+        'appid': requestAppid,
+        'clientver': requestClientver,
+        'clienttime': clienttime,
+        'mid': mid,
+        'uuid': _md5('$dfid$mid'),
+        'dfid': dfid,
+        'token': cookie['token'] ?? '',
+        'key': _signParamsKey(
+          clienttime.toString(),
+          appId: requestAppid,
+          clientVersion: requestClientver,
+        ),
+        'show_resolution': 1,
+        'data': [
+          {'video_id': params['id'] ?? ''},
+        ],
+      },
+    );
+  }
+
   _OfficialRequest _cloudSongs(
     Map<String, Object?> params,
     Map<String, String> cookie,
@@ -616,6 +738,63 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
     }).toUpperCase();
     return _android(
       '/v1/get_list',
+      {
+        'clienttime': clienttime,
+        'mid': cookie['KUGOU_API_MID'] ?? randomMid(),
+        'key': _signParamsKey(
+          clienttime.toString(),
+          appId: liteAppid,
+          clientVersion: liteClientver,
+        ),
+        'clientver': liteClientver,
+        'appid': liteAppid,
+        'p': p,
+      },
+      cookie,
+      baseUrl: 'https://mcloudservice.kugou.com',
+      method: 'POST',
+      data: base64Decode(aes.data),
+      responseType: ResponseType.bytes,
+      decryptKey: aes.key,
+      clearDefaultParams: true,
+      notSignature: true,
+    );
+  }
+
+  _OfficialRequest _cloudSongsDel(
+    Map<String, Object?> params,
+    Map<String, String> cookie,
+  ) {
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final fileids = _splitIds(
+      params['fileids'] ??
+          params['fileid'] ??
+          params['kv_ids'] ??
+          params['kv_id'],
+    );
+    final albumAudioIds = _splitIds(
+      params['album_audio_ids'] ?? params['album_audio_id'],
+    );
+    final aes = _playlistAesEncrypt({
+      'data': [
+        for (var i = 0; i < fileids.length; i++)
+          {
+            'kv_id': _toInt(fileids[i]),
+            'album_audio_id': _toInt(
+              i < albumAudioIds.length
+                  ? albumAudioIds[i]
+                  : (albumAudioIds.isNotEmpty ? albumAudioIds.first : 0),
+            ),
+          },
+      ],
+    });
+    final p = _rsaEncrypt2({
+      'aes': aes.key,
+      'uid': cookie['userid'] ?? params['userid'] ?? 0,
+      'token': cookie['token'] ?? params['token'] ?? '',
+    }).toUpperCase();
+    return _android(
+      '/v1/del_files',
       {
         'clienttime': clienttime,
         'mid': cookie['KUGOU_API_MID'] ?? randomMid(),
@@ -658,6 +837,377 @@ MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDIAG7QOELSYoIJvTFJhMpe1s/gbjDJX51HBNnEl5HX
       'name': params['name'] ?? '',
       'with_res_tag': 0,
     }, cookie);
+  }
+
+  Future<Map<String, Object?>> uploadCloudSong({
+    required Uint8List fileBytes,
+    required String name,
+    required String extendname,
+    required String authorName,
+    required int audioId,
+    required int albumAudioId,
+    required String hashStd,
+    required KugouSession session,
+    int durationSeconds = 0,
+    CancelToken? cancelToken,
+    void Function(double progress)? onProgress,
+  }) async {
+    final fileHash = md5.convert(fileBytes).toString().toLowerCase();
+    final cookie = _cookie(session);
+    final userid = (cookie['userid'] ?? session.userId).trim();
+    final token = (cookie['token'] ?? session.token).trim();
+    final mid = (cookie['KUGOU_API_MID'] ?? session.mid).trim();
+    final dfid = (cookie['dfid'] ?? session.dfid).trim().isEmpty
+        ? '-'
+        : (cookie['dfid'] ?? session.dfid).trim();
+    final uuid = (cookie['KUGOU_API_GUID'] ?? session.guid).trim().isEmpty
+        ? '-'
+        : (cookie['KUGOU_API_GUID'] ?? session.guid).trim();
+    int requestAppid = liteAppid;
+    int requestClientver = liteClientver;
+    final clienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    final bssHeaders = {
+      'User-Agent': 'Android15-1070-$requestClientver-201-0-wifi',
+      'KG-RC': '1',
+      'KG-Rec': '1',
+      'KG-THash': _random.nextInt(0xfffffff).toRadixString(16).padLeft(7, '0'),
+    };
+
+    // 1. 获取上传授权（优先使用概念版 3116/11440 凭证，若失败降级至标准版 1005/20489）
+    String authorization = '';
+    for (final candidate in [(liteAppid, liteClientver), (1005, 20489)]) {
+      try {
+        final authRes = await _dio.get<Object?>(
+          'http://bssulbig.kugou.com/v2/authorization',
+          queryParameters: {
+            'version': candidate.$2,
+            'userid': userid,
+            'filename': fileHash,
+            'token': token,
+            'appid': candidate.$1,
+            'method': 'POST',
+            'bucket': 'musicclound',
+          },
+          cancelToken: cancelToken,
+          options: Options(
+            headers: bssHeaders,
+            responseType: ResponseType.plain,
+          ),
+        );
+        final authBody = _parseBssMap(authRes.data);
+        final data = authBody['data'];
+        if (data is Map &&
+            (data['authorization'] ?? '').toString().isNotEmpty) {
+          authorization = data['authorization'].toString();
+          requestAppid = candidate.$1;
+          requestClientver = candidate.$2;
+          break;
+        }
+      } catch (e) {
+        if (e is DioException && e.type == DioExceptionType.cancel) rethrow;
+      }
+    }
+
+    if (authorization.isEmpty) {
+      // 备用鉴权途径：bsstrackercdngz/v1/upload/auth（extranet 必须为 0，标准 salt）
+      final buVerifyCode = md5
+          .convert(
+            utf8.encode(
+              '$requestAppid'
+              'musicclound'
+              '8ae10344e9738dcb',
+            ),
+          )
+          .toString();
+
+      Map<String, Object?> signBss(Map<String, Object?> params) {
+        final keys = params.keys.toList()..sort();
+        final paramStr = keys.map((k) => '$k=${params[k]}').join();
+        final sig = md5
+            .convert(
+              utf8.encode(
+                '$_standardParamKeySalt$paramStr$_standardParamKeySalt',
+              ),
+            )
+            .toString();
+        return {...params, 'signature': sig};
+      }
+
+      final authParams = signBss({
+        'bucket': 'musicclound',
+        'filename': fileHash,
+        'method': 'POST',
+        'loginType': token.isNotEmpty && userid != '0' ? 1 : 0,
+        'buVerifyCode': buVerifyCode,
+        'extranet': 0,
+        'userid': userid,
+        'token': token,
+        'version': requestClientver,
+        'dfid': dfid,
+        'mid': mid,
+        'uuid': uuid,
+        'appid': requestAppid,
+        'clientver': requestClientver,
+        'clienttime': clienttime,
+      });
+
+      try {
+        final authRes = await _dio.get<Object?>(
+          'https://gateway.kugou.com/bsstrackercdngz/v1/upload/auth',
+          queryParameters: authParams,
+          cancelToken: cancelToken,
+          options: Options(
+            headers: bssHeaders,
+            responseType: ResponseType.plain,
+          ),
+        );
+
+        final authBody = _parseBssMap(authRes.data);
+        final Map<String, Object?>? authData = authBody['data'] is Map
+            ? (authBody['data'] as Map).cast<String, Object?>()
+            : null;
+        authorization = authData?['authorization']?.toString() ?? '';
+        if (authorization.isEmpty) {
+          final msg =
+              authBody['msg']?.toString() ??
+              authBody['message']?.toString() ??
+              authBody['error_msg']?.toString() ??
+              '获取云盘上传授权失败';
+          throw KugouOfficialException(msg);
+        }
+      } on DioException catch (e) {
+        throw KugouOfficialException(
+          '获取云盘授权网络异常: ${e.message ?? e.toString()}',
+        );
+      }
+    }
+
+    onProgress?.call(0.15);
+
+    // 2. 初始化分片上传
+    Map<String, Object?>? initBody;
+    try {
+      final initRes = await _dio.post<Object?>(
+        'http://bssulbig.kugou.com/multipart/initiate/music',
+        queryParameters: {
+          'version': requestClientver,
+          'extendname': extendname.replaceAll('.', ''),
+          'userid': userid,
+          'filename': fileHash,
+          'appid': requestAppid,
+          'bucket': 'musicclound',
+        },
+        cancelToken: cancelToken,
+        options: Options(
+          headers: {...bssHeaders, 'Authorization': authorization},
+          responseType: ResponseType.plain,
+        ),
+      );
+      initBody = _parseBssMap(initRes.data);
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) rethrow;
+      throw KugouOfficialException('初始化云盘上传失败: ${e.message ?? e.toString()}');
+    }
+
+    final Map<String, Object?>? initData = initBody['data'] is Map
+        ? (initBody['data'] as Map).cast<String, Object?>()
+        : null;
+    final externalHost = initData?['external_host']?.toString() ?? '';
+    final uploadId = initData?['upload_id']?.toString() ?? '';
+    var bssFileHash = initData?['x-bss-filename']?.toString() ?? fileHash;
+
+    // 3 & 4. 上传分片并完成（秒传分支 upload_id 为空，直接跳过）
+    if (uploadId.isNotEmpty && externalHost.isNotEmpty) {
+      final hostWithProto = externalHost.startsWith('http')
+          ? externalHost
+          : 'http://$externalHost';
+      const partSize = 1024 * 1024 * 4; // 4MB 分片
+      final partCount = max(1, (fileBytes.length / partSize).ceil());
+
+      for (var i = 0; i < partCount; i++) {
+        final start = i * partSize;
+        final end = min(start + partSize, fileBytes.length);
+        final partData = fileBytes.sublist(start, end);
+
+        try {
+          final uploadRes = await _dio.post<Object?>(
+            '$hostWithProto/multipart/upload',
+            queryParameters: {
+              'version': requestClientver,
+              'userid': userid,
+              'filename': fileHash,
+              'appid': requestAppid,
+              'upload_id': uploadId,
+              'partnumber': i + 1,
+              'bucket': 'musicclound',
+            },
+            cancelToken: cancelToken,
+            data: Stream.fromIterable([partData]),
+            options: Options(
+              headers: {
+                ...bssHeaders,
+                'Authorization': authorization,
+                'Content-Type': 'application/octet-stream',
+                'Content-Length': partData.length,
+              },
+              responseType: ResponseType.plain,
+            ),
+          );
+          final uploadData = _parseBssMap(uploadRes.data);
+          if (uploadData['status'] != 1) {
+            throw KugouOfficialException(
+              uploadData['msg']?.toString() ?? '云盘分片上传失败',
+            );
+          }
+        } on DioException catch (e) {
+          if (e.type == DioExceptionType.cancel) rethrow;
+          throw KugouOfficialException(
+            '分片上传网络异常 (${i + 1}/$partCount): ${e.message ?? e.toString()}',
+          );
+        }
+        onProgress?.call(0.15 + 0.55 * ((i + 1) / partCount));
+      }
+
+      Map<String, Object?>? compBody;
+      try {
+        final completeRes = await _dio.post<Object?>(
+          '$hostWithProto/multipart/complete',
+          queryParameters: {
+            'filename': fileHash,
+            'bucket': 'musicclound',
+            'if_id3': 1,
+            'upload_id': uploadId,
+            'userid': userid,
+            'md5': fileHash,
+            'version': requestClientver,
+            'appid': requestAppid,
+            'partnumber': partCount,
+          },
+          cancelToken: cancelToken,
+          options: Options(
+            headers: {...bssHeaders, 'Authorization': authorization},
+            responseType: ResponseType.plain,
+          ),
+        );
+        compBody = _parseBssMap(completeRes.data);
+      } on DioException catch (e) {
+        if (e.type == DioExceptionType.cancel) rethrow;
+        throw KugouOfficialException(
+          '完成云盘分片上传网络异常: ${e.message ?? e.toString()}',
+        );
+      }
+      if (compBody['status'] != 1) {
+        throw KugouOfficialException(
+          compBody['msg']?.toString() ?? '完成云盘分片上传失败',
+        );
+      }
+      final Map<String, Object?>? compData = compBody['data'] is Map
+          ? (compBody['data'] as Map).cast<String, Object?>()
+          : null;
+      bssFileHash = compData?['x-bss-filename']?.toString() ?? bssFileHash;
+    } else {
+      // 秒传命中
+      onProgress?.call(0.7);
+    }
+
+    onProgress?.call(0.75);
+
+    // 5. 添加文件到酷狗云盘（AES 加密 payload + RSA 加密密钥）
+    final cleanExt = extendname.replaceAll('.', '').trim();
+    final cleanName = name
+        .replaceFirst(
+          RegExp(
+            r'\.(mp3|m4a|flac|wav|aac|mp4|m4v|mkv|ogg)$',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+    final aes = _playlistAesEncrypt({
+      'data': [
+        {
+          'name': cleanName.isNotEmpty ? cleanName : name,
+          'ext': cleanExt,
+          'author_name': authorName,
+          'hash': bssFileHash,
+          'hash_std': hashStd.isNotEmpty ? hashStd : fileHash,
+          'audio_id': audioId,
+          'bitrate': 4,
+          'album_audio_id': albumAudioId,
+          'size': fileBytes.length,
+          'timelen': durationSeconds > 0 ? durationSeconds : 0,
+        },
+      ],
+      'list_ver': 0,
+    });
+    final p = _rsaEncrypt2({
+      'aes': aes.key,
+      'uid': userid,
+      'token': token,
+    }).toUpperCase();
+
+    final addClienttime = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    Response<List<int>> addRes;
+    try {
+      addRes = await _dio.post<List<int>>(
+        'https://mcloudservice.kugou.com/v1/add_files',
+        queryParameters: {
+          'clienttime': addClienttime,
+          'mid': mid.isNotEmpty ? mid : randomMid(),
+          'key': _signParamsKey(
+            addClienttime.toString(),
+            appId: requestAppid,
+            clientVersion: requestClientver,
+          ),
+          'clientver': requestClientver,
+          'appid': requestAppid,
+          'p': p,
+        },
+        cancelToken: cancelToken,
+        data: base64Decode(aes.data),
+        options: Options(
+          responseType: ResponseType.bytes,
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'KG-RC': '1',
+            'KG-Rec': '1',
+            if (cookie.isNotEmpty)
+              'Cookie': cookie.entries
+                  .map((e) => '${e.key}=${e.value}')
+                  .join('; '),
+          },
+        ),
+      );
+    } on DioException catch (e) {
+      if (e.type == DioExceptionType.cancel) rethrow;
+      throw KugouOfficialException('同步云盘列表网络异常: ${e.message}');
+    }
+
+    Object? decoded;
+    if (addRes.data != null) {
+      decoded = _decodeBody(addRes.data, decryptKey: aes.key);
+    }
+
+    if (decoded is Map) {
+      final status = _toInt(decoded['status'] ?? 1);
+      final errorCode = _toInt(decoded['error_code'] ?? decoded['code']);
+      if (status != 1 || errorCode != 0) {
+        final errorMsg =
+            decoded['msg']?.toString() ??
+            decoded['message']?.toString() ??
+            '添加到云盘失败 (error_code=$errorCode)';
+        throw KugouOfficialException(errorMsg);
+      }
+    }
+
+    onProgress?.call(1.0);
+    return {
+      'status': 1,
+      'data': decoded,
+      'hash': bssFileHash,
+      'is_second_upload': uploadId.isEmpty,
+    };
   }
 
   _OfficialRequest _userFollow(Map<String, String> cookie) {
@@ -1400,4 +1950,23 @@ int _toInt(Object? value, {int fallback = 0}) {
   if (value is int) return value;
   if (value is num) return value.toInt();
   return int.tryParse(value?.toString() ?? '') ?? fallback;
+}
+
+Map<String, Object?> _parseBssMap(Object? value) {
+  if (value == null) return const {};
+  if (value is Map<String, Object?>) return value;
+  if (value is Map) return value.cast<String, Object?>();
+  try {
+    String text;
+    if (value is List<int>) {
+      text = utf8.decode(value);
+    } else {
+      text = value.toString();
+    }
+    final decoded = jsonDecode(text);
+    if (decoded is Map) {
+      return decoded.cast<String, Object?>();
+    }
+  } catch (_) {}
+  return const {};
 }

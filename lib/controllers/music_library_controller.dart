@@ -181,6 +181,7 @@ class MusicLibraryController extends ChangeNotifier {
     cloudSongs = const [];
     followedArtists = const [];
     albums = const [];
+    favoriteMvService.clear();
     loaded.clear();
     loading.clear();
     errors.clear();
@@ -194,7 +195,7 @@ class MusicLibraryController extends ChangeNotifier {
     LibrarySection section, {
     bool refresh = false,
   }) async {
-    if (section == LibrarySection.recent || section == LibrarySection.mv) {
+    if (section == LibrarySection.recent) {
       return;
     }
     if (loading.contains(section)) {
@@ -253,6 +254,8 @@ class MusicLibraryController extends ChangeNotifier {
           final nextCloudSongs = await repository.getCloudSongs();
           cloudSongs = nextCloudSongs;
         case LibrarySection.mv:
+          final nextFavoriteMvs = await repository.getFavoriteMvs();
+          favoriteMvService.replaceAll(nextFavoriteMvs);
         case LibrarySection.recent:
           break;
       }
@@ -266,6 +269,24 @@ class MusicLibraryController extends ChangeNotifier {
       errors[section] = '加载失败，请稍后重试';
     } finally {
       loading.remove(section);
+      notifyListeners();
+    }
+  }
+
+  void updateSongDuration(Song song, Duration duration) {
+    if (duration == Duration.zero) return;
+    var changed = false;
+    final updatedCloudSongs = cloudSongs.map((item) {
+      if (_sameSong(item, song) && item.duration == Duration.zero) {
+        changed = true;
+        return item.copyWith(duration: duration);
+      }
+      return item;
+    }).toList(growable: false);
+
+    if (changed) {
+      cloudSongs = updatedCloudSongs;
+      unawaited(_saveCache());
       notifyListeners();
     }
   }
@@ -663,8 +684,22 @@ class MusicLibraryController extends ChangeNotifier {
 
   Future<void> toggleFavorite(Song song) async {
     if (song.isMv) {
-      await favoriteMvService.toggleFavorite(song);
-      notifyListeners();
+      final existing = favoriteMvService.findFavorite(song);
+      final effectiveSong = (song.mvId == null ||
+                  song.mvId!.trim().isEmpty ||
+                  int.tryParse(song.mvId!.trim()) == null) &&
+              existing?.mvId != null &&
+              existing!.mvId!.trim().isNotEmpty
+          ? song.copyWith(mvId: existing.mvId)
+          : song;
+      if (existing != null) {
+        await repository.uncollectMv(effectiveSong);
+        favoriteMvService.remove(effectiveSong);
+      } else {
+        await repository.collectMv(effectiveSong);
+        favoriteMvService.add(effectiveSong);
+      }
+      loaded.add(LibrarySection.mv);
       return;
     }
     final favorite = favoritePlaylist;
@@ -877,6 +912,15 @@ class MusicLibraryController extends ChangeNotifier {
 
   bool _sameSong(Song left, Song right) {
     if (identical(left, right)) return true;
+
+    // Two cloud songs represent separate items in personal cloud storage.
+    // They are only identical if their cloud fileId or unique id matches.
+    if (left.isCloud && right.isCloud) {
+      if (left.fileId != null && right.fileId != null) {
+        return left.fileId == right.fileId;
+      }
+      return left.id.trim().toLowerCase() == right.id.trim().toLowerCase();
+    }
 
     final leftHash = left.hash?.trim().toLowerCase();
     final rightHash = right.hash?.trim().toLowerCase();

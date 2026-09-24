@@ -54,6 +54,7 @@ class SearchCatalogItem {
       hash: mvHash.isNotEmpty ? mvHash : null,
       duration: duration ?? Duration.zero,
       isMv: true,
+      mvId: int.tryParse(id) != null ? id : null,
       artists: subtitle.isNotEmpty ? [SongArtist(name: subtitle)] : const [],
     );
   }

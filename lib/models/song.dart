@@ -42,7 +42,10 @@ class Song {
     this.isCloud = false,
     this.cloudAudioId,
     this.isMv = false,
+    this.mvId,
+    this.isSpecialSource = false,
     this.liked = false,
+    this.privilege,
     this.playbackNotice,
     this.playbackQuality,
     this.cloudQuality,
@@ -68,13 +71,21 @@ class Song {
   final bool isCloud;
   final int? cloudAudioId;
   final bool isMv;
+  final String? mvId;
+  final bool isSpecialSource;
   final bool liked;
+  final int? privilege;
   final String? playbackNotice;
   final String? playbackQuality;
   final String? cloudQuality;
   final String? playbackSource;
   final List<SongClimaxSegment> climaxSegments;
   final int? addTime;
+
+  bool get isEligibleForCloudUpload =>
+      !isCloud &&
+      audioUrl.isNotEmpty &&
+      (isSpecialSource || isMv || playbackQuality == 'MV');
 
   Song copyWith({
     String? audioUrl,
@@ -84,8 +95,12 @@ class Song {
     List<SongArtist>? artists,
     int? fileId,
     Duration? duration,
+    bool? isCloud,
     bool? isMv,
+    String? mvId,
+    bool? isSpecialSource,
     bool? liked,
+    int? privilege,
     String? playbackNotice,
     String? playbackQuality,
     String? cloudQuality,
@@ -108,10 +123,13 @@ class Song {
       fileId: fileId ?? this.fileId,
       artistId: artistId ?? this.artistId,
       artists: artists ?? this.artists,
-      isCloud: isCloud,
+      isCloud: isCloud ?? this.isCloud,
       cloudAudioId: cloudAudioId,
       isMv: isMv ?? this.isMv,
+      mvId: mvId ?? this.mvId,
+      isSpecialSource: isSpecialSource ?? this.isSpecialSource,
       liked: liked ?? this.liked,
+      privilege: privilege ?? this.privilege,
       playbackNotice: playbackNotice ?? this.playbackNotice,
       playbackQuality: playbackQuality ?? this.playbackQuality,
       cloudQuality: cloudQuality ?? this.cloudQuality,
@@ -140,7 +158,10 @@ class Song {
     'cloudAudioId': cloudAudioId,
     'addTime': addTime,
     'isMv': isMv,
+    'mvId': mvId,
+    'isSpecialSource': isSpecialSource,
     'liked': liked,
+    'privilege': privilege,
     'playbackQuality': playbackQuality,
     'cloudQuality': cloudQuality,
     'playbackSource': playbackSource,
@@ -171,7 +192,10 @@ class Song {
       cloudAudioId: readInt(json['cloudAudioId']),
       addTime: readInt(json['addTime']),
       isMv: json['isMv'] == true,
+      mvId: json['mvId']?.toString(),
+      isSpecialSource: json['isSpecialSource'] == true,
       liked: json['liked'] == true,
+      privilege: readInt(json['privilege']),
       playbackQuality: json['playbackQuality']?.toString(),
       cloudQuality: json['cloudQuality']?.toString(),
       playbackSource: json['playbackSource']?.toString(),

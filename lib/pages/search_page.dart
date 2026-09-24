@@ -721,6 +721,7 @@ class _SearchResultsState extends State<_SearchResults> {
           itemBuilder: (context, index) {
             final song = songs[index];
             return SongRow(
+              key: ValueKey(song.id),
               song: song,
               index: index,
               compact: true,

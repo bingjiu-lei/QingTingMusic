@@ -98,6 +98,15 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<List<Song>> getFavoriteMvs() => apiClient.getFavoriteMvs();
+
+  @override
+  Future<void> collectMv(Song song) => apiClient.collectMv(song);
+
+  @override
+  Future<void> uncollectMv(Song song) => apiClient.uncollectMv(song);
+
+  @override
   Future<List<MusicPlaylist>> getUserPlaylists() {
     return apiClient.getUserPlaylists();
   }

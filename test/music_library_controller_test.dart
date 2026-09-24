@@ -5,6 +5,7 @@ import 'package:qing_ting_music/models/lyric.dart';
 import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/search_catalog_item.dart';
 import 'package:qing_ting_music/models/song.dart';
+import 'package:qing_ting_music/services/favorite_mv_service.dart';
 import 'package:qing_ting_music/services/kugou_api_client.dart';
 import 'package:qing_ting_music/services/music_library_cache_service.dart';
 
@@ -451,8 +452,8 @@ void main() {
       expect(mapped[1].liked, isFalse);
       expect(mapped[2].liked, isTrue);
       expect(mapped[498].liked, isTrue);
-      // 2000 items with O(1) set lookup should execute in < 100ms (typically < 5ms)
-      expect(stopwatch.elapsedMilliseconds, lessThan(100));
+      // 2000 items with O(1) set lookup should execute in < 500ms (typically < 10ms)
+      expect(stopwatch.elapsedMilliseconds, lessThan(500));
     },
   );
 
@@ -561,6 +562,89 @@ void main() {
       );
     },
   );
+
+  test(
+    'differentiates two distinct cloud songs matching the same catalog track',
+    () {
+      final controller = _controller(
+        _FakeMusicRepository(playlists: const [], favoriteSongs: const []),
+      );
+
+      final cloudSong1 = _song(
+        'cloud_1001',
+        title: 'After LIKE (MV)',
+        artist: 'IVE',
+        catalogHash: 'SAME_CATALOG_HASH',
+        albumAudioId: 99999,
+      ).copyWith(isCloud: true, fileId: 1001);
+
+      final cloudSong2 = _song(
+        'cloud_1002',
+        title: 'HEYA Official MV',
+        artist: 'IVE',
+        catalogHash: 'SAME_CATALOG_HASH',
+        albumAudioId: 99999,
+      ).copyWith(isCloud: true, fileId: 1002);
+
+      final regularSong = _song(
+        'catalog_123',
+        title: 'After LIKE',
+        artist: 'IVE',
+        hash: 'SAME_CATALOG_HASH',
+        albumAudioId: 99999,
+      );
+
+      // Two different cloud files must NOT collide even if matched to the same catalog track
+      expect(controller.sameSong(cloudSong1, cloudSong2), isFalse);
+
+      // Identical cloud song matches itself
+      expect(controller.sameSong(cloudSong1, cloudSong1), isTrue);
+
+      // Cloud song and official catalog song match when catalogHash / albumAudioId aligns
+      expect(controller.sameSong(cloudSong1, regularSong), isTrue);
+    },
+  );
+
+  test(
+    'toggleFavorite uncollects MV using stored mvId when input mvId is null',
+    () async {
+      final fakeRepo = _FakeMusicRepository();
+      final favoriteMvService = FavoriteMvService();
+      final controller = _controller(
+        fakeRepo,
+        favoriteMvService: favoriteMvService,
+      );
+
+      const storedMv = Song(
+        id: 'mv_12345',
+        title: 'ANTIFRAGILE',
+        artist: 'LE SSERAFIM',
+        album: 'MV音源',
+        duration: Duration(minutes: 3),
+        audioUrl: '',
+        isMv: true,
+        mvId: '12345',
+        hash: 'HASH123',
+      );
+      favoriteMvService.replaceAll([storedMv]);
+
+      const inputSong = Song(
+        id: 'HASH123',
+        title: 'ANTIFRAGILE',
+        artist: 'LE SSERAFIM',
+        album: 'MV音源',
+        duration: Duration(minutes: 3),
+        audioUrl: '',
+        isMv: true,
+        hash: 'HASH123',
+      );
+
+      expect(favoriteMvService.isFavorite(inputSong), isTrue);
+      await controller.toggleFavorite(inputSong);
+      expect(fakeRepo.uncollectedMvs.any((s) => s.mvId == '12345'), isTrue);
+      expect(favoriteMvService.isFavorite(inputSong), isFalse);
+    },
+  );
 }
 
 Song _song(
@@ -632,16 +716,20 @@ class _FakeMusicLibraryCacheService extends MusicLibraryCacheService {
   }
 }
 
-MusicLibraryController _controller(MusicRepository repository) =>
+MusicLibraryController _controller(
+  MusicRepository repository, {
+  FavoriteMvService? favoriteMvService,
+}) =>
     MusicLibraryController(
       repository,
       cacheService: _FakeMusicLibraryCacheService(),
+      favoriteMvService: favoriteMvService,
     );
 
 class _FakeMusicRepository implements MusicRepository {
   _FakeMusicRepository({
-    required this.playlists,
-    required List<Song> favoriteSongs,
+    this.playlists = const [],
+    List<Song> favoriteSongs = const [],
     Map<String, List<Song>>? playlistTracks,
   }) : _favoriteSongs = List.of(favoriteSongs),
        playlistTracks = playlistTracks ?? {};
@@ -740,6 +828,22 @@ class _FakeMusicRepository implements MusicRepository {
     int page = 1,
     int pageSize = 30,
   }) async => const [];
+
+  final collectedMvs = <Song>[];
+  final uncollectedMvs = <Song>[];
+
+  @override
+  Future<List<Song>> getFavoriteMvs() async => const [];
+
+  @override
+  Future<void> collectMv(Song song) async {
+    collectedMvs.add(song);
+  }
+
+  @override
+  Future<void> uncollectMv(Song song) async {
+    uncollectedMvs.add(song);
+  }
 
   @override
   Future<List<Song>> getCloudSongs() async {

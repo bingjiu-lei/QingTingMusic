@@ -189,7 +189,8 @@ class _LibraryPageState extends State<LibraryPage> {
                   onToggleSort: () => setState(() => _reversed = !_reversed),
                   onRefresh:
                       tabs[_safeSelectedTab].$2 == LibrarySection.cloud ||
-                          tabs[_safeSelectedTab].$2 == LibrarySection.songs
+                          tabs[_safeSelectedTab].$2 == LibrarySection.songs ||
+                          tabs[_safeSelectedTab].$2 == LibrarySection.mv
                       ? () => widget.controller.ensureLoaded(
                           tabs[_safeSelectedTab].$2,
                           refresh: true,

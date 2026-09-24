@@ -129,7 +129,6 @@ class _MusicShellState extends State<MusicShell>
   bool _quittingFromTray = false;
   bool _closingWindow = false;
   bool _closeToTray = true;
-  bool _enableMvFeature = true;
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
   int detailRelatedPage = 1;
@@ -214,6 +213,9 @@ class _MusicShellState extends State<MusicShell>
     );
     libraryController = MusicLibraryController(repository)
       ..addListener(_refresh);
+    playerController.onDurationDetected = (song, duration) {
+      libraryController.updateSongDuration(song, duration);
+    };
     recommendationController = RecommendationController(repository)
       ..addListener(_refresh);
     updateController = UpdateController()..addListener(_refresh);
@@ -267,21 +269,14 @@ class _MusicShellState extends State<MusicShell>
     final values = await Future.wait<Object?>([
       _preferences.read('closeToTray'),
       _preferences.read('sidebarExpanded'),
-      _preferences.read('enableMvFeature'),
     ]);
     if (!mounted) return;
     final closeToTray = values[0] is bool ? values[0] as bool : false;
     final sidebarExpanded = values[1] is bool ? values[1] as bool : true;
-    final enableMvFeature = values[2] is bool ? values[2] as bool : true;
     setState(() {
       _closeToTray = closeToTray;
       _sidebarExpanded = sidebarExpanded;
-      _enableMvFeature = enableMvFeature;
     });
-    searchController.enableMvFeature = enableMvFeature;
-    if (!enableMvFeature) {
-      await playerController.removeMvSongsFromQueue();
-    }
     await _applyCloseBehavior(closeToTray);
   }
 
@@ -387,28 +382,6 @@ class _MusicShellState extends State<MusicShell>
     await _applyCloseBehavior(value);
     if (!mounted) return;
     setState(() => _closeToTray = value);
-  }
-
-  Future<void> _setEnableMvFeature(bool value) async {
-    setState(() {
-      _enableMvFeature = value;
-      if (!value && librarySelectedTab >= 5) {
-        librarySelectedTab = 0;
-      }
-      if (!value &&
-          detailKind == CollectionDetailKind.artist &&
-          detailSelectedTab == 2) {
-        detailSelectedTab = 0;
-      }
-    });
-    searchController.enableMvFeature = value;
-    if (!value && searchController.category == SearchCategory.mv) {
-      searchController.selectCategory(SearchCategory.song);
-    }
-    if (!value) {
-      await playerController.removeMvSongsFromQueue();
-    }
-    await _preferences.write('enableMvFeature', value);
   }
 
   Future<void> _loadDeveloperMode() async {
@@ -975,7 +948,7 @@ class _MusicShellState extends State<MusicShell>
               .catchError((_) => <SearchCatalogItem>[])
         else
           Future<List<SearchCatalogItem>>.value([]),
-        if (item.category == SearchCategory.artist && _enableMvFeature)
+        if (item.category == SearchCategory.artist)
           repository.getArtistMvs(item, page: 1).catchError((_) => <Song>[])
         else
           Future<List<Song>>.value([]),
@@ -1073,8 +1046,7 @@ class _MusicShellState extends State<MusicShell>
 
   Future<void> _loadMoreArtistMvs() async {
     final item = detailCatalogItem;
-    if (!_enableMvFeature ||
-        item == null ||
+    if (item == null ||
         item.category != SearchCategory.artist ||
         detailArtistMvsLoadingMore ||
         !detailArtistMvsHasMore) {
@@ -1252,7 +1224,7 @@ class _MusicShellState extends State<MusicShell>
                 .catchError((_) => <SearchCatalogItem>[])
           else
             Future<List<SearchCatalogItem>>.value([]),
-          if (item.category == SearchCategory.artist && _enableMvFeature)
+          if (item.category == SearchCategory.artist)
             repository.getArtistMvs(item, page: 1).catchError((_) => <Song>[])
           else
             Future<List<Song>>.value([]),
@@ -1987,6 +1959,8 @@ class _MusicShellState extends State<MusicShell>
                       PlayerBar(
                         controller: playerController,
                         playbackQualityController: playbackQualityController,
+                        apiClient: apiClient,
+                        libraryController: libraryController,
                         desktopLyricsVisible: _desktopLyricsVisible,
                         onDesktopLyricsChanged: (value) {
                           unawaited(_setDesktopLyricsVisible(value));
@@ -2191,7 +2165,6 @@ class _MusicShellState extends State<MusicShell>
         artistMvsLoadingMore: detailArtistMvsLoadingMore,
         artistMvsCanLoadMore: detailArtistMvsHasMore,
         onLoadMoreArtistMvs: _loadMoreArtistMvs,
-        enableMvFeature: _enableMvFeature,
         isLoading: detailLoading,
         onRefresh: _refreshCurrentDetail,
         currentSong: playerController.currentSong,
@@ -2259,7 +2232,6 @@ class _MusicShellState extends State<MusicShell>
         onCreatePlaylist: _showCreatePlaylist,
         selectedTab: librarySelectedTab,
         onTabChanged: (index) => setState(() => librarySelectedTab = index),
-        enableMvFeature: _enableMvFeature,
       ),
       1 => SearchPage(
         controller: searchController,
@@ -2274,7 +2246,6 @@ class _MusicShellState extends State<MusicShell>
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
         isFavorite: libraryController.isFavorite,
-        enableMvFeature: _enableMvFeature,
       ),
       2 => RecommendationPage(
         controller: recommendationController,
@@ -2292,8 +2263,6 @@ class _MusicShellState extends State<MusicShell>
         onCloseToTrayChanged: _setCloseToTray,
         sidebarExpanded: _sidebarExpanded,
         onSidebarExpandedChanged: _setSidebarExpanded,
-        enableMvFeature: _enableMvFeature,
-        onEnableMvFeatureChanged: _setEnableMvFeature,
         onEndpointChanged: () {
           libraryController.invalidateLoadedState();
           searchController.invalidateCachedResults();
