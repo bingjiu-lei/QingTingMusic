@@ -373,6 +373,65 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  void _showShortcutsDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        return AppDialog(
+          maxWidth: 380,
+          icon: Icons.keyboard_outlined,
+          title: '快捷键说明',
+          showCloseButton: true,
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '全局',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const _ShortcutItem(keys: 'Ctrl + Alt + →', action: '下一首'),
+              const SizedBox(height: 6),
+              const _ShortcutItem(keys: 'Ctrl + Alt + ←', action: '上一首'),
+              const SizedBox(height: 6),
+              const _ShortcutItem(
+                keys: 'Ctrl + Alt + Space',
+                action: '播放 / 暂停',
+              ),
+              const SizedBox(height: 18),
+              Text(
+                '应用内',
+                style: TextStyle(
+                  color: AppColors.text,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 8),
+              const _ShortcutItem(keys: 'Space', action: '播放 / 暂停'),
+              const SizedBox(height: 6),
+              const _ShortcutItem(keys: 'Ctrl + → / ←', action: '下一首 / 上一首'),
+              const SizedBox(height: 6),
+              const _ShortcutItem(keys: 'Ctrl + ↑ / ↓', action: '调节音量'),
+            ],
+          ),
+          actions: [
+            AppDialogButton.primary(
+              label: '我知道了',
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _showLongTextDialog({required String title, required String content}) {
     showDialog<void>(
       context: context,
@@ -612,6 +671,7 @@ class _SettingsPageState extends State<SettingsPage> {
                             onVersionTap: _handleVersionTap,
                             onProjectTap: _openProjectHome,
                             onLegalTap: _showLegalDialog,
+                            onShortcutsTap: _showShortcutsDialog,
                           ),
                           if (_developerEnabled) ...[
                             Divider(
@@ -1293,6 +1353,7 @@ class _UpdateSection extends StatelessWidget {
     required this.onVersionTap,
     required this.onProjectTap,
     required this.onLegalTap,
+    required this.onShortcutsTap,
   });
 
   final UpdateController controller;
@@ -1300,6 +1361,7 @@ class _UpdateSection extends StatelessWidget {
   final VoidCallback onVersionTap;
   final VoidCallback onProjectTap;
   final VoidCallback onLegalTap;
+  final VoidCallback onShortcutsTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1392,6 +1454,11 @@ class _UpdateSection extends StatelessWidget {
                 icon: Icons.gavel_rounded,
                 label: '声明',
                 onPressed: onLegalTap,
+              ),
+              _SettingsButton(
+                icon: Icons.keyboard_outlined,
+                label: '快捷键',
+                onPressed: onShortcutsTap,
               ),
             ],
           ),
@@ -1489,6 +1556,46 @@ class _LegalItem extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ShortcutItem extends StatelessWidget {
+  const _ShortcutItem({required this.keys, required this.action});
+
+  final String keys;
+  final String action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(
+              alpha: AppColors.isDark ? 0.12 : 0.06,
+            ),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.18),
+              width: 0.8,
+            ),
+          ),
+          child: Text(
+            keys,
+            style: TextStyle(
+              fontFamily: 'NotoSansSC',
+              color: AppColors.text,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+        Text(action, style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+      ],
     );
   }
 }

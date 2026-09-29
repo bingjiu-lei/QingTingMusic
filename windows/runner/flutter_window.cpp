@@ -615,6 +615,7 @@ bool FlutterWindow::OnCreate() {
   taskbar_button_created_message_ =
       RegisterWindowMessageW(L"TaskbarButtonCreated");
   SetupMediaChannel();
+  RegisterGlobalMediaHotkeys();
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -658,6 +659,39 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_HOTKEY:
+      if (wparam == kHotkeyPlayPause || wparam == kHotkeyStop ||
+          wparam == kHotkeyGlobalPlay) {
+        SendMediaAction("togglePlay");
+        return 0;
+      }
+      if (wparam == kHotkeyNextTrack || wparam == kHotkeyGlobalNext) {
+        SendMediaAction("next");
+        return 0;
+      }
+      if (wparam == kHotkeyPrevTrack || wparam == kHotkeyGlobalPrev) {
+        SendMediaAction("previous");
+        return 0;
+      }
+      break;
+    case WM_APPCOMMAND: {
+      const int cmd = GET_APPCOMMAND_LPARAM(lparam);
+      switch (cmd) {
+        case APPCOMMAND_MEDIA_PLAY_PAUSE:
+        case APPCOMMAND_MEDIA_PLAY:
+        case APPCOMMAND_MEDIA_PAUSE:
+        case APPCOMMAND_MEDIA_STOP:
+          SendMediaAction("togglePlay");
+          return TRUE;
+        case APPCOMMAND_MEDIA_NEXTTRACK:
+          SendMediaAction("next");
+          return TRUE;
+        case APPCOMMAND_MEDIA_PREVIOUSTRACK:
+          SendMediaAction("previous");
+          return TRUE;
+      }
+      break;
+    }
     case WM_COMMAND:
       if (LOWORD(wparam) == kPreviousButton) SendMediaAction("previous");
       if (LOWORD(wparam) == kPlayButton) SendMediaAction("togglePlay");
@@ -865,7 +899,46 @@ void FlutterWindow::UpdateThumbar() {
   taskbar_->ThumbBarUpdateButtons(GetHandle(), 1, &button);
 }
 
+void FlutterWindow::RegisterGlobalMediaHotkeys() {
+  if (hotkeys_registered_) return;
+  HWND hwnd = GetHandle();
+  if (!hwnd) return;
+  // 1. Standard hardware multimedia keys (for keyboards with media keys, drivers, headphones)
+  RegisterHotKey(hwnd, kHotkeyPlayPause, MOD_NOREPEAT, VK_MEDIA_PLAY_PAUSE);
+  RegisterHotKey(hwnd, kHotkeyNextTrack, MOD_NOREPEAT, VK_MEDIA_NEXT_TRACK);
+  RegisterHotKey(hwnd, kHotkeyPrevTrack, MOD_NOREPEAT, VK_MEDIA_PREV_TRACK);
+  RegisterHotKey(hwnd, kHotkeyStop, MOD_NOREPEAT, VK_MEDIA_STOP);
+
+  // 2. Universal global keyboard shortcuts: Ctrl + Alt + Arrow / Space (for standard keyboards)
+  RegisterHotKey(hwnd, kHotkeyGlobalPlay, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
+                 VK_SPACE);
+  RegisterHotKey(hwnd, kHotkeyGlobalNext, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
+                 VK_RIGHT);
+  RegisterHotKey(hwnd, kHotkeyGlobalPrev, MOD_CONTROL | MOD_ALT | MOD_NOREPEAT,
+                 VK_LEFT);
+
+  hotkeys_registered_ = true;
+}
+
+void FlutterWindow::UnregisterGlobalMediaHotkeys() {
+  if (!hotkeys_registered_) return;
+  HWND hwnd = GetHandle();
+  if (hwnd) {
+    UnregisterHotKey(hwnd, kHotkeyPlayPause);
+    UnregisterHotKey(hwnd, kHotkeyNextTrack);
+    UnregisterHotKey(hwnd, kHotkeyPrevTrack);
+    UnregisterHotKey(hwnd, kHotkeyStop);
+    UnregisterHotKey(hwnd, kHotkeyGlobalPlay);
+    UnregisterHotKey(hwnd, kHotkeyGlobalNext);
+    UnregisterHotKey(hwnd, kHotkeyGlobalPrev);
+  }
+  hotkeys_registered_ = false;
+}
+
 void FlutterWindow::SendMediaAction(const char* action) {
+  const ULONGLONG now = GetTickCount64();
+  if (now - last_media_action_tick_ < 150) return;
+  last_media_action_tick_ = now;
   if (media_channel_) media_channel_->InvokeMethod(action, nullptr);
 }
 
@@ -877,6 +950,7 @@ void FlutterWindow::SendMediaActionWithValue(
 }
 
 void FlutterWindow::DisposeWindowsMedia() {
+  UnregisterGlobalMediaHotkeys();
   if (g_lyric.window) {
     DestroyWindow(g_lyric.window);
     g_lyric.window = nullptr;

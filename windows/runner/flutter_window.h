@@ -42,9 +42,22 @@ class FlutterWindow : public Win32Window {
   bool thumbar_added_ = false;
   UINT taskbar_button_created_message_ = 0;
 
+  static constexpr int kHotkeyPlayPause = 5001;
+  static constexpr int kHotkeyNextTrack = 5002;
+  static constexpr int kHotkeyPrevTrack = 5003;
+  static constexpr int kHotkeyStop = 5004;
+  static constexpr int kHotkeyGlobalPlay = 5005;
+  static constexpr int kHotkeyGlobalNext = 5006;
+  static constexpr int kHotkeyGlobalPrev = 5007;
+
+  ULONGLONG last_media_action_tick_ = 0;
+  bool hotkeys_registered_ = false;
+
   void SetupMediaChannel();
   void SetupThumbar();
   void UpdateThumbar();
+  void RegisterGlobalMediaHotkeys();
+  void UnregisterGlobalMediaHotkeys();
   void SendMediaAction(const char* action);
   void SendMediaActionWithValue(const char* action,
                                 const flutter::EncodableValue& value);
