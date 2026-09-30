@@ -218,6 +218,65 @@ class CloudUploadDialog extends StatefulWidget {
         .replaceAll(RegExp(r'[\s\p{P}\p{S}]', unicode: true), '');
   }
 
+  /// 检查当前匹配的歌曲是否已存在于个人云盘列表中
+  static bool isMatchedSongInCloud({
+    required List<Song> cloudSongs,
+    int? matchedAudioId,
+    int? matchedAlbumAudioId,
+    String? matchedHashStd,
+    required String matchedTitle,
+    required String matchedArtist,
+  }) {
+    if (cloudSongs.isEmpty) return false;
+
+    final normTargetTitle = _normalizeMatchString(matchedTitle);
+    final normTargetArtist = _normalizeMatchString(matchedArtist);
+    final normHash = matchedHashStd?.trim().toLowerCase() ?? '';
+
+    for (final cloudSong in cloudSongs) {
+      // 1. 比对音频 ID (audio_id / mixsongid / fileId)
+      if (matchedAudioId != null && matchedAudioId > 0) {
+        if (cloudSong.cloudAudioId == matchedAudioId ||
+            cloudSong.fileId == matchedAudioId ||
+            cloudSong.albumAudioId == matchedAudioId) {
+          return true;
+        }
+      }
+      if (matchedAlbumAudioId != null && matchedAlbumAudioId > 0) {
+        if (cloudSong.albumAudioId == matchedAlbumAudioId ||
+            cloudSong.cloudAudioId == matchedAlbumAudioId ||
+            cloudSong.fileId == matchedAlbumAudioId) {
+          return true;
+        }
+      }
+
+      // 2. 比对标准 Hash / 哈希特征
+      if (normHash.isNotEmpty) {
+        final cHash = cloudSong.hash?.trim().toLowerCase() ?? '';
+        final cCatHash = cloudSong.catalogHash?.trim().toLowerCase() ?? '';
+        if ((cHash.isNotEmpty && cHash == normHash) ||
+            (cCatHash.isNotEmpty && cCatHash == normHash)) {
+          return true;
+        }
+      }
+
+      // 3. 比对歌名与歌手（规范化去空格标点匹配）
+      if (normTargetTitle.isNotEmpty && normTargetArtist.isNotEmpty) {
+        final cTitle = _normalizeMatchString(cloudSong.title);
+        final cArtist = _normalizeMatchString(cloudSong.artist);
+        if (cTitle == normTargetTitle) {
+          if (cArtist == normTargetArtist ||
+              cArtist.contains(normTargetArtist) ||
+              normTargetArtist.contains(cArtist)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
   @override
   State<CloudUploadDialog> createState() => _CloudUploadDialogState();
 }
@@ -247,9 +306,34 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
   bool _canPop = false;
   bool _isClosing = false;
 
+  bool get _isMatchedSongAlreadyInCloud {
+    if (_matchedDisplay.isEmpty) return false;
+    final cloudSongs = widget.libraryController?.cloudSongs;
+    if (cloudSongs == null || cloudSongs.isEmpty) return false;
+    return CloudUploadDialog.isMatchedSongInCloud(
+      cloudSongs: cloudSongs,
+      matchedAudioId: _matchedAudioId,
+      matchedAlbumAudioId: _matchedAlbumAudioId,
+      matchedHashStd: _matchedHashStd,
+      matchedTitle: _titleController.text,
+      matchedArtist: _artistController.text,
+    );
+  }
+
+  void _onLibraryChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.libraryController?.addListener(_onLibraryChanged);
+    if (widget.libraryController != null &&
+        widget.libraryController!.cloudSongs.isEmpty) {
+      widget.libraryController!.ensureLoaded(LibrarySection.cloud);
+    }
     final isMv = widget.song.isMv || widget.song.playbackQuality == 'MV';
     final cleaned = isMv
         ? CloudUploadDialog.cleanMvMetadata(
@@ -358,6 +442,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
 
   @override
   void dispose() {
+    widget.libraryController?.removeListener(_onLibraryChanged);
     _cancelToken?.cancel('弹窗关闭');
     _titleController.dispose();
     _artistController.dispose();
@@ -427,7 +512,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
   }
 
   Future<void> _startUpload() async {
-    if (_isUploading) return;
+    if (_isUploading || _isMatchedSongAlreadyInCloud) return;
 
     final cancelToken = CancelToken();
     _cancelToken = cancelToken;
@@ -507,6 +592,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
     final isDark = AppColors.isDark;
     final isMv = widget.song.isMv || widget.song.playbackQuality == 'MV';
     final isMatched = _matchedDisplay.isNotEmpty;
+    final isAlreadyInCloud = _isMatchedSongAlreadyInCloud;
     return PopScope(
       canPop: _canPop,
       onPopInvokedWithResult: (didPop, result) {
@@ -714,7 +800,9 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
                   else
                     Text(
                       _matchedDisplay.isNotEmpty
-                          ? '已关联：$_matchedDisplay'
+                          ? (isAlreadyInCloud
+                              ? '已关联：$_matchedDisplay (云盘已存在)'
+                              : '已关联：$_matchedDisplay')
                           : '未关联',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -911,12 +999,18 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
               ? '完成'
               : (_isUploading
                     ? '转存中...'
-                    : (_errorMessage != null ? '重试转存' : '开始转存')),
-          isPrimary: true,
-          icon: _isDone ? Icons.check_rounded : Icons.cloud_upload_outlined,
+                    : (isAlreadyInCloud
+                          ? '云盘已存在'
+                          : (_errorMessage != null ? '重试转存' : '开始转存'))),
+          isPrimary: !isAlreadyInCloud && !_isDone,
+          icon: _isDone
+              ? Icons.check_rounded
+              : (isAlreadyInCloud
+                    ? Icons.cloud_done_outlined
+                    : Icons.cloud_upload_outlined),
           onPressed: _isDone
               ? _finish
-              : (_isUploading ? null : _startUpload),
+              : (_isUploading || isAlreadyInCloud ? null : _startUpload),
         ),
       ],
     ),
