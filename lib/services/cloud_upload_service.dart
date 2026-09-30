@@ -197,13 +197,20 @@ class CloudUploadService {
         matchedAlbumAudioId == 0 &&
         (matchedHashStd == null || matchedHashStd.isEmpty);
 
-    final effectiveAudioId =
-        matchCleared ? 0 : (matchedAudioId ?? song.fileId ?? 0);
-    final effectiveAlbumAudioId =
-        matchCleared ? 0 : (matchedAlbumAudioId ?? song.albumAudioId ?? 0);
-    final effectiveHashStd = matchCleared
-        ? ''
-        : (matchedHashStd ?? song.catalogHash ?? song.hash ?? '');
+    final bool hasExplicitMatch = !matchCleared &&
+        ((matchedAudioId != null && matchedAudioId > 0) ||
+            (matchedAlbumAudioId != null && matchedAlbumAudioId > 0) ||
+            (matchedHashStd != null && matchedHashStd.isNotEmpty));
+
+    final effectiveAudioId = hasExplicitMatch
+        ? (matchedAudioId ?? 0)
+        : (isMv ? 0 : (song.fileId ?? 0));
+    final effectiveAlbumAudioId = hasExplicitMatch
+        ? (matchedAlbumAudioId ?? 0)
+        : (isMv ? 0 : (song.albumAudioId ?? 0));
+    final effectiveHashStd = hasExplicitMatch
+        ? (matchedHashStd ?? '')
+        : (isMv ? '' : (song.catalogHash ?? ''));
 
     await apiClient.uploadSongToCloud(
       fileBytes: uploadBytes,

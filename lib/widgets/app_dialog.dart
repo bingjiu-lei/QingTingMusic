@@ -359,6 +359,7 @@ class AppDialogTextField extends StatelessWidget {
     this.hintText,
     this.autofocus = false,
     this.obscureText = false,
+    this.enabled = true,
     this.maxLength,
     this.prefixIcon,
     this.errorText,
@@ -369,6 +370,7 @@ class AppDialogTextField extends StatelessWidget {
   final String? hintText;
   final bool autofocus;
   final bool obscureText;
+  final bool enabled;
   final int? maxLength;
   final IconData? prefixIcon;
   final String? errorText;
@@ -382,9 +384,10 @@ class AppDialogTextField extends StatelessWidget {
       controller: controller,
       autofocus: autofocus,
       obscureText: obscureText,
+      enabled: enabled,
       maxLength: maxLength,
       style: TextStyle(
-        color: AppColors.text,
+        color: !enabled ? AppColors.muted : AppColors.text,
         fontSize: 14,
         fontWeight: FontWeight.w600,
       ),
@@ -406,9 +409,13 @@ class AppDialogTextField extends StatelessWidget {
               )
             : null,
         filled: true,
-        fillColor: isDark
-            ? const Color(0xFF1C222B)
-            : const Color(0xFFF3F6FA),
+        fillColor: !enabled
+            ? (isDark
+                ? Colors.white.withValues(alpha: 0.03)
+                : Colors.black.withValues(alpha: 0.03))
+            : (isDark
+                ? const Color(0xFF1C222B)
+                : const Color(0xFFF3F6FA)),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 14,
           vertical: 12,
@@ -427,6 +434,14 @@ class AppDialogTextField extends StatelessWidget {
             color: isDark
                 ? Colors.white.withValues(alpha: 0.08)
                 : Colors.black.withValues(alpha: 0.08),
+          ),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          borderSide: BorderSide(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.04),
           ),
         ),
         focusedBorder: OutlineInputBorder(

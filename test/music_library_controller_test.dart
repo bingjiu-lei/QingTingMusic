@@ -548,6 +548,19 @@ void main() {
         isTrue,
       );
 
+      // Unassociated cloud song with identical title and artist must NOT match regular favorite song
+      expect(
+        controller.isFavorite(
+          _song(
+            'cloud-unmatched',
+            title: '夜曲',
+            artist: '周杰伦',
+            isCloud: true,
+          ),
+        ),
+        isFalse,
+      );
+
       // Non-favorite song
       expect(
         controller.isFavorite(
@@ -655,6 +668,7 @@ Song _song(
   String? hash,
   String? catalogHash,
   int? albumAudioId,
+  bool? isCloud,
 }) => Song(
   id: id,
   title: title ?? id,
@@ -665,6 +679,7 @@ Song _song(
   hash: hash ?? 'hash-$id',
   catalogHash: catalogHash,
   albumAudioId: albumAudioId,
+  isCloud: isCloud ?? false,
 );
 
 MusicPlaylist _playlist(

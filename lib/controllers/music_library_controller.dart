@@ -982,6 +982,14 @@ class MusicLibraryController extends ChangeNotifier {
       return true;
     }
 
+    // If one is a personal cloud song and the other is a regular catalog song,
+    // only match if there is a genuine official association (catalogHash,
+    // albumAudioId, fileId, or direct hash checked above).
+    // An unassociated cloud audio file must not loosely hijack a catalog song by name.
+    if (left.isCloud != right.isCloud) {
+      return false;
+    }
+
     if (left.title.isEmpty || right.title.isEmpty) return false;
     if (left.title.trim().toLowerCase() == right.title.trim().toLowerCase() &&
         left.artist.trim().toLowerCase() == right.artist.trim().toLowerCase()) {

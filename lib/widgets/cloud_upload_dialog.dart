@@ -46,6 +46,178 @@ class CloudUploadDialog extends StatefulWidget {
     );
   }
 
+  /// 清理 MV 标题及多余标签词，提取纯净的歌名与歌手
+  static ({String title, String artist}) cleanMvMetadata({
+    required String rawTitle,
+    required String rawArtist,
+  }) {
+    var title = rawTitle.trim();
+    var artist = rawArtist.trim();
+
+    // 1. 清理首部括号视频标签，如 【4K 60帧】、[MV]、(MV)、【官方MV】等
+    final prefixBracketRegex = RegExp(
+      r'^(?:[\(\[\{【（][^\)\]\}】）]*(?:4k|1080p|720p|超清|高清|无损|完整版|纯享版|60帧|official|music\s*video|dance\s*practice|performance\s*video|mv|现场版|live|官方|首播|预告|修复|自制|杜比)[^\)\]\}】）]*[\)\]\}】）]\s*)+',
+      caseSensitive: false,
+    );
+    title = title.replaceAll(prefixBracketRegex, '').trim();
+    artist = artist.replaceAll(prefixBracketRegex, '').trim();
+
+    // 2. 清理尾部括号标签或以空格分隔的独立后缀标签，如 (Official Music Video)、【MV】、 MV、 1080P
+    final suffixBracketRegex = RegExp(
+      r'(?:[\(\[\{【（][^\)\]\}】）]*(?:4k|1080p|720p|超清|高清|无损|完整版|纯享版|原画|杜比|dolby|hdr|60帧|official\s*(?:music\s*video|mv|audio)?|music\s*video|dance\s*practice|performance\s*video|mv|现场版|live版?|官方mv|官方视频|首播|预告|修复)[^\)\]\}】）]*[\)\]\}】）]\s*)+$',
+      caseSensitive: false,
+    );
+    title = title.replaceAll(suffixBracketRegex, '').trim();
+
+    final suffixStandaloneRegex = RegExp(
+      r'(?:(?:\s+|(?<=[\)\]\}】）》]))[\-–—_]?\s*(?:4k|1080p|720p|超清|高清|无损|完整版|纯享版|原画|杜比|dolby|hdr|60帧|official\s*(?:music\s*video|mv|audio)?|music\s*video|dance\s*practice|performance\s*video|mv|现场版|live版?|官方mv|官方视频|首播|预告|修复))+\s*$',
+      caseSensitive: false,
+    );
+    title = title.replaceAll(suffixStandaloneRegex, '').trim();
+
+    // 3. 如果包含常见的 "歌手 - 歌名" 或 "歌手 _ 歌名" 结构
+    final dashSplit = title.split(RegExp(r'\s*[-–—_]\s*'));
+    if (dashSplit.length == 2) {
+      var part0 = dashSplit[0].trim();
+      var part1 = dashSplit[1].trim();
+      part0 = part0
+          .replaceAll(prefixBracketRegex, '')
+          .replaceAll(suffixBracketRegex, '')
+          .replaceAll(suffixStandaloneRegex, '')
+          .trim();
+      part1 = part1
+          .replaceAll(prefixBracketRegex, '')
+          .replaceAll(suffixBracketRegex, '')
+          .replaceAll(suffixStandaloneRegex, '')
+          .trim();
+      if (artist.isEmpty || artist == '未知歌手') {
+        artist = part0;
+        title = part1;
+      } else if (artist.toLowerCase() == part0.toLowerCase() ||
+          part0.toLowerCase().startsWith(artist.toLowerCase())) {
+        title = part1;
+      }
+    }
+
+    // 4. 检查是否有包含在单双引号/书名号中的歌名（例如: IVE ‘BANG BANG’ 或 aespa 《Whiplash》）
+    final quoteMatch =
+        RegExp(r'''^(.+?)\s*['‘“"『「《](.+?)['’”"』」》]''').firstMatch(title);
+    if (quoteMatch != null) {
+      final potentialArtist = quoteMatch.group(1)!.trim();
+      final potentialTitle = quoteMatch.group(2)!.trim();
+      if (potentialTitle.isNotEmpty) {
+        if (artist.isEmpty || artist == '未知歌手') {
+          artist = potentialArtist;
+          title = potentialTitle;
+        } else if (artist.toLowerCase() == potentialArtist.toLowerCase() ||
+            potentialArtist.toLowerCase().startsWith(artist.toLowerCase())) {
+          title = potentialTitle;
+        }
+      }
+    }
+
+    // 5. 如果歌名以歌手名开头（例如 "IVE BANG BANG"）
+    if (artist.isNotEmpty &&
+        title.toLowerCase().startsWith(artist.toLowerCase())) {
+      title = title.substring(artist.length).trim();
+    }
+
+    // 6. 清理整体被书名号包裹的情况（如《七里香》或【七里香】）
+    if ((title.startsWith('《') && title.endsWith('》')) ||
+        (title.startsWith('【') && title.endsWith('】')) ||
+        (title.startsWith('『') && title.endsWith('』')) ||
+        (title.startsWith('「') && title.endsWith('」'))) {
+      title = title.substring(1, title.length - 1).trim();
+    }
+
+    // 7. 清理首尾可能残留的单双引号、空格或连接符（保留标题中合法的副标题圆括号）
+    title = title
+        .replaceAll(RegExp(r'''^[\s\-–—:_：'‘"“]+'''), '')
+        .replaceAll(RegExp(r'''[\s\-–—:_：'’"”]+$'''), '')
+        .trim();
+
+    // 兜底：如果清理后标题变空，回退到原始值
+    if (title.isEmpty) {
+      title = rawTitle.trim();
+    }
+    if (artist.isEmpty) {
+      artist = rawArtist.trim();
+    }
+
+    return (title: title, artist: artist);
+  }
+
+  /// 高置信度曲库匹配算法
+  /// 只有当歌曲包含真实的音频ID或标准hash，且标题与歌手高度吻合时才自动建立关联
+  static Song? findHighConfidenceMatch({
+    required List<Song> results,
+    required String targetTitle,
+    required String targetArtist,
+  }) {
+    if (results.isEmpty) return null;
+
+    final normTargetTitle = _normalizeMatchString(targetTitle);
+    final normTargetArtist = _normalizeMatchString(targetArtist);
+
+    // 如果标题或歌手为空，无法确保高置信度，不自动关联，交由用户手动关联
+    if (normTargetTitle.isEmpty || normTargetArtist.isEmpty) {
+      return null;
+    }
+
+    Song? fallbackMatch;
+
+    for (final candidate in results) {
+      final hasValidId = ((candidate.fileId ?? 0) > 0) ||
+          ((candidate.albumAudioId ?? 0) > 0) ||
+          (candidate.catalogHash != null && candidate.catalogHash!.isNotEmpty) ||
+          (candidate.hash != null && candidate.hash!.isNotEmpty);
+      if (!hasValidId) continue;
+
+      final candTitleLower = candidate.title.toLowerCase();
+      // 避免误匹配为伴奏/伴唱
+      final isInstrumental = candTitleLower.contains('伴奏') ||
+          candTitleLower.contains('instrumental') ||
+          candTitleLower.contains('karaoke');
+
+      final normCandTitle = _normalizeMatchString(candidate.title);
+      final normCandArtist = _normalizeMatchString(candidate.artist);
+
+      // 标题匹配校验：完全一致，或长标题包含短标题且长度差异不大
+      final isExactTitle = normCandTitle == normTargetTitle;
+      final isFuzzyTitle = !isExactTitle &&
+          (normCandTitle.contains(normTargetTitle) ||
+              normTargetTitle.contains(normCandTitle)) &&
+          (normCandTitle.length - normTargetTitle.length).abs() <= 6;
+
+      if (!isExactTitle && !isFuzzyTitle) continue;
+
+      // 歌手匹配校验：必须相互包含（支持中英文/韩文别名等）
+      final isArtistMatch = normCandArtist == normTargetArtist ||
+          normCandArtist.contains(normTargetArtist) ||
+          normTargetArtist.contains(normCandArtist);
+
+      if (!isArtistMatch) continue;
+
+      // 优先选择非伴奏的标准原曲
+      if (!isInstrumental) {
+        if (isExactTitle) {
+          return candidate;
+        }
+        fallbackMatch ??= candidate;
+      } else {
+        fallbackMatch ??= candidate;
+      }
+    }
+
+    return fallbackMatch;
+  }
+
+  static String _normalizeMatchString(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s\p{P}\p{S}]', unicode: true), '');
+  }
+
   @override
   State<CloudUploadDialog> createState() => _CloudUploadDialogState();
 }
@@ -62,6 +234,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
 
   bool _showSearchPicker = false;
   bool _isSearching = false;
+  bool _isAutoMatching = false;
   List<Song> _searchResults = const [];
 
   bool _isUploading = false;
@@ -77,16 +250,75 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
   @override
   void initState() {
     super.initState();
-    _titleController = TextEditingController(text: widget.song.title);
-    _artistController = TextEditingController(text: widget.song.artist);
+    final isMv = widget.song.isMv || widget.song.playbackQuality == 'MV';
+    final cleaned = isMv
+        ? CloudUploadDialog.cleanMvMetadata(
+            rawTitle: widget.song.title,
+            rawArtist: widget.song.artist,
+          )
+        : (title: widget.song.title, artist: widget.song.artist);
+
+    _titleController = TextEditingController(text: cleaned.title);
+    _artistController = TextEditingController(text: cleaned.artist);
     _searchController = TextEditingController(
-      text: '${widget.song.title} ${widget.song.artist}'.trim(),
+      text: '${cleaned.title} ${cleaned.artist}'.trim(),
     );
 
-    _matchedAudioId = widget.song.fileId ?? 0;
-    _matchedAlbumAudioId = widget.song.albumAudioId ?? 0;
-    _matchedHashStd = widget.song.catalogHash ?? widget.song.hash ?? '';
-    _matchedDisplay = '${widget.song.artist} - ${widget.song.title}';
+    final hasOfficialId = ((widget.song.fileId ?? 0) > 0) ||
+        ((widget.song.albumAudioId ?? 0) > 0);
+
+    if (!isMv && hasOfficialId) {
+      _matchedAudioId = widget.song.fileId ?? 0;
+      _matchedAlbumAudioId = widget.song.albumAudioId ?? 0;
+      _matchedHashStd = widget.song.catalogHash ?? widget.song.hash ?? '';
+      _matchedDisplay = '${widget.song.artist} - ${widget.song.title}';
+    } else {
+      _matchedAudioId = 0;
+      _matchedAlbumAudioId = 0;
+      _matchedHashStd = '';
+      _matchedDisplay = '';
+      _autoMatchOfficialSong(cleaned.title, cleaned.artist);
+    }
+  }
+
+  Future<void> _autoMatchOfficialSong(String title, String artist) async {
+    final query = '$title $artist'.trim();
+    if (query.isEmpty) return;
+
+    setState(() {
+      _isAutoMatching = true;
+    });
+
+    try {
+      final results = await widget.apiClient.searchSongs(query);
+      if (!mounted) return;
+
+      if (_searchResults.isEmpty) {
+        _searchResults = results;
+      }
+
+      final matched = CloudUploadDialog.findHighConfidenceMatch(
+        results: results,
+        targetTitle: title,
+        targetArtist: artist,
+      );
+
+      if (mounted) {
+        setState(() {
+          _isAutoMatching = false;
+          // 仅在当前尚未手动选择关联且未被清除时赋予自动匹配结果
+          if (_matchedDisplay.isEmpty && matched != null) {
+            _selectMatch(matched);
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isAutoMatching = false;
+        });
+      }
+    }
   }
 
   void _cancel() {
@@ -151,7 +383,13 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
   }
 
   Future<void> _performSearch() async {
-    final query = _searchController.text.trim();
+    var query = _searchController.text.trim();
+    if (query.isEmpty) {
+      query =
+          '${_titleController.text.trim()} ${_artistController.text.trim()}'
+              .trim();
+      _searchController.text = query;
+    }
     if (query.isEmpty) return;
 
     setState(() {
@@ -182,6 +420,8 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
       _matchedAlbumAudioId = candidate.albumAudioId ?? 0;
       _matchedHashStd = candidate.catalogHash ?? candidate.hash ?? '';
       _matchedDisplay = '${candidate.artist} - ${candidate.title}';
+      _titleController.text = candidate.title;
+      _artistController.text = candidate.artist;
       _showSearchPicker = false;
     });
   }
@@ -266,6 +506,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
   Widget build(BuildContext context) {
     final isDark = AppColors.isDark;
     final isMv = widget.song.isMv || widget.song.playbackQuality == 'MV';
+    final isMatched = _matchedDisplay.isNotEmpty;
     return PopScope(
       canPop: _canPop,
       onPopInvokedWithResult: (didPop, result) {
@@ -343,6 +584,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
                       AppDialogTextField(
                         controller: _titleController,
                         hintText: '请输入歌曲名',
+                        enabled: !isMatched,
                       ),
                     ],
                   ),
@@ -365,6 +607,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
                       AppDialogTextField(
                         controller: _artistController,
                         hintText: '请输入歌手',
+                        enabled: !isMatched,
                       ),
                     ],
                   ),
@@ -399,7 +642,7 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        '关联酷狗官方曲库原曲',
+                        '曲库关联',
                         style: TextStyle(
                           color: AppColors.text,
                           fontSize: 12,
@@ -428,7 +671,9 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
                           onTap: () {
                             setState(() {
                               _showSearchPicker = !_showSearchPicker;
-                              if (_showSearchPicker && _searchResults.isEmpty) {
+                              if (_showSearchPicker &&
+                                  _searchResults.isEmpty &&
+                                  !_isSearching) {
                                 _performSearch();
                               }
                             });
@@ -448,22 +693,41 @@ class _CloudUploadDialogState extends State<CloudUploadDialog> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    _matchedDisplay.isNotEmpty
-                        ? '已关联：$_matchedDisplay'
-                        : '未关联官方曲库（作为独立纯云盘音频保存）',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: _matchedDisplay.isNotEmpty
-                          ? AppColors.text
-                          : AppColors.muted,
-                      fontSize: 12,
-                      fontWeight: _matchedDisplay.isNotEmpty
-                          ? FontWeight.w600
-                          : FontWeight.normal,
+                  if (_isAutoMatching)
+                    Row(
+                      children: [
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 1.5),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '正在识别原曲...',
+                          style: TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    Text(
+                      _matchedDisplay.isNotEmpty
+                          ? '已关联：$_matchedDisplay'
+                          : '未关联',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _matchedDisplay.isNotEmpty
+                            ? AppColors.text
+                            : AppColors.muted,
+                        fontSize: 12,
+                        fontWeight: _matchedDisplay.isNotEmpty
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
                     ),
-                  ),
 
                   // 搜索选择列表展开面板
                   if (_showSearchPicker) ...[
