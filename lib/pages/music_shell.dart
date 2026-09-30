@@ -590,6 +590,18 @@ class _MusicShellState extends State<MusicShell>
         ),
       );
       unawaited(_syncCoverAccent());
+      final cover = song?.coverUrl?.trim() ?? '';
+      if (cover.isNotEmpty) {
+        unawaited(CoverPaletteService.colorFor(cover));
+        if (mounted) {
+          unawaited(
+            precacheImage(
+              ResizeImage(NetworkImage(cover), width: 720),
+              context,
+            ),
+          );
+        }
+      }
     }
     final key = song == null ? null : _lyricCacheKey(song);
     if (song != null && key != null && key != _lastPreloadedLyricKey) {

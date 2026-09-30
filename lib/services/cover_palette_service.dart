@@ -7,10 +7,22 @@ class CoverPaletteService {
   CoverPaletteService._();
 
   static final Map<String, Future<Color?>> _cache = {};
+  static final Map<String, Color> _resolvedColors = {};
+
+  static Color? cachedColor(String url) => _resolvedColors[url.trim()];
 
   static Future<Color?> colorFor(String url) {
-    if (url.trim().isEmpty) return Future.value(null);
-    return _cache.putIfAbsent(url, () => _extract(url));
+    final clean = url.trim();
+    if (clean.isEmpty) return Future.value(null);
+    final cached = _resolvedColors[clean];
+    if (cached != null) return Future.value(cached);
+    return _cache.putIfAbsent(clean, () async {
+      final color = await _extract(clean);
+      if (color != null) {
+        _resolvedColors[clean] = color;
+      }
+      return color;
+    });
   }
 
   static Future<Color?> _extract(String url) async {

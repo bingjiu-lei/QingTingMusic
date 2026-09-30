@@ -187,7 +187,7 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
       color: Colors.transparent,
       child: Stack(
         children: [
-          _FluidAmbientBackground(
+          _BlurredCoverBackground(
             song: song,
             portraitUrl: _portraits.firstOrNull,
             portraitMode: _portraitMode,
@@ -268,8 +268,8 @@ class _NowPlayingPageState extends State<NowPlayingPage> {
   }
 }
 
-class _FluidAmbientBackground extends StatefulWidget {
-  const _FluidAmbientBackground({
+class _BlurredCoverBackground extends StatelessWidget {
+  const _BlurredCoverBackground({
     required this.song,
     required this.portraitUrl,
     required this.portraitMode,
@@ -282,122 +282,74 @@ class _FluidAmbientBackground extends StatefulWidget {
   final bool portraitLoading;
 
   @override
-  State<_FluidAmbientBackground> createState() =>
-      _FluidAmbientBackgroundState();
-}
-
-class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground> {
-  Color? _extractedColor;
-  String? _lastCoverUrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _resolveColor();
-  }
-
-  @override
-  void didUpdateWidget(covariant _FluidAmbientBackground oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.song?.coverUrl != widget.song?.coverUrl) {
-      _resolveColor();
-    }
-  }
-
-  void _resolveColor() {
-    final coverUrl = (widget.song?.coverUrl ?? '').trim();
-    if (coverUrl == _lastCoverUrl) return;
-    _lastCoverUrl = coverUrl;
-    if (coverUrl.isEmpty) {
-      if (mounted) setState(() => _extractedColor = null);
-      return;
-    }
-    CoverPaletteService.colorFor(coverUrl).then((color) {
-      if (!mounted || _lastCoverUrl != coverUrl) return;
-      setState(() => _extractedColor = color);
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final portrait = (widget.portraitUrl ?? '').trim();
+    final coverUrl = (song?.coverUrl ?? '').trim();
+    final portrait = (portraitUrl ?? '').trim();
+    // While discovery is still running, keep the current artwork (or album
+    // backdrop on first open). The bundled wallpaper is only shown after the
+    // API has definitively returned no usable portrait.
     final showPortrait =
-        widget.portraitMode && (!widget.portraitLoading || portrait.isNotEmpty);
+        portraitMode && (!portraitLoading || portrait.isNotEmpty);
+    final hasCover = coverUrl.isNotEmpty;
     final dark = AppColors.isDark;
-
-    if (showPortrait) {
-      return Positioned.fill(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: dark ? const Color(0xFF070A0F) : const Color(0xFFF8FAFD),
-          ),
-          child: RepaintBoundary(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 420),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              child: _PortraitTransitionArtwork(
-                key: const ValueKey('portrait-mode'),
-                portraitUrl: portrait,
-                fallbackAsset: dark
-                    ? 'assets/images/artist_wallpaper_dark.webp'
-                    : 'assets/images/artist_wallpaper_light.webp',
+    final overlay = dark ? Colors.black : Colors.white;
+    return Positioned.fill(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: dark ? const Color(0xFF070A0F) : const Color(0xFFF8FAFD),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            RepaintBoundary(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 420),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                child: showPortrait
+                    ? _PortraitTransitionArtwork(
+                        key: const ValueKey('portrait-mode'),
+                        portraitUrl: portrait,
+                        fallbackAsset: dark
+                            ? 'assets/images/artist_wallpaper_dark.webp'
+                            : 'assets/images/artist_wallpaper_light.webp',
+                      )
+                    : Opacity(
+                        key: ValueKey(
+                          hasCover ? coverUrl : 'album-placeholder-bg',
+                        ),
+                        opacity: hasCover ? 0.92 : 0.42,
+                        child: ImageFiltered(
+                          imageFilter: ImageFilter.blur(sigmaX: 34, sigmaY: 34),
+                          child: Transform.scale(
+                            scale: 1.76,
+                            child: SizedBox.expand(
+                              child: hasCover
+                                  ? Image.network(
+                                      coverUrl,
+                                      fit: BoxFit.cover,
+                                      gaplessPlayback: true,
+                                      filterQuality: FilterQuality.low,
+                                      cacheWidth: 720,
+                                      errorBuilder: (_, _, _) => Image.asset(
+                                        'assets/images/album_placeholder.webp',
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : Image.asset(
+                                      'assets/images/album_placeholder.webp',
+                                      fit: BoxFit.cover,
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
               ),
             ),
-          ),
-        ),
-      );
-    }
-
-    final baseAccent = _extractedColor ?? AppColors.primary;
-    final hsv = HSVColor.fromColor(baseAccent);
-
-    // Harmonious fluid palette derived from cover palette with lively vibrancy
-    final c1 = hsv
-        .withSaturation((hsv.saturation * 1.15).clamp(0.46, 0.90))
-        .withValue((hsv.value * 1.00).clamp(0.48, 0.88))
-        .toColor();
-    final c2 = hsv
-        .withHue((hsv.hue + 44) % 360)
-        .withSaturation((hsv.saturation * 0.95).clamp(0.38, 0.82))
-        .withValue((hsv.value * 1.05).clamp(0.50, 0.92))
-        .toColor();
-    final c3 = hsv
-        .withHue((hsv.hue - 38 + 360) % 360)
-        .withSaturation((hsv.saturation * 0.88).clamp(0.32, 0.78))
-        .withValue((hsv.value * 0.95).clamp(0.44, 0.85))
-        .toColor();
-
-    return Positioned.fill(
-      child: RepaintBoundary(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: dark ? const Color(0xFF080A10) : const Color(0xFFF5F7FB),
-          ),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              RepaintBoundary(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 500),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: CustomPaint(
-                    key: ValueKey('aurora-${baseAccent.toARGB32()}-$dark'),
-                    size: Size.infinite,
-                    painter: _FluidAuroraPainter(
-                      isDark: dark,
-                      c1: c1,
-                      c2: c2,
-                      c3: c3,
-                    ),
-                  ),
-                ),
-              ),
+            if (!showPortrait) ...[
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: (dark ? const Color(0xFF080A10) : Colors.white)
-                      .withValues(alpha: dark ? 0.24 : 0.50),
+                  color: overlay.withValues(alpha: dark ? 0.54 : 0.68),
                 ),
               ),
               DecoratedBox(
@@ -407,98 +359,53 @@ class _FluidAmbientBackgroundState extends State<_FluidAmbientBackground> {
                     end: Alignment.bottomCenter,
                     colors: dark
                         ? [
-                            Colors.black.withValues(alpha: 0.28),
-                            Colors.black.withValues(alpha: 0.08),
-                            Colors.black.withValues(alpha: 0.38),
+                            Colors.black.withValues(alpha: 0.40),
+                            Colors.black.withValues(alpha: 0.10),
+                            Colors.black.withValues(alpha: 0.48),
                           ]
                         : [
-                            Colors.white.withValues(alpha: 0.55),
-                            Colors.white.withValues(alpha: 0.18),
                             Colors.white.withValues(alpha: 0.62),
+                            Colors.white.withValues(alpha: 0.22),
+                            Colors.white.withValues(alpha: 0.70),
                           ],
-                    stops: const [0.0, 0.48, 1.0],
+                    stops: const [0, 0.48, 1],
                   ),
                 ),
               ),
             ],
-          ),
+            if (!showPortrait) ...[
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.45, -0.12),
+                    radius: 0.66,
+                    colors: [
+                      (CoverPaletteService.cachedColor(coverUrl) ??
+                              AppColors.primary)
+                          .withValues(alpha: dark ? 0.18 : 0.10),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: const Alignment(0.35, 0.50),
+                    radius: 0.62,
+                    colors: [
+                      (dark ? const Color(0xFFB5677B) : const Color(0xFFFFB4C8))
+                          .withValues(alpha: dark ? 0.16 : 0.14),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
-  }
-}
-
-class _FluidAuroraPainter extends CustomPainter {
-  const _FluidAuroraPainter({
-    required this.isDark,
-    required this.c1,
-    required this.c2,
-    required this.c3,
-  });
-
-  final bool isDark;
-  final Color c1;
-  final Color c2;
-  final Color c3;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-    final w = size.width;
-    final h = size.height;
-    final radius = math.max(w, h) * 0.55;
-
-    // Multi-stop radial gradients provide ultra-smooth, native GPU hardware falloff
-    // with zero offscreen blur buffer overhead and zero banding.
-    // Blob 1: upper-left ambient halo behind cover
-    final p1 = Offset(w * 0.36, h * 0.32);
-    final paint1 = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          c1.withValues(alpha: isDark ? 0.38 : 0.28),
-          c1.withValues(alpha: isDark ? 0.20 : 0.15),
-          c1.withValues(alpha: isDark ? 0.06 : 0.04),
-          c1.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.35, 0.70, 1.0],
-      ).createShader(Rect.fromCircle(center: p1, radius: radius));
-    canvas.drawCircle(p1, radius, paint1);
-
-    // Blob 2: upper-right gentle light behind lyrics
-    final p2 = Offset(w * 0.74, h * 0.36);
-    final paint2 = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          c2.withValues(alpha: isDark ? 0.34 : 0.24),
-          c2.withValues(alpha: isDark ? 0.18 : 0.12),
-          c2.withValues(alpha: isDark ? 0.05 : 0.03),
-          c2.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.35, 0.70, 1.0],
-      ).createShader(Rect.fromCircle(center: p2, radius: radius * 0.95));
-    canvas.drawCircle(p2, radius * 0.95, paint2);
-
-    // Blob 3: bottom-center subtle foundation behind controls
-    final p3 = Offset(w * 0.54, h * 0.72);
-    final paint3 = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          c3.withValues(alpha: isDark ? 0.30 : 0.20),
-          c3.withValues(alpha: isDark ? 0.15 : 0.10),
-          c3.withValues(alpha: isDark ? 0.04 : 0.02),
-          c3.withValues(alpha: 0.0),
-        ],
-        stops: const [0.0, 0.35, 0.70, 1.0],
-      ).createShader(Rect.fromCircle(center: p3, radius: radius * 1.05));
-    canvas.drawCircle(p3, radius * 1.05, paint3);
-  }
-
-  @override
-  bool shouldRepaint(covariant _FluidAuroraPainter oldDelegate) {
-    return oldDelegate.isDark != isDark ||
-        oldDelegate.c1 != c1 ||
-        oldDelegate.c2 != c2 ||
-        oldDelegate.c3 != c3;
   }
 }
 
@@ -1107,6 +1014,10 @@ class _SongIdentityState extends State<_SongIdentity> {
   @override
   void initState() {
     super.initState();
+    final cover = (widget.song.coverUrl ?? '').trim();
+    if (cover.isNotEmpty) {
+      _paletteColor = CoverPaletteService.cachedColor(cover);
+    }
     _fetchColor();
   }
 
@@ -1126,6 +1037,10 @@ class _SongIdentityState extends State<_SongIdentity> {
       if (mounted) setState(() => _paletteColor = null);
       return;
     }
+    final cached = CoverPaletteService.cachedColor(cover);
+    if (cached != null) {
+      _paletteColor = cached;
+    }
     CoverPaletteService.colorFor(cover).then((color) {
       if (mounted && _lastCover == cover) {
         setState(() => _paletteColor = color);
@@ -1137,7 +1052,7 @@ class _SongIdentityState extends State<_SongIdentity> {
   Widget build(BuildContext context) {
     final song = widget.song;
     final isDark = AppColors.isDark;
-    final glowColor = _paletteColor ?? AppColors.primary;
+    final glowColor = _paletteColor;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1179,13 +1094,14 @@ class _SongIdentityState extends State<_SongIdentity> {
                       coverSize >= 340 ? 24 : 20,
                     ),
                     boxShadow: [
-                      BoxShadow(
-                        color: glowColor.withValues(
-                          alpha: isDark ? 0.34 : 0.20,
+                      if (glowColor != null)
+                        BoxShadow(
+                          color: glowColor.withValues(
+                            alpha: isDark ? 0.34 : 0.20,
+                          ),
+                          blurRadius: coverSize >= 340 ? 38 : 30,
+                          offset: Offset(0, coverSize >= 340 ? 12 : 10),
                         ),
-                        blurRadius: coverSize >= 340 ? 38 : 30,
-                        offset: Offset(0, coverSize >= 340 ? 12 : 10),
-                      ),
                       BoxShadow(
                         color: Colors.black.withValues(
                           alpha: isDark ? 0.30 : 0.08,
