@@ -89,7 +89,9 @@ class PlaybackQualityMenu extends StatelessWidget {
                     unawaited(controller.select(quality));
                     if (sourceChanged && !qualityChanged) {
                       final player = playerController;
-                      if (player != null) unawaited(player.refreshCurrentSong());
+                      if (player != null) {
+                        unawaited(player.refreshCurrentSong());
+                      }
                     }
                   },
                   leading: QualityBadge(label: quality.badge, selected: selected),
