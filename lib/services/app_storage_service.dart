@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 class AppStorageService {
@@ -35,17 +36,17 @@ class AppStorageService {
     } else {
       await dataDirectory.create(recursive: true);
     }
-    await ensureCurrentUserAccess(dataDirectory);
+    unawaited(ensureCurrentUserAccess(dataDirectory));
     if (!Platform.isWindows) return;
 
     final localAppData = Platform.environment['LOCALAPPDATA'];
     if (localAppData != null) {
-      await _migrateDirectory(Directory('$localAppData\\QingTingMusic'));
+      unawaited(_migrateDirectory(Directory('$localAppData\\QingTingMusic')));
     }
 
     final publicRoot = Platform.environment['PUBLIC'];
     if (publicRoot != null) {
-      await _migrateDirectory(Directory('$publicRoot\\QingTingMusic'));
+      unawaited(_migrateDirectory(Directory('$publicRoot\\QingTingMusic')));
     }
   }
 

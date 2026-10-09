@@ -150,7 +150,10 @@ bool Win32Window::Create(const std::wstring& title,
 }
 
 bool Win32Window::Show() {
-  return ShowWindow(window_handle_, SW_SHOWNORMAL);
+  if (IsZoomed(window_handle_)) {
+    return ShowWindow(window_handle_, SW_SHOWMAXIMIZED);
+  }
+  return ShowWindow(window_handle_, SW_SHOW);
 }
 
 // static

@@ -6,6 +6,7 @@ import 'package:qing_ting_music/controllers/player_controller.dart';
 import 'package:qing_ting_music/services/app_storage_service.dart';
 import 'package:qing_ting_music/services/api_endpoint_service.dart';
 import 'package:qing_ting_music/services/cache_management_service.dart';
+import 'package:qing_ting_music/services/app_preferences_service.dart';
 import 'package:qing_ting_music/services/playback_state_service.dart';
 import 'package:qing_ting_music/services/recent_songs_service.dart';
 
@@ -119,5 +120,46 @@ void main() {
     );
     expect(await AppStorageService.file('search-cache.json').exists(), isFalse);
     expect(await AppStorageService.directory('audio').exists(), isFalse);
+  });
+
+  test('persists window dimensions and maximized state', () async {
+    final preferences = AppPreferencesService();
+
+    // 1. Initial state defaults to 1120x700, not maximized
+    final initial = await preferences.readWindowState();
+    expect(initial.width, WindowStateSnapshot.defaultWidth);
+    expect(initial.height, WindowStateSnapshot.defaultHeight);
+    expect(initial.isMaximized, isFalse);
+
+    // 2. Custom resized window dimensions
+    await preferences.writeWindowState(
+      width: 1440.0,
+      height: 900.0,
+      isMaximized: false,
+    );
+    final resized = await preferences.readWindowState();
+    expect(resized.width, 1440.0);
+    expect(resized.height, 900.0);
+    expect(resized.isMaximized, isFalse);
+
+    // 3. Maximizing preserves saved normal window dimensions
+    await preferences.writeWindowState(isMaximized: true);
+    final maximized = await preferences.readWindowState();
+    expect(maximized.width, 1440.0);
+    expect(maximized.height, 900.0);
+    expect(maximized.isMaximized, isTrue);
+
+    // 4. Unmaximizing restores state while keeping custom dimensions
+    await preferences.writeWindowState(isMaximized: false);
+    final unmaximized = await preferences.readWindowState();
+    expect(unmaximized.width, 1440.0);
+    expect(unmaximized.height, 900.0);
+    expect(unmaximized.isMaximized, isFalse);
+
+    // 5. Clamps invalid or too-small dimensions to minimum limits
+    await preferences.writeWindowState(width: 500.0, height: 300.0);
+    final clamped = await preferences.readWindowState();
+    expect(clamped.width, WindowStateSnapshot.minWidth);
+    expect(clamped.height, WindowStateSnapshot.minHeight);
   });
 }

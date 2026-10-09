@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'services/app_preferences_service.dart';
 import 'services/app_storage_service.dart';
 import 'services/single_instance_service.dart';
 
@@ -22,19 +24,23 @@ Future<void> main() async {
     if (!shouldStart) {
       exit(0);
     }
-    const options = WindowOptions(
-      size: Size(1120, 700),
-      minimumSize: Size(960, 640),
+    final preferences = AppPreferencesService();
+    final windowState = await preferences.readWindowState();
+
+    final options = WindowOptions(
+      size: Size(windowState.width, windowState.height),
+      minimumSize: const Size(
+        WindowStateSnapshot.minWidth,
+        WindowStateSnapshot.minHeight,
+      ),
       center: true,
       backgroundColor: Colors.transparent,
       titleBarStyle: TitleBarStyle.hidden,
     );
     await windowManager.waitUntilReadyToShow(options, () async {
-      await windowManager.unmaximize();
-      await windowManager.setSize(const Size(1120, 700));
-      await windowManager.center();
-      await windowManager.show();
-      await windowManager.focus();
+      if (windowState.isMaximized) {
+        await windowManager.maximize();
+      }
     });
   }
 

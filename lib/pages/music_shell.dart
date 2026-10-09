@@ -129,6 +129,8 @@ class _MusicShellState extends State<MusicShell>
   bool _quittingFromTray = false;
   bool _closingWindow = false;
   bool _closeToTray = true;
+  bool _isWindowMaximized = false;
+  bool _windowReadyToTrackState = false;
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
   int detailRelatedPage = 1;
@@ -231,6 +233,17 @@ class _MusicShellState extends State<MusicShell>
       windowManager.addListener(this);
       trayManager.addListener(this);
       unawaited(_setupWindowBehavior());
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (!mounted) return;
+        if (_isWindowMaximized && !await windowManager.isMaximized()) {
+          await windowManager.maximize();
+        }
+        await windowManager.show();
+        await windowManager.focus();
+      });
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) _windowReadyToTrackState = true;
+      });
     }
     _initializeData();
   }
@@ -269,13 +282,22 @@ class _MusicShellState extends State<MusicShell>
     final values = await Future.wait<Object?>([
       _preferences.read('closeToTray'),
       _preferences.read('sidebarExpanded'),
+      _preferences.readWindowState(),
     ]);
     if (!mounted) return;
     final closeToTray = values[0] is bool ? values[0] as bool : false;
     final sidebarExpanded = values[1] is bool ? values[1] as bool : true;
+    final windowState = values[2] is WindowStateSnapshot
+        ? values[2] as WindowStateSnapshot
+        : const WindowStateSnapshot(
+            width: WindowStateSnapshot.defaultWidth,
+            height: WindowStateSnapshot.defaultHeight,
+            isMaximized: false,
+          );
     setState(() {
       _closeToTray = closeToTray;
       _sidebarExpanded = sidebarExpanded;
+      _isWindowMaximized = windowState.isMaximized;
     });
     await _applyCloseBehavior(closeToTray);
   }
@@ -434,6 +456,9 @@ class _MusicShellState extends State<MusicShell>
           ],
         ),
       );
+      if (_isWindowMaximized && !await windowManager.isMaximized()) {
+        await windowManager.maximize();
+      }
     } catch (_) {
       // Tray support is best-effort; the app should keep running without it.
     }
@@ -459,8 +484,95 @@ class _MusicShellState extends State<MusicShell>
     }
     if (!await windowManager.isVisible()) {
       await windowManager.show();
+      if (_isWindowMaximized && !await windowManager.isMaximized()) {
+        await windowManager.maximize();
+      }
     }
     await windowManager.focus();
+  }
+
+  Timer? _windowStateDebounceTimer;
+
+  @override
+  void onWindowResize() {
+    if (!_windowReadyToTrackState || _closingWindow) return;
+    _debounceSaveWindowState();
+  }
+
+  @override
+  void onWindowResized() {
+    if (!_windowReadyToTrackState || _closingWindow) return;
+    _debounceSaveWindowState();
+  }
+
+  @override
+  void onWindowMaximize() {
+    _isWindowMaximized = true;
+    if (!_windowReadyToTrackState || _closingWindow) return;
+    _windowStateDebounceTimer?.cancel();
+    unawaited(_preferences.writeWindowState(isMaximized: true));
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    _isWindowMaximized = false;
+    if (!_windowReadyToTrackState || _closingWindow) return;
+    _debounceSaveWindowState(immediate: true);
+    if (mounted) setState(() {});
+  }
+
+  void _debounceSaveWindowState({bool immediate = false}) {
+    _windowStateDebounceTimer?.cancel();
+    if (immediate) {
+      unawaited(_saveWindowStateNow());
+    } else {
+      _windowStateDebounceTimer = Timer(const Duration(milliseconds: 350), () {
+        if (mounted) {
+          unawaited(_saveWindowStateNow());
+        }
+      });
+    }
+  }
+
+  Future<void> _saveWindowStateNow() async {
+    if (!Platform.isWindows || !widget.enableWindowControls) return;
+    if (!_windowReadyToTrackState || _closingWindow) return;
+    try {
+      final isVisible = await windowManager.isVisible();
+      if (!isVisible) return;
+
+      final isMinimized = await windowManager.isMinimized();
+      if (isMinimized) return;
+
+      final isFullScreen = await windowManager.isFullScreen();
+      if (isFullScreen) return;
+
+      final isMaximized = await windowManager.isMaximized();
+      if (isMaximized) {
+        if (!_isWindowMaximized) {
+          _isWindowMaximized = true;
+          if (mounted) setState(() {});
+        }
+        await _preferences.writeWindowState(isMaximized: true);
+        return;
+      }
+
+      if (_isWindowMaximized) {
+        _isWindowMaximized = false;
+        if (mounted) setState(() {});
+      }
+
+      final size = await windowManager.getSize();
+      if (size.width >= WindowStateSnapshot.minWidth &&
+          size.height >= WindowStateSnapshot.minHeight) {
+        await _preferences.writeWindowState(
+          width: size.width,
+          height: size.height,
+          isMaximized: false,
+        );
+      }
+    } catch (_) {}
   }
 
   @override
@@ -470,11 +582,16 @@ class _MusicShellState extends State<MusicShell>
 
   Future<void> _handleWindowClose() async {
     if (!Platform.isWindows || !widget.enableWindowControls) return;
-    if (!_closeToTray || _quittingFromTray) return;
-    if (_closingWindow) return;
     _closingWindow = true;
+    _windowStateDebounceTimer?.cancel();
+    if (!_closeToTray || _quittingFromTray) {
+      unawaited(playerController.flushPlaybackState());
+      return;
+    }
     await windowManager.hide();
-    _closingWindow = false;
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (mounted) _closingWindow = false;
+    });
   }
 
   @override
@@ -517,6 +634,7 @@ class _MusicShellState extends State<MusicShell>
     if (_closingWindow) return;
     _closingWindow = true;
     _quittingFromTray = true;
+    _windowStateDebounceTimer?.cancel();
     await _destroyWindowAndTray();
   }
 
@@ -526,9 +644,7 @@ class _MusicShellState extends State<MusicShell>
       await windowManager.setPreventClose(false);
       unawaited(trayManager.destroy());
       await windowManager.close();
-    } finally {
-      _closingWindow = false;
-    }
+    } catch (_) {}
   }
 
   Future<void> _showAuthExpiredDialog() async {
@@ -1853,6 +1969,7 @@ class _MusicShellState extends State<MusicShell>
 
   @override
   void dispose() {
+    _windowStateDebounceTimer?.cancel();
     HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
     _noticeTimer?.cancel();
     _desktopLyricsTimer?.cancel();
