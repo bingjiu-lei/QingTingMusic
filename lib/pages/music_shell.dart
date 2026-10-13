@@ -88,6 +88,7 @@ class _MusicShellState extends State<MusicShell>
   final _developerModeService = DeveloperModeService();
   final _preferences = AppPreferencesService();
   final _windowsMediaBridge = WindowsMediaBridge();
+  final _shortcuts = AppShortcutService();
 
   int selectedIndex = 0;
   int librarySelectedTab = 0;
@@ -228,7 +229,7 @@ class _MusicShellState extends State<MusicShell>
     _sessionExpiredSubscription = SessionExpiredService.stream.listen((_) {
       if (mounted) unawaited(_showAuthExpiredDialog());
     });
-    HardwareKeyboard.instance.addHandler(_handleGlobalKeyEvent);
+    FocusManager.instance.addEarlyKeyEventHandler(_handleGlobalKeyEvent);
     if (Platform.isWindows && widget.enableWindowControls) {
       windowManager.addListener(this);
       trayManager.addListener(this);
@@ -307,14 +308,15 @@ class _MusicShellState extends State<MusicShell>
     await _preferences.write('sidebarExpanded', value);
   }
 
-  bool _handleGlobalKeyEvent(KeyEvent event) {
-    if (!mounted) return false;
+  KeyEventResult _handleGlobalKeyEvent(KeyEvent event) {
+    if (!mounted) return KeyEventResult.ignored;
     final isModalActive = Navigator.canPop(context);
-    return AppShortcutService.handleKeyEvent(
+    final handled = _shortcuts.handleKeyEvent(
       event: event,
       isModalActive: isModalActive,
       onAction: _executeShortcutAction,
     );
+    return handled ? KeyEventResult.handled : KeyEventResult.ignored;
   }
 
   void _executeShortcutAction(AppShortcutAction action) {
@@ -1970,7 +1972,7 @@ class _MusicShellState extends State<MusicShell>
   @override
   void dispose() {
     _windowStateDebounceTimer?.cancel();
-    HardwareKeyboard.instance.removeHandler(_handleGlobalKeyEvent);
+    FocusManager.instance.removeEarlyKeyEventHandler(_handleGlobalKeyEvent);
     _noticeTimer?.cancel();
     _desktopLyricsTimer?.cancel();
     _sessionExpiredSubscription?.cancel();

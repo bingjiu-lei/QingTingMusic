@@ -9,7 +9,9 @@ enum AppShortcutAction {
   volumeDown,
 }
 
-abstract final class AppShortcutService {
+final class AppShortcutService {
+  final Set<PhysicalKeyboardKey> _handledKeys = <PhysicalKeyboardKey>{};
+
   /// 检查当前焦点是否位于可编辑文本组件内（例如 TextField、EditableText）。
   /// 处于文本输入状态时，所有按键均应让出给输入法与原生文本操作，避免误触发快捷键。
   static bool isEditableFocused() {
@@ -24,14 +26,23 @@ abstract final class AppShortcutService {
   /// 处理全局键盘事件。
   ///
   /// 返回 `true` 表示快捷键已被消费并拦截；返回 `false` 则让事件继续在 Flutter 事件树中传递。
-  static bool handleKeyEvent({
+  bool handleKeyEvent({
     required KeyEvent event,
     bool isEnabled = true,
     bool isModalActive = false,
     required void Function(AppShortcutAction action) onAction,
   }) {
-    if (!isEnabled) return false;
+    // A focused InkWell can activate on key up. Consume the complete key
+    // sequence so Space never also activates a focused account button.
+    if (event is KeyUpEvent) {
+      return _handledKeys.remove(event.physicalKey);
+    }
+    if (event is KeyRepeatEvent) {
+      return _handledKeys.contains(event.physicalKey);
+    }
     if (event is! KeyDownEvent) return false;
+    if (_handledKeys.contains(event.physicalKey)) return true;
+    if (!isEnabled) return false;
 
     // 1. 处于输入法或输入框上下文中时，绝对不拦截任何按键
     if (isEditableFocused()) return false;
@@ -43,24 +54,19 @@ abstract final class AppShortcutService {
 
     // 硬件多媒体按键支持
     if (key == LogicalKeyboardKey.mediaPlayPause) {
-      onAction(AppShortcutAction.togglePlay);
-      return true;
+      return _handle(event, AppShortcutAction.togglePlay, onAction);
     }
     if (key == LogicalKeyboardKey.mediaTrackPrevious) {
-      onAction(AppShortcutAction.playPrevious);
-      return true;
+      return _handle(event, AppShortcutAction.playPrevious, onAction);
     }
     if (key == LogicalKeyboardKey.mediaTrackNext) {
-      onAction(AppShortcutAction.playNext);
-      return true;
+      return _handle(event, AppShortcutAction.playNext, onAction);
     }
     if (key == LogicalKeyboardKey.audioVolumeUp) {
-      onAction(AppShortcutAction.volumeUp);
-      return true;
+      return _handle(event, AppShortcutAction.volumeUp, onAction);
     }
     if (key == LogicalKeyboardKey.audioVolumeDown) {
-      onAction(AppShortcutAction.volumeDown);
-      return true;
+      return _handle(event, AppShortcutAction.volumeDown, onAction);
     }
 
     final isCtrl = HardwareKeyboard.instance.isControlPressed;
@@ -71,31 +77,36 @@ abstract final class AppShortcutService {
     // 无修饰键：Space 播放/暂停
     if (!isCtrl && !isAlt && !isShift && !isMeta) {
       if (key == LogicalKeyboardKey.space) {
-        onAction(AppShortcutAction.togglePlay);
-        return true;
+        return _handle(event, AppShortcutAction.togglePlay, onAction);
       }
     }
 
     // Ctrl + 方向键（上一首、下一首、音量加减）
     if (isCtrl && !isAlt && !isShift && !isMeta) {
       if (key == LogicalKeyboardKey.arrowLeft) {
-        onAction(AppShortcutAction.playPrevious);
-        return true;
+        return _handle(event, AppShortcutAction.playPrevious, onAction);
       }
       if (key == LogicalKeyboardKey.arrowRight) {
-        onAction(AppShortcutAction.playNext);
-        return true;
+        return _handle(event, AppShortcutAction.playNext, onAction);
       }
       if (key == LogicalKeyboardKey.arrowUp) {
-        onAction(AppShortcutAction.volumeUp);
-        return true;
+        return _handle(event, AppShortcutAction.volumeUp, onAction);
       }
       if (key == LogicalKeyboardKey.arrowDown) {
-        onAction(AppShortcutAction.volumeDown);
-        return true;
+        return _handle(event, AppShortcutAction.volumeDown, onAction);
       }
     }
 
     return false;
+  }
+
+  bool _handle(
+    KeyDownEvent event,
+    AppShortcutAction action,
+    void Function(AppShortcutAction action) onAction,
+  ) {
+    _handledKeys.add(event.physicalKey);
+    onAction(action);
+    return true;
   }
 }

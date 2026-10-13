@@ -7,6 +7,102 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('AppShortcutService - key event handling', () {
+    late AppShortcutService shortcuts;
+
+    setUp(() => shortcuts = AppShortcutService());
+    testWidgets('player shortcuts do not activate a focused account button', (
+      tester,
+    ) async {
+      var accountOpens = 0;
+      final actions = <AppShortcutAction>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: InkWell(
+              autofocus: true,
+              onTap: () => accountOpens++,
+              child: const Text('Account'),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      KeyEventResult handle(KeyEvent event) {
+        final handled = shortcuts.handleKeyEvent(
+          event: event,
+          onAction: actions.add,
+        );
+        return handled ? KeyEventResult.handled : KeyEventResult.ignored;
+      }
+
+      FocusManager.instance.addEarlyKeyEventHandler(handle);
+      try {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        for (final key in [
+          LogicalKeyboardKey.arrowRight,
+          LogicalKeyboardKey.arrowLeft,
+          LogicalKeyboardKey.arrowUp,
+          LogicalKeyboardKey.arrowDown,
+        ]) {
+          await tester.sendKeyDownEvent(key);
+          await tester.sendKeyUpEvent(key);
+        }
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.space);
+        await tester.pump();
+        expect(actions, [
+          AppShortcutAction.playNext,
+          AppShortcutAction.playPrevious,
+          AppShortcutAction.volumeUp,
+          AppShortcutAction.volumeDown,
+          AppShortcutAction.togglePlay,
+        ]);
+        expect(accountOpens, 0);
+      } finally {
+        FocusManager.instance.removeEarlyKeyEventHandler(handle);
+      }
+    });
+
+    testWidgets('consumes repeat and release without repeating an action', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: Scaffold()));
+      var actions = 0;
+      void onAction(AppShortcutAction _) => actions++;
+      const down = KeyDownEvent(
+        physicalKey: PhysicalKeyboardKey.space,
+        logicalKey: LogicalKeyboardKey.space,
+        timeStamp: Duration.zero,
+      );
+      const repeat = KeyRepeatEvent(
+        physicalKey: PhysicalKeyboardKey.space,
+        logicalKey: LogicalKeyboardKey.space,
+        timeStamp: Duration.zero,
+      );
+      const up = KeyUpEvent(
+        physicalKey: PhysicalKeyboardKey.space,
+        logicalKey: LogicalKeyboardKey.space,
+        timeStamp: Duration.zero,
+      );
+
+      expect(shortcuts.handleKeyEvent(event: down, onAction: onAction), isTrue);
+      expect(
+        shortcuts.handleKeyEvent(event: repeat, onAction: onAction),
+        isTrue,
+      );
+      expect(
+        shortcuts.handleKeyEvent(
+          event: up,
+          isModalActive: true,
+          onAction: onAction,
+        ),
+        isTrue,
+      );
+      expect(shortcuts.handleKeyEvent(event: up, onAction: onAction), isFalse);
+      expect(actions, 1);
+    });
+
     testWidgets(
       'triggers togglePlay on Space key when not in editable context',
       (tester) async {
@@ -17,7 +113,7 @@ void main() {
         );
 
         AppShortcutAction? capturedAction;
-        final consumed = AppShortcutService.handleKeyEvent(
+        final consumed = shortcuts.handleKeyEvent(
           event: const KeyDownEvent(
             physicalKey: PhysicalKeyboardKey.space,
             logicalKey: LogicalKeyboardKey.space,
@@ -54,7 +150,7 @@ void main() {
         expect(AppShortcutService.isEditableFocused(), isTrue);
 
         AppShortcutAction? capturedAction;
-        final consumed = AppShortcutService.handleKeyEvent(
+        final consumed = shortcuts.handleKeyEvent(
           event: const KeyDownEvent(
             physicalKey: PhysicalKeyboardKey.space,
             logicalKey: LogicalKeyboardKey.space,
@@ -80,7 +176,7 @@ void main() {
       );
 
       AppShortcutAction? capturedAction;
-      final consumed = AppShortcutService.handleKeyEvent(
+      final consumed = shortcuts.handleKeyEvent(
         event: const KeyDownEvent(
           physicalKey: PhysicalKeyboardKey.space,
           logicalKey: LogicalKeyboardKey.space,
@@ -102,7 +198,7 @@ void main() {
       );
 
       AppShortcutAction? capturedAction;
-      final consumed = AppShortcutService.handleKeyEvent(
+      final consumed = shortcuts.handleKeyEvent(
         event: const KeyDownEvent(
           physicalKey: PhysicalKeyboardKey.space,
           logicalKey: LogicalKeyboardKey.space,
@@ -134,7 +230,7 @@ void main() {
 
       for (final entry in mediaKeys.entries) {
         AppShortcutAction? capturedAction;
-        final consumed = AppShortcutService.handleKeyEvent(
+        final consumed = shortcuts.handleKeyEvent(
           event: KeyDownEvent(
             physicalKey: PhysicalKeyboardKey.mediaPlayPause,
             logicalKey: entry.key,
@@ -146,6 +242,17 @@ void main() {
 
         expect(consumed, isTrue);
         expect(capturedAction, equals(entry.value));
+        expect(
+          shortcuts.handleKeyEvent(
+            event: KeyUpEvent(
+              physicalKey: PhysicalKeyboardKey.mediaPlayPause,
+              logicalKey: entry.key,
+              timeStamp: Duration.zero,
+            ),
+            onAction: (_) {},
+          ),
+          isTrue,
+        );
       }
     });
 
@@ -171,7 +278,7 @@ void main() {
 
       for (final key in removedKeys) {
         AppShortcutAction? capturedAction;
-        final consumed = AppShortcutService.handleKeyEvent(
+        final consumed = shortcuts.handleKeyEvent(
           event: KeyDownEvent(
             physicalKey: PhysicalKeyboardKey.keyA,
             logicalKey: key,
