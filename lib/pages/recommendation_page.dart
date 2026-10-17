@@ -1095,7 +1095,7 @@ class _CoverStack extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final covers = songs.take(3).toList();
+    final covers = songs.take(3).toList().reversed.toList();
     if (covers.isEmpty) {
       return Center(
         child: Icon(
@@ -1120,7 +1120,9 @@ class _CoverStack extends StatelessWidget {
                   boxShadow: AppShadows.card,
                 ),
                 child: AlbumArt(
-                  size: index == 1 ? 104 : 92,
+                  size: index == covers.length - 1
+                      ? 100
+                      : (index == 1 ? 104 : 92),
                   imageUrl: covers[index].coverUrl,
                 ),
               ),

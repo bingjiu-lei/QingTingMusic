@@ -661,17 +661,26 @@ class _MusicShellState extends State<MusicShell>
       final shouldLogin = await showDialog<bool>(
         context: context,
         barrierDismissible: true,
-        builder: (context) => AlertDialog(
-          title: const Text('登录已过期'),
-          content: const Text('当前登录信息已失效，为了账号安全，请重新登录。'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('稍后再说'),
+        builder: (dialogContext) => AppDialog(
+          icon: Icons.lock_clock_rounded,
+          title: '登录已过期',
+          content: Text(
+            '当前登录信息已失效，为了账号安全，请重新登录。',
+            style: TextStyle(
+              color: AppColors.muted,
+              fontSize: 13.5,
+              height: 1.5,
             ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('重新登录'),
+          ),
+          actions: [
+            AppDialogButton.ghost(
+              label: '稍后再说',
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+            ),
+            const SizedBox(width: 8),
+            AppDialogButton.primary(
+              label: '重新登录',
+              onPressed: () => Navigator.of(dialogContext).pop(true),
             ),
           ],
         ),
