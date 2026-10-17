@@ -2,8 +2,14 @@ import '../models/song.dart';
 import '../models/lyric.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
+import '../models/artist_directory.dart';
+import '../models/rank_chart_item.dart';
 
 abstract interface class MusicRepository {
+  Future<ArtistDirectory> getArtistDirectory({int type = 0, int sexType = 0});
+  Future<List<RankChartItem>> getAllRanks();
+  Future<List<RankChartItem>> getFeaturedRanks();
+  Future<List<Song>> getRankSongs(int rankId, {int pageSize = 50});
   Future<List<Song>> getHotSongs();
 
   Future<List<Song>> getNewSongs();

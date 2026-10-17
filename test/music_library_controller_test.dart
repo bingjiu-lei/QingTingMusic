@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qing_ting_music/controllers/music_library_controller.dart';
 import 'package:qing_ting_music/data/music_repository.dart';
+import 'package:qing_ting_music/models/artist_directory.dart';
+import 'package:qing_ting_music/models/rank_chart_item.dart';
 import 'package:qing_ting_music/models/lyric.dart';
 import 'package:qing_ting_music/models/music_playlist.dart';
 import 'package:qing_ting_music/models/search_catalog_item.dart';
@@ -551,12 +553,7 @@ void main() {
       // Unassociated cloud song with identical title and artist must NOT match regular favorite song
       expect(
         controller.isFavorite(
-          _song(
-            'cloud-unmatched',
-            title: '夜曲',
-            artist: '周杰伦',
-            isCloud: true,
-          ),
+          _song('cloud-unmatched', title: '夜曲', artist: '周杰伦', isCloud: true),
         ),
         isFalse,
       );
@@ -734,14 +731,28 @@ class _FakeMusicLibraryCacheService extends MusicLibraryCacheService {
 MusicLibraryController _controller(
   MusicRepository repository, {
   FavoriteMvService? favoriteMvService,
-}) =>
-    MusicLibraryController(
-      repository,
-      cacheService: _FakeMusicLibraryCacheService(),
-      favoriteMvService: favoriteMvService,
-    );
+}) => MusicLibraryController(
+  repository,
+  cacheService: _FakeMusicLibraryCacheService(),
+  favoriteMvService: favoriteMvService,
+);
 
 class _FakeMusicRepository implements MusicRepository {
+  @override
+  Future<ArtistDirectory> getArtistDirectory({
+    int type = 0,
+    int sexType = 0,
+  }) async => const ArtistDirectory([]);
+
+  @override
+  Future<List<RankChartItem>> getAllRanks() async => const [];
+
+  @override
+  Future<List<RankChartItem>> getFeaturedRanks() async => const [];
+
+  @override
+  Future<List<Song>> getRankSongs(int rankId, {int pageSize = 50}) async =>
+      const [];
   _FakeMusicRepository({
     this.playlists = const [],
     List<Song> favoriteSongs = const [],

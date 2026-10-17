@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -21,6 +20,7 @@ import '../models/song.dart';
 import '../models/lyric.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
+import '../models/rank_chart_item.dart';
 import '../models/app_update.dart';
 import '../services/audio_player_service.dart';
 import '../services/app_preferences_service.dart';
@@ -105,6 +105,7 @@ class _MusicShellState extends State<MusicShell>
   MusicPlaylist? detailPlaylist;
   MusicPlaylist? _currentPlayingPlaylist;
   SearchCatalogItem? detailCatalogItem;
+  RankChartItem? detailRank;
   String? detailIdentity;
   String? detailStorageKeyPrefix;
   int _detailStorageEpoch = 0;
@@ -219,8 +220,10 @@ class _MusicShellState extends State<MusicShell>
     playerController.onDurationDetected = (song, duration) {
       libraryController.updateSongDuration(song, duration);
     };
-    recommendationController = RecommendationController(repository)
-      ..addListener(_refresh);
+    recommendationController = RecommendationController(
+      repository,
+      preferences: _preferences,
+    )..addListener(_refresh);
     updateController = UpdateController()..addListener(_refresh);
     _loadWindowPreferences();
     _loadDeveloperMode();
@@ -797,6 +800,7 @@ class _MusicShellState extends State<MusicShell>
         detailPlaylist = null;
         _currentPlayingPlaylist = null;
         detailCatalogItem = null;
+        detailRank = null;
         detailIdentity = null;
         detailStorageKeyPrefix = null;
         detailSelectedTab = 0;
@@ -899,12 +903,101 @@ class _MusicShellState extends State<MusicShell>
       detailPlaylist = null;
       _currentPlayingPlaylist = null;
       detailCatalogItem = null;
+      detailRank = null;
       detailIdentity =
           'recommendation:daily:${DateTime.now().toIso8601String().substring(0, 10)}';
       detailStorageKeyPrefix = detailIdentity;
       detailSelectedTab = 0;
       detailHistory.clear();
     });
+  }
+
+  Future<void> _openRankDetail(RankChartItem rank) async {
+    final identity = 'rank:${rank.rankId}';
+    if (detailIdentity == identity) return;
+    final storageKeyPrefix = '$identity:${++_detailStorageEpoch}';
+    setState(() {
+      _pushCurrentDetail();
+      detailTitle = rank.cleanName;
+      detailSubtitle = '精选榜单';
+      detailHeaderArtistName = null;
+      detailImageUrl = rank.coverUrl;
+      detailSongs = [];
+      detailRelatedItems = const [];
+      detailSimilarArtists = const [];
+      detailRelatedLoadingMore = false;
+      detailRelatedHasMore = false;
+      detailLoading = true;
+      detailKind = CollectionDetailKind.playlist;
+      detailPlaylist = null;
+      _currentPlayingPlaylist = null;
+      detailCatalogItem = null;
+      detailRank = rank;
+      detailIdentity = identity;
+      detailStorageKeyPrefix = storageKeyPrefix;
+      detailSelectedTab = 0;
+    });
+    try {
+      final songs = await repository.getRankSongs(rank.rankId);
+      if (detailIdentity != identity) return;
+      setState(() {
+        detailSongs = songs;
+        if ((detailImageUrl == null || detailImageUrl!.isEmpty) &&
+            songs.isNotEmpty) {
+          detailImageUrl = songs
+              .map((s) => s.coverUrl?.trim() ?? '')
+              .firstWhere((u) => u.isNotEmpty, orElse: () => '');
+        }
+        detailLoading = false;
+      });
+    } catch (_) {
+      if (detailIdentity != identity) return;
+      setState(() => detailLoading = false);
+    }
+  }
+
+  Future<void> _switchRankDetail(RankChartItem rank) async {
+    final identity = 'rank:${rank.rankId}';
+    if (detailIdentity == identity) return;
+    unawaited(recommendationController.selectRank(rank));
+    final storageKeyPrefix = '$identity:${++_detailStorageEpoch}';
+    setState(() {
+      detailTitle = rank.cleanName;
+      detailSubtitle = '精选榜单';
+      detailHeaderArtistName = null;
+      detailImageUrl = rank.coverUrl;
+      detailSongs = [];
+      detailRelatedItems = const [];
+      detailSimilarArtists = const [];
+      detailRelatedLoadingMore = false;
+      detailRelatedHasMore = false;
+      detailLoading = true;
+      detailKind = CollectionDetailKind.playlist;
+      detailPlaylist = null;
+      _currentPlayingPlaylist = null;
+      detailCatalogItem = null;
+      detailRank = rank;
+      detailIdentity = identity;
+      detailStorageKeyPrefix = storageKeyPrefix;
+      detailSelectedTab = 0;
+    });
+    try {
+      final songs = await repository.getRankSongs(rank.rankId);
+      if (detailIdentity != identity) return;
+      setState(() {
+        detailSongs = songs;
+        if ((detailImageUrl == null || detailImageUrl!.isEmpty) &&
+            songs.isNotEmpty) {
+          detailImageUrl = songs
+              .map((s) => s.coverUrl?.trim() ?? '')
+              .firstWhere((u) => u.isNotEmpty, orElse: () => '');
+        }
+        detailLoading = false;
+      });
+    } catch (_) {
+      if (detailIdentity != identity) return;
+      setState(() => detailLoading = false);
+    }
   }
 
   Future<void> _showLogin() async {
@@ -1061,6 +1154,7 @@ class _MusicShellState extends State<MusicShell>
           : CollectionDetailKind.album;
       detailPlaylist = null;
       detailCatalogItem = item;
+      detailRank = null;
       detailIdentity = identity;
       detailStorageKeyPrefix = storageKeyPrefix;
       detailSelectedTab = 0;
@@ -1253,6 +1347,7 @@ class _MusicShellState extends State<MusicShell>
               playlist.kind == MusicPlaylistKind.album
           ? _catalogFromPlaylist(playlist)
           : null;
+      detailRank = null;
       detailIdentity = identity;
       detailStorageKeyPrefix = storageKeyPrefix;
       detailSelectedTab = 0;
@@ -1916,6 +2011,7 @@ class _MusicShellState extends State<MusicShell>
         kind: detailKind,
         playlist: detailPlaylist,
         catalogItem: detailCatalogItem,
+        rank: detailRank,
         storageKeyPrefix: detailStorageKeyPrefix,
         selectedTab: detailSelectedTab,
       ),
@@ -1929,6 +2025,7 @@ class _MusicShellState extends State<MusicShell>
         detailHeaderArtistName = null;
         detailPlaylist = null;
         detailCatalogItem = null;
+        detailRank = null;
         detailIdentity = null;
         detailStorageKeyPrefix = null;
         detailSelectedTab = 0;
@@ -1964,6 +2061,7 @@ class _MusicShellState extends State<MusicShell>
       detailKind = previous.kind;
       detailPlaylist = previous.playlist;
       detailCatalogItem = previous.catalogItem;
+      detailRank = previous.rank;
       detailStorageKeyPrefix = previous.storageKeyPrefix;
       detailSelectedTab = previous.selectedTab;
     });
@@ -2343,6 +2441,9 @@ class _MusicShellState extends State<MusicShell>
         onToggleCollection: collectionItem == null
             ? null
             : () => _toggleCatalogCollection(collectionItem),
+        currentRank: detailRank,
+        allRanks: recommendationController.allRanks,
+        onSwitchRank: _switchRankDetail,
       );
     }
     return switch (selectedIndex) {
@@ -2384,6 +2485,8 @@ class _MusicShellState extends State<MusicShell>
         onPlay: _playSong,
         onPlayFm: _playFmSong,
         onOpenDaily: _openDailyRecommendations,
+        onOpenArtist: _openCatalog,
+        onOpenRank: _openRankDetail,
       ),
       _ => SettingsPage(
         themeController: widget.themeController,
@@ -2397,6 +2500,7 @@ class _MusicShellState extends State<MusicShell>
         onEndpointChanged: () {
           libraryController.invalidateLoadedState();
           searchController.invalidateCachedResults();
+          recommendationController.invalidateArtistDirectory();
           unawaited(libraryController.ensureLoaded(LibrarySection.songs));
         },
         onDeveloperModeChanged: _setDeveloperMode,
@@ -2559,6 +2663,7 @@ class _DetailSnapshot {
     required this.kind,
     required this.playlist,
     required this.catalogItem,
+    this.rank,
     required this.storageKeyPrefix,
     required this.selectedTab,
   });
@@ -2582,6 +2687,7 @@ class _DetailSnapshot {
   final CollectionDetailKind kind;
   final MusicPlaylist? playlist;
   final SearchCatalogItem? catalogItem;
+  final RankChartItem? rank;
   final String? storageKeyPrefix;
   final int selectedTab;
 }

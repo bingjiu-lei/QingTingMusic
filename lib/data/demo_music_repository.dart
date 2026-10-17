@@ -3,8 +3,81 @@ import '../models/lyric.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 import 'music_repository.dart';
+import '../models/artist_directory.dart';
+import '../models/rank_chart_item.dart';
 
 class DemoMusicRepository implements MusicRepository {
+  @override
+  Future<ArtistDirectory> getArtistDirectory({
+    int type = 0,
+    int sexType = 0,
+  }) async => const ArtistDirectory([]);
+
+  @override
+  Future<List<RankChartItem>> getAllRanks() async => const [
+    RankChartItem(
+      rankId: 8888,
+      rankName: 'TOP500',
+      coverUrl: '',
+      topSongs: [
+        '1. 少年锦时 - 赵雷',
+        '2. Imagine - John Lennon',
+        '3. 故乡 - 叶启田',
+        '4. 晴天 - 周杰伦',
+      ],
+      groupName: '官方榜',
+    ),
+    RankChartItem(
+      rankId: 6666,
+      rankName: '飙升榜',
+      coverUrl: '',
+      topSongs: [
+        '1. 晴天 - 周杰伦',
+        '2. 起风了 - 买辣椒也用券',
+        '3. 蓝莲花 - 许巍',
+        '4. 少年锦时 - 赵雷',
+      ],
+      groupName: '官方榜',
+    ),
+    RankChartItem(
+      rankId: 31308,
+      rankName: '新歌榜',
+      coverUrl: '',
+      topSongs: [
+        '1. 新歌一 - 歌手A',
+        '2. 新歌二 - 歌手B',
+        '3. 新歌三 - 歌手C',
+        '4. 新歌四 - 歌手D',
+      ],
+      groupName: '官方榜',
+    ),
+    RankChartItem(
+      rankId: 24971,
+      rankName: '民谣榜',
+      coverUrl: '',
+      topSongs: ['1. 南山南 - 马頔', '2. 安和桥 - 宋冬野', '3. 成都 - 赵雷', '4. 理想三旬 - 陈鸿宇'],
+      groupName: '特色榜',
+    ),
+    RankChartItem(
+      rankId: 4681,
+      rankName: '欧美金曲榜',
+      coverUrl: '',
+      topSongs: [
+        '1. Shape of You - Ed Sheeran',
+        '2. Rolling in the Deep - Adele',
+        '3. Blank Space - Taylor Swift',
+        '4. Closer - The Chainsmokers',
+      ],
+      groupName: '全球榜',
+    ),
+  ];
+
+  @override
+  Future<List<RankChartItem>> getFeaturedRanks() async => getAllRanks();
+
+  @override
+  Future<List<Song>> getRankSongs(int rankId, {int pageSize = 50}) async =>
+      songs;
   static const songs = [
     Song(
       id: 'zhao-lei-shao-nian-jin-shi',

@@ -4,11 +4,28 @@ import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 import '../services/kugou_api_client.dart';
 import 'music_repository.dart';
+import '../models/artist_directory.dart';
+import '../models/rank_chart_item.dart';
 
 class KugouMusicRepository implements MusicRepository {
   KugouMusicRepository(this.apiClient);
 
   final KugouApiClient apiClient;
+
+  @override
+  Future<ArtistDirectory> getArtistDirectory({int type = 0, int sexType = 0}) =>
+      apiClient.getArtistDirectory(type: type, sexType: sexType);
+
+  @override
+  Future<List<RankChartItem>> getAllRanks() => apiClient.getAllRanks();
+
+  @override
+  Future<List<RankChartItem>> getFeaturedRanks() =>
+      apiClient.getFeaturedRanks();
+
+  @override
+  Future<List<Song>> getRankSongs(int rankId, {int pageSize = 50}) =>
+      apiClient.getRankSongs(rankId, pageSize: pageSize);
 
   @override
   Future<List<Song>> getHotSongs() async => const [];

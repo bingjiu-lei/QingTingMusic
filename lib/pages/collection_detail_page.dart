@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import '../models/song.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
+import '../models/rank_chart_item.dart';
 import '../theme/app_theme.dart';
 import '../widgets/album_art.dart';
 import '../widgets/glass.dart';
+import '../widgets/rank_picker_dialog.dart';
 import '../widgets/search_catalog_list.dart';
 import '../widgets/song_panel.dart';
 
@@ -52,6 +54,9 @@ class CollectionDetailPage extends StatefulWidget {
     this.releaseDate,
     this.enableMvFeature = true,
     this.onRefresh,
+    this.currentRank,
+    this.allRanks,
+    this.onSwitchRank,
   });
 
   final CollectionDetailKind kind;
@@ -92,6 +97,9 @@ class CollectionDetailPage extends StatefulWidget {
   final VoidCallback? onDeletePlaylist;
   final String? releaseDate;
   final bool enableMvFeature;
+  final RankChartItem? currentRank;
+  final List<RankChartItem>? allRanks;
+  final ValueChanged<RankChartItem>? onSwitchRank;
 
   List<String> get tabs => switch (kind) {
     CollectionDetailKind.playlist => const ['歌曲'],
@@ -284,6 +292,17 @@ class _CollectionDetailPageState extends State<CollectionDetailPage> {
                                 onTap: () => widget.onPlayAll(_activeTabSongs),
                                 songCount: _activeTabSongs.length,
                                 size: 36,
+                              ),
+                            if (widget.currentRank != null &&
+                                widget.onSwitchRank != null)
+                              _RankSelectorButton(
+                                rank: widget.currentRank!,
+                                onTap: () => showRankPickerDialog(
+                                  context: context,
+                                  ranks: widget.allRanks ?? const [],
+                                  selectedRank: widget.currentRank,
+                                  onSelect: widget.onSwitchRank!,
+                                ),
                               ),
                             if (widget.collectionItem != null)
                               AppIconButton.filled(
@@ -950,4 +969,78 @@ String _facetArtistLabel(String value) {
     return '群星';
   }
   return cleaned;
+}
+
+class _RankSelectorButton extends StatefulWidget {
+  const _RankSelectorButton({required this.rank, required this.onTap});
+
+  final RankChartItem rank;
+  final VoidCallback onTap;
+
+  @override
+  State<_RankSelectorButton> createState() => _RankSelectorButtonState();
+}
+
+class _RankSelectorButtonState extends State<_RankSelectorButton> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = AppColors.isDark;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 120),
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: _hovered
+                ? AppColors.primary.withValues(alpha: isDark ? 0.18 : 0.10)
+                : AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.045),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+            border: Border.all(
+              color: _hovered
+                  ? AppColors.primary.withValues(alpha: isDark ? 0.38 : 0.22)
+                  : AppColors.primary.withValues(alpha: isDark ? 0.16 : 0.10),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.leaderboard_rounded,
+                size: 15,
+                color: AppColors.primary,
+              ),
+              const SizedBox(width: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 160),
+                child: Text(
+                  widget.rank.cleanName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: _hovered ? AppColors.primaryPressed : AppColors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.keyboard_arrow_down_rounded,
+                size: 16,
+                color: _hovered ? AppColors.primary : AppColors.muted,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

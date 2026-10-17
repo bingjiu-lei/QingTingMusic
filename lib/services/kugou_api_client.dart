@@ -7,6 +7,8 @@ import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 
 import '../models/kugou_session.dart';
+import '../models/artist_directory.dart';
+import '../models/rank_chart_item.dart';
 import '../models/lyric.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
@@ -567,6 +569,106 @@ class KugouApiClient {
         .map((value) => _catalogItem(value, category))
         .whereType<SearchCatalogItem>()
         .toList();
+  }
+
+  Future<ArtistDirectory> getArtistDirectory({
+    int type = 0,
+    int sexType = 0,
+  }) async {
+    final response = await _get(
+      '/artist/lists',
+      queryParameters: {'type': type, 'sextype': sexType, 'hotsize': 100},
+    );
+    final body = _map(response.data);
+    final data = _map(body['data']);
+    final groups = <ArtistGroup>[];
+    for (final value in _list(data['info'])) {
+      final group = _map(value);
+      final title = _read(group, ['title']);
+      if (title.isEmpty) continue;
+      final artists = <SearchCatalogItem>[];
+      for (final entry in _list(group['singer'])) {
+        final artist = _catalogItem(entry, SearchCategory.artist);
+        if (artist != null) artists.add(artist);
+      }
+      groups.add(ArtistGroup(title, artists));
+    }
+    return ArtistDirectory(groups);
+  }
+
+  List<RankChartItem>? _cachedAllRanks;
+
+  Future<List<RankChartItem>> getAllRanks({bool refresh = false}) async {
+    if (!refresh && _cachedAllRanks != null && _cachedAllRanks!.isNotEmpty) {
+      return _cachedAllRanks!;
+    }
+    final response = await _get(
+      '/rank/list',
+      queryParameters: {'plat': 2, 'withsong': 1, 'parentid': 0},
+    );
+    final body = _map(response.data);
+    final data = _map(body['data']);
+    final rawList = data['info'] is List
+        ? data['info'] as List
+        : (body['info'] is List ? body['info'] as List : const []);
+    final results = <RankChartItem>[];
+
+    for (final item in rawList) {
+      final r = _map(item);
+      final id = _toInt(r['rankid'] ?? r['id']);
+      final name = _read(r, ['rankname', 'name', 'title']);
+      final rawImg = _read(r, ['imgurl', 'pic', 'cover']);
+      final coverUrl = rawImg.replaceAll('{size}', '240');
+      final group = _read(r, ['rank_type_name', 'type_name', 'group', 'category_name']);
+      final songInfoList = _list(r['songinfo']);
+      final topSongs = <String>[];
+      for (var i = 0; i < songInfoList.length && i < 4; i++) {
+        final s = _map(songInfoList[i]);
+        final songName = _read(s, ['songname', 'name', 'title']);
+        final author = _read(s, ['author', 'singername', 'singer_name']);
+        if (songName.isNotEmpty) {
+          final title = author.isNotEmpty && !songName.contains(author)
+              ? '$songName - $author'
+              : songName;
+          topSongs.add('${i + 1}. $title');
+        }
+      }
+      if (id != 0 && name.isNotEmpty) {
+        results.add(
+          RankChartItem(
+            rankId: id,
+            rankName: name,
+            coverUrl: coverUrl,
+            topSongs: topSongs,
+            groupName: group,
+          ),
+        );
+      }
+    }
+    _cachedAllRanks = results;
+    return results;
+  }
+
+  Future<List<RankChartItem>> getFeaturedRanks() => getAllRanks();
+
+  Future<List<Song>> getRankSongs(int rankId, {int pageSize = 50}) async {
+    final response = await _get(
+      '/rank/audio',
+      queryParameters: {'rankid': rankId, 'pagesize': pageSize},
+    );
+    final body = _map(response.data);
+    final data = _map(body['data']);
+    final songlist = _list(
+      data['songlist'] is List && (data['songlist'] as List).isNotEmpty
+          ? data['songlist']
+          : data['info'],
+    );
+    final songs = <Song>[];
+    for (final item in songlist) {
+      final s = _songFromCollection(item, liked: false, cloud: false);
+      if (s != null) songs.add(s);
+    }
+    return songs;
   }
 
   Future<List<Song>> getCatalogSongs(SearchCatalogItem item) async {
@@ -2928,6 +3030,7 @@ class KugouApiClient {
   }
 
   String _artistImageUrl(Map<String, Object?> json) {
+    final dynamicCover = _map(json['dycover']);
     return _normalizeArtistImageUrl(
       _read(json, [
         'Avatar',
@@ -2935,9 +3038,10 @@ class KugouApiClient {
         'singer_img',
         'author_pic',
         'sizable_cover',
+        'imgurl',
         'img',
         'pic',
-      ]),
+      ], fallback: _read(dynamicCover, ['first_frame_image'])),
     );
   }
 

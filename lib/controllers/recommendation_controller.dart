@@ -1,13 +1,204 @@
 import 'package:flutter/foundation.dart';
 
 import '../data/music_repository.dart';
+import 'dart:async';
+
+import '../models/artist_directory.dart';
+import '../models/rank_chart_item.dart';
 import '../models/song.dart';
+import '../services/app_preferences_service.dart';
 import '../services/kugou_api_client.dart';
 
 class RecommendationController extends ChangeNotifier {
-  RecommendationController(this.repository);
+  RecommendationController(
+    this.repository, {
+    AppPreferencesService? preferences,
+  }) : _preferences = preferences ?? AppPreferencesService();
 
   final MusicRepository repository;
+  final AppPreferencesService _preferences;
+
+  static const String _prefSelectedRankId = 'selected_rank_id';
+  static const int _defaultRankId = 8888; // TOP500
+
+  int selectedTab = 0;
+  int artistType = 0;
+  int artistSexType = 0;
+  String artistLetter = '全部';
+  ArtistDirectory? artistDirectory;
+  bool loadingArtists = false;
+  String? artistError;
+  int _artistRequestVersion = 0;
+
+  void selectTab(int tab) {
+    if (selectedTab == tab) return;
+    selectedTab = tab;
+    notifyListeners();
+    if (tab == 1 && artistDirectory == null) loadArtists();
+  }
+
+  void selectArtistType(int value) {
+    if (artistType == value) return;
+    artistType = value;
+    artistLetter = '全部';
+    loadArtists();
+  }
+
+  void selectArtistSexType(int value) {
+    if (artistSexType == value) return;
+    artistSexType = value;
+    artistLetter = '全部';
+    loadArtists();
+  }
+
+  void selectArtistLetter(String letter) {
+    if (artistLetter == letter) return;
+    artistLetter = letter;
+    notifyListeners();
+  }
+
+  final Map<String, ArtistDirectory> _artistCache = {};
+
+  String get _currentCacheKey => '$artistType:$artistSexType';
+
+  void invalidateArtistDirectory() {
+    _artistRequestVersion++;
+    _artistCache.clear();
+    artistDirectory = null;
+    artistError = null;
+    loadingArtists = false;
+    if (selectedTab == 1) {
+      loadArtists(refresh: true);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadArtists({bool refresh = false}) async {
+    final cacheKey = _currentCacheKey;
+    if (!refresh && _artistCache.containsKey(cacheKey)) {
+      artistDirectory = _artistCache[cacheKey];
+      artistError = null;
+      loadingArtists = false;
+      notifyListeners();
+      return;
+    }
+    final request = ++_artistRequestVersion;
+    loadingArtists = true;
+    artistError = null;
+    notifyListeners();
+    try {
+      final result = await repository.getArtistDirectory(
+        type: artistType,
+        sexType: artistSexType,
+      );
+      if (request != _artistRequestVersion) return;
+      _artistCache[cacheKey] = result;
+      artistDirectory = result;
+      if (result.groups.isEmpty) artistError = '暂时没有找到歌手';
+    } catch (_) {
+      if (request != _artistRequestVersion) return;
+      artistError = '歌手列表加载失败，请稍后重试';
+    } finally {
+      if (request == _artistRequestVersion) {
+        loadingArtists = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  List<RankChartItem> allRanks = const [];
+  RankChartItem? activeRank;
+  List<Song> activeRankSongs = const [];
+  bool loadingActiveRank = false;
+  String? activeRankError;
+  int _activeRankRequestVersion = 0;
+
+  List<RankChartItem> get featuredRanks => allRanks;
+  bool get loadingRanks => loadingActiveRank;
+  String? get ranksError => activeRankError;
+
+  Future<void> initActiveRank({bool refresh = false}) async {
+    if (activeRank != null && !refresh && activeRankSongs.isNotEmpty) return;
+    final request = ++_activeRankRequestVersion;
+    loadingActiveRank = true;
+    activeRankError = null;
+    notifyListeners();
+
+    try {
+      if (allRanks.isEmpty || refresh) {
+        allRanks = await repository.getAllRanks();
+      }
+
+      int targetRankId = _defaultRankId;
+      final stored = await _preferences.read(_prefSelectedRankId);
+      if (stored is int) {
+        targetRankId = stored;
+      } else if (stored is String) {
+        targetRankId = int.tryParse(stored) ?? _defaultRankId;
+      }
+
+      RankChartItem? matched;
+      for (final r in allRanks) {
+        if (r.rankId == targetRankId) {
+          matched = r;
+          break;
+        }
+      }
+      if (matched == null && allRanks.isNotEmpty) {
+        matched = allRanks.first;
+      }
+      activeRank = matched;
+
+      if (matched != null) {
+        final songs = await repository.getRankSongs(
+          matched.rankId,
+          pageSize: 50,
+        );
+        if (request != _activeRankRequestVersion) return;
+        activeRankSongs = songs;
+      } else {
+        activeRankSongs = const [];
+      }
+    } catch (_) {
+      if (request != _activeRankRequestVersion) return;
+      activeRankError = '榜单歌曲加载失败，请稍后重试';
+    } finally {
+      if (request == _activeRankRequestVersion) {
+        loadingActiveRank = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> selectRank(RankChartItem rank) async {
+    activeRank = rank;
+    await _preferences.write(_prefSelectedRankId, rank.rankId);
+    final request = ++_activeRankRequestVersion;
+    loadingActiveRank = true;
+    activeRankError = null;
+    notifyListeners();
+
+    try {
+      final songs = await repository.getRankSongs(rank.rankId, pageSize: 50);
+      if (request != _activeRankRequestVersion) return;
+      activeRankSongs = songs;
+    } catch (_) {
+      if (request != _activeRankRequestVersion) return;
+      activeRankError = '榜单歌曲加载失败，请稍后重试';
+    } finally {
+      if (request == _activeRankRequestVersion) {
+        loadingActiveRank = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> loadFeaturedRanks({bool refresh = false}) =>
+      initActiveRank(refresh: refresh);
+
+  Future<List<Song>> getRankSongs(int rankId) =>
+      repository.getRankSongs(rankId);
 
   List<Song> dailySongs = const [];
   List<Song> fmSongs = const [];
@@ -20,6 +211,7 @@ class RecommendationController extends ChangeNotifier {
   int _fmRequestVersion = 0;
 
   Future<void> loadDaily({bool refresh = false}) async {
+    unawaited(initActiveRank(refresh: refresh));
     if (loadingDaily || (!refresh && dailySongs.isNotEmpty)) return;
     loadingDaily = true;
     dailyError = null;
