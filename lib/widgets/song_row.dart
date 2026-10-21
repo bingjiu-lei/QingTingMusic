@@ -374,7 +374,7 @@ class SongArtistLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final artists = _visibleArtists(song);
+    final artists = visibleSongArtists(song);
     final fallbackArtist = _fallbackArtistLabel(song.artist);
     if (artists.isEmpty) {
       return Text(
@@ -451,31 +451,48 @@ class SongArtistLine extends StatelessWidget {
   }
 }
 
-List<SongArtist> _visibleArtists(Song song) {
-  final source = song.artists.isEmpty
-      ? [SongArtist(name: song.artist, id: song.artistId)]
-      : song.artists;
+List<SongArtist> visibleSongArtists(Song song) {
   final result = <SongArtist>[];
   final seen = <String>{};
-  for (final artist in source) {
-    final name = _normalizeArtistName(artist.name);
-    if (!_hasVisibleText(name) ||
-        _isPlaceholderArtist(name) ||
-        !seen.add(name)) {
-      continue;
-    }
-    result.add(SongArtist(name: name, id: artist.id));
-  }
-  if (result.isNotEmpty) return result;
 
-  final fallbackNames = song.artist
-      .split(RegExp(r'\s*/\s*'))
-      .map(_normalizeArtistName)
-      .where((name) => _hasVisibleText(name) && !_isPlaceholderArtist(name));
+  if (song.artists.isNotEmpty) {
+    for (final artist in song.artists) {
+      final name = _normalizeArtistName(artist.name);
+      if (!_hasVisibleText(name) ||
+          _isPlaceholderArtist(name) ||
+          !seen.add(name)) {
+        continue;
+      }
+      result.add(SongArtist(name: name, id: artist.id));
+    }
+    if (result.isNotEmpty) return result;
+  }
+
+  final fallbackNames = splitSongArtistNames(song.artist);
+  final isSingleArtist = fallbackNames.length == 1;
   for (final name in fallbackNames) {
-    if (seen.add(name)) result.add(SongArtist(name: name));
+    if (seen.add(name)) {
+      result.add(
+        SongArtist(name: name, id: isSingleArtist ? song.artistId : null),
+      );
+    }
   }
   return result;
+}
+
+List<String> splitSongArtistNames(String value) {
+  final normalized = value
+      .replaceAll('、', '/')
+      .replaceAll('，', '/')
+      .replaceAll(',', '/')
+      .replaceAll('&', '/')
+      .replaceAll(RegExp(r'\s+feat\.?\s+', caseSensitive: false), '/')
+      .replaceAll(RegExp(r'\s+ft\.?\s+', caseSensitive: false), '/');
+  return normalized
+      .split(RegExp(r'\s*/\s*'))
+      .map(_normalizeArtistName)
+      .where((name) => _hasVisibleText(name) && !_isPlaceholderArtist(name))
+      .toList();
 }
 
 String _artistJoin(List<SongArtist> artists) =>

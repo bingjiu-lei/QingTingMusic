@@ -2607,7 +2607,9 @@ class KugouApiClient {
       coverUrl: image.isEmpty ? null : image.replaceAll('{size}', '240'),
       fileId: _nullableInt(json['fileid']),
       artistId: _nullableInt(
-        json['SingerId'] ?? json['singerid'] ?? json['author_id'],
+        extractedArtists.isNotEmpty && extractedArtists.first.id != null
+            ? extractedArtists.first.id
+            : (json['SingerId'] ?? json['singerid'] ?? json['author_id']),
       ),
       privilege: _nullableInt(json['Privilege'] ?? json['privilege']),
       artists: _displayArtists(artist, extractedArtists),
@@ -2823,11 +2825,14 @@ class KugouApiClient {
         json['kv_id'] ?? json['kvid'] ?? json['fileid'] ?? json['file_id'],
       ),
       artistId: _nullableInt(
-        json['singerid'] ??
-            json['author_id'] ??
-            base['author_id'] ??
-            singerInfo['id'] ??
-            firstAuthor['author_id'],
+        artistList.isNotEmpty && artistList.first.id != null
+            ? artistList.first.id
+            : (json['SingerId'] ??
+                json['singerid'] ??
+                json['author_id'] ??
+                base['author_id'] ??
+                singerInfo['id'] ??
+                firstAuthor['author_id']),
       ),
       artists: _displayArtists(artist, artistList),
       isCloud: cloud,
@@ -3318,8 +3323,14 @@ List<SongArtist> _extractArtists(
     json['authors'],
     json['author'],
     json['singers'],
+    json['Singers'],
     json['singerinfo'],
+    json['SingerInfo'],
+    json['singer_info'],
+    json['singer_list'],
     _map(json['base'])['authors'],
+    _map(json['base'])['singers'],
+    _map(json['base'])['Singers'],
   ]) {
     if (source is List) {
       for (final item in source) {
@@ -3332,8 +3343,15 @@ List<SongArtist> _extractArtists(
             'AuthorName',
             'singername',
             'SingerName',
+            'singer_name',
           ]),
-          map['author_id'] ?? map['authorid'] ?? map['singerid'] ?? map['id'],
+          map['author_id'] ??
+              map['authorid'] ??
+              map['AuthorId'] ??
+              map['singerid'] ??
+              map['SingerId'] ??
+              map['singer_id'] ??
+              map['id'],
         );
       }
     } else if (source is Map) {
@@ -3346,8 +3364,15 @@ List<SongArtist> _extractArtists(
           'AuthorName',
           'singername',
           'SingerName',
+          'singer_name',
         ]),
-        map['author_id'] ?? map['authorid'] ?? map['singerid'] ?? map['id'],
+        map['author_id'] ??
+            map['authorid'] ??
+            map['AuthorId'] ??
+            map['singerid'] ??
+            map['SingerId'] ??
+            map['singer_id'] ??
+            map['id'],
       );
     }
   }

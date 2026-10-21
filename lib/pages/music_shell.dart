@@ -46,6 +46,7 @@ import '../widgets/play_queue_panel.dart';
 import '../widgets/player_bar.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/update_dialog.dart';
+import '../widgets/song_row.dart';
 import 'library_page.dart';
 import 'collection_detail_page.dart';
 import 'search_page.dart';
@@ -1530,6 +1531,18 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _openArtistFromSong(Song song) async {
+    final artists = visibleSongArtists(song);
+    if (artists.isNotEmpty) {
+      final first = artists.first;
+      final clean = _navigableArtistName(first.name);
+      if (clean != null) {
+        await _openArtistByName(
+          clean,
+          artistId: first.id ?? (artists.length == 1 ? song.artistId : null),
+        );
+        return;
+      }
+    }
     final artistName = _navigableArtistName(song.artist);
     if (artistName == null) return;
     await _openArtistByName(artistName, artistId: song.artistId);
@@ -1538,24 +1551,50 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _openArtistByName(String artistName, {int? artistId}) async {
     final cleanName = _navigableArtistName(artistName);
     if (cleanName == null) return;
-    var id = artistId?.toString() ?? '';
+    var id = artistId != null && artistId > 0 ? artistId.toString() : '';
     String? image;
-    if (id.isEmpty) {
+
+    try {
       final matches = await repository.searchCatalog(
         cleanName,
         SearchCategory.artist,
       );
-      if (matches.isNotEmpty) {
-        id = matches.first.id;
-        image = matches.first.imageUrl;
+      SearchCatalogItem? exactMatch;
+      for (final match in matches) {
+        if (_isSameArtistName(match.title, cleanName)) {
+          exactMatch = match;
+          break;
+        }
       }
-    } else {
-      final matches = await repository.searchCatalog(
-        cleanName,
-        SearchCategory.artist,
-      );
-      if (matches.isNotEmpty) image = matches.first.imageUrl;
+
+      if (exactMatch != null) {
+        if (id.isEmpty) id = exactMatch.id;
+        image = exactMatch.imageUrl;
+      }
+    } catch (_) {
+      // Ignore artist catalog search failure.
     }
+
+    if (id.isEmpty) {
+      try {
+        final songs = await repository.searchSongs(cleanName);
+        for (final song in songs) {
+          for (final artist in song.artists) {
+            if (_isSameArtistName(artist.name, cleanName) &&
+                artist.id != null &&
+                artist.id! > 0) {
+              id = artist.id!.toString();
+              image ??= song.coverUrl;
+              break;
+            }
+          }
+          if (id.isNotEmpty) break;
+        }
+      } catch (_) {
+        // Ignore song search fallback failure.
+      }
+    }
+
     if (id.isEmpty) return;
     await _openCatalog(
       SearchCatalogItem(
@@ -2643,6 +2682,18 @@ String? _navigableArtistName(String value) {
     return null;
   }
   return cleaned;
+}
+
+bool _isSameArtistName(String a, String b) {
+  final cleanA = a
+      .replaceAll(RegExp(r'[\s/\\|,，、·\-_()（）]+'), '')
+      .trim()
+      .toLowerCase();
+  final cleanB = b
+      .replaceAll(RegExp(r'[\s/\\|,，、·\-_()（）]+'), '')
+      .trim()
+      .toLowerCase();
+  return cleanA.isNotEmpty && cleanA == cleanB;
 }
 
 String _lyricCacheKey(Song song) {
