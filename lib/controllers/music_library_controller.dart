@@ -6,25 +6,40 @@ import '../data/music_repository.dart';
 import '../models/music_playlist.dart';
 import '../models/search_catalog_item.dart';
 import '../models/song.dart';
+import '../services/favorite_bilibili_service.dart';
 import '../services/favorite_mv_service.dart';
 import '../services/kugou_api_client.dart';
 import '../services/music_library_cache_service.dart';
 
-enum LibrarySection { songs, playlists, albums, artists, cloud, mv, recent }
+enum LibrarySection {
+  songs,
+  playlists,
+  albums,
+  artists,
+  cloud,
+  mv,
+  bilibili,
+  recent,
+}
 
 class MusicLibraryController extends ChangeNotifier {
   MusicLibraryController(
     this.repository, {
     MusicLibraryCacheService? cacheService,
     FavoriteMvService? favoriteMvService,
+    FavoriteBilibiliService? favoriteBilibiliService,
   }) : cacheService = cacheService ?? MusicLibraryCacheService(),
-       favoriteMvService = favoriteMvService ?? FavoriteMvService() {
+       favoriteMvService = favoriteMvService ?? FavoriteMvService(),
+       favoriteBilibiliService =
+           favoriteBilibiliService ?? FavoriteBilibiliService() {
     this.favoriteMvService.addListener(notifyListeners);
+    this.favoriteBilibiliService.addListener(notifyListeners);
   }
 
   final MusicRepository repository;
   final MusicLibraryCacheService cacheService;
   final FavoriteMvService favoriteMvService;
+  final FavoriteBilibiliService favoriteBilibiliService;
 
   List<MusicPlaylist> playlists = const [];
   List<Song> _favorites = const [];
@@ -141,6 +156,7 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   List<Song> get favoriteMvs => favoriteMvService.mvs;
+  List<Song> get favoriteBilibiliSongs => favoriteBilibiliService.songs;
 
   bool isLoading(LibrarySection section) => loading.contains(section);
 
@@ -152,6 +168,7 @@ class MusicLibraryController extends ChangeNotifier {
     LibrarySection.artists => followedArtists.isNotEmpty,
     LibrarySection.cloud => cloudSongs.isNotEmpty,
     LibrarySection.mv => favoriteMvs.isNotEmpty,
+    LibrarySection.bilibili => favoriteBilibiliSongs.isNotEmpty,
     LibrarySection.recent => true,
   };
 
@@ -163,6 +180,7 @@ class MusicLibraryController extends ChangeNotifier {
     followedArtists = snapshot.artists;
     albums = snapshot.albums;
     _prefetchCreatedPlaylistsCovers(playlists);
+    unawaited(favoriteBilibiliService.initialize());
     notifyListeners();
   }
 
@@ -214,6 +232,7 @@ class MusicLibraryController extends ChangeNotifier {
           if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
             playlists = nextPlaylists;
             _prefetchCreatedPlaylistsCovers(playlists);
+            unawaited(favoriteBilibiliService.initialize());
           }
           final favorite = _favoriteFrom(nextPlaylists);
           final nextFavorites = favorite == null
@@ -230,6 +249,7 @@ class MusicLibraryController extends ChangeNotifier {
           if (nextPlaylists.isNotEmpty || playlists.isEmpty) {
             playlists = nextPlaylists;
             _prefetchCreatedPlaylistsCovers(playlists);
+            unawaited(favoriteBilibiliService.initialize());
           }
         case LibrarySection.albums:
           final nextPlaylists = await _loadPlaylists(
@@ -256,6 +276,8 @@ class MusicLibraryController extends ChangeNotifier {
         case LibrarySection.mv:
           final nextFavoriteMvs = await repository.getFavoriteMvs();
           favoriteMvService.replaceAll(nextFavoriteMvs);
+        case LibrarySection.bilibili:
+          if (refresh) await favoriteBilibiliService.load();
         case LibrarySection.recent:
           break;
       }
@@ -276,13 +298,15 @@ class MusicLibraryController extends ChangeNotifier {
   void updateSongDuration(Song song, Duration duration) {
     if (duration == Duration.zero) return;
     var changed = false;
-    final updatedCloudSongs = cloudSongs.map((item) {
-      if (_sameSong(item, song) && item.duration == Duration.zero) {
-        changed = true;
-        return item.copyWith(duration: duration);
-      }
-      return item;
-    }).toList(growable: false);
+    final updatedCloudSongs = cloudSongs
+        .map((item) {
+          if (_sameSong(item, song) && item.duration == Duration.zero) {
+            changed = true;
+            return item.copyWith(duration: duration);
+          }
+          return item;
+        })
+        .toList(growable: false);
 
     if (changed) {
       cloudSongs = updatedCloudSongs;
@@ -464,6 +488,9 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   bool isFavorite(Song song) {
+    if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
+      return favoriteBilibiliService.isFavorite(song);
+    }
     if (song.isMv) {
       return favoriteMvService.isFavorite(song);
     }
@@ -601,6 +628,7 @@ class MusicLibraryController extends ChangeNotifier {
             .toList();
       case SearchCategory.song:
       case SearchCategory.mv:
+      case SearchCategory.bilibili:
         break;
     }
   }
@@ -615,6 +643,7 @@ class MusicLibraryController extends ChangeNotifier {
         await ensureLoaded(LibrarySection.artists, refresh: true);
       case SearchCategory.song:
       case SearchCategory.mv:
+      case SearchCategory.bilibili:
         break;
     }
   }
@@ -677,15 +706,22 @@ class MusicLibraryController extends ChangeNotifier {
         }
       case SearchCategory.song:
       case SearchCategory.mv:
+      case SearchCategory.bilibili:
         return null;
     }
     return null;
   }
 
   Future<void> toggleFavorite(Song song) async {
+    if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
+      await favoriteBilibiliService.toggle(song);
+      loaded.add(LibrarySection.bilibili);
+      return;
+    }
     if (song.isMv) {
       final existing = favoriteMvService.findFavorite(song);
-      final effectiveSong = (song.mvId == null ||
+      final effectiveSong =
+          (song.mvId == null ||
                   song.mvId!.trim().isEmpty ||
                   int.tryParse(song.mvId!.trim()) == null) &&
               existing?.mvId != null &&

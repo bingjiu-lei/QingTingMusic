@@ -103,12 +103,7 @@ class AudioPlayerService {
       _skipLocalPlayback(song);
     }
 
-    await _openUri(
-      player,
-      uri,
-      generation,
-      headers: const {_userAgentHeader: _userAgent},
-    );
+    await _openUri(player, uri, generation, headers: _buildHeaders(song, uri));
     unawaited(_cacheInBackground(song, uri));
   }
 
@@ -182,9 +177,19 @@ class AudioPlayerService {
       player,
       onlineUri,
       generation,
-      headers: const {_userAgentHeader: _userAgent},
+      headers: _buildHeaders(song, onlineUri),
     );
     unawaited(_cacheInBackground(song, onlineUri));
+  }
+
+  Map<String, String> _buildHeaders(Song song, Uri uri) {
+    final headers = <String, String>{_userAgentHeader: _userAgent};
+    if (song.playbackSource == 'bilibili' ||
+        uri.host.contains('bili') ||
+        song.id.startsWith('bili_')) {
+      headers['Referer'] = 'https://www.bilibili.com/';
+    }
+    return headers;
   }
 
   Future<void> _openUri(
@@ -243,7 +248,10 @@ class AudioPlayerService {
     };
     try {
       final request = await client.getUrl(uri);
-      request.headers.set(_userAgentHeader, _userAgent);
+      final headers = _buildHeaders(song, uri);
+      for (final entry in headers.entries) {
+        request.headers.set(entry.key, entry.value);
+      }
       final response = await request.close();
       if (response.statusCode != HttpStatus.ok) {
         throw HttpException('音频下载失败：${response.statusCode}');

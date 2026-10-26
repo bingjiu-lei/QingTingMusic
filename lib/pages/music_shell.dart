@@ -133,6 +133,7 @@ class _MusicShellState extends State<MusicShell>
   bool _closingWindow = false;
   bool _closeToTray = true;
   bool _isWindowMaximized = false;
+  bool _bilibiliSourceEnabled = false;
   bool _windowReadyToTrackState = false;
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
@@ -288,6 +289,7 @@ class _MusicShellState extends State<MusicShell>
       _preferences.read('closeToTray'),
       _preferences.read('sidebarExpanded'),
       _preferences.readWindowState(),
+      _preferences.readBilibiliSourceEnabled(),
     ]);
     if (!mounted) return;
     final closeToTray = values[0] is bool ? values[0] as bool : false;
@@ -303,6 +305,7 @@ class _MusicShellState extends State<MusicShell>
       _closeToTray = closeToTray;
       _sidebarExpanded = sidebarExpanded;
       _isWindowMaximized = windowState.isMaximized;
+      _bilibiliSourceEnabled = values[3] is bool ? values[3] as bool : false;
     });
     await _applyCloseBehavior(closeToTray);
   }
@@ -310,6 +313,11 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _setSidebarExpanded(bool value) async {
     setState(() => _sidebarExpanded = value);
     await _preferences.write('sidebarExpanded', value);
+  }
+
+  Future<void> _setBilibiliSourceEnabled(bool value) async {
+    setState(() => _bilibiliSourceEnabled = value);
+    await _preferences.writeBilibiliSourceEnabled(value);
   }
 
   KeyEventResult _handleGlobalKeyEvent(KeyEvent event) {
@@ -1102,6 +1110,9 @@ class _MusicShellState extends State<MusicShell>
       _applyFavoriteState(song, libraryController.isFavorite(song));
       if (song.isMv) {
         _showNotice(desired ? '已收藏到我的MV' : '已取消收藏MV');
+      } else if (song.playbackSource == 'bilibili' ||
+          song.id.startsWith('bili_')) {
+        _showNotice(desired ? '已收藏到其他音源' : '已取消收藏');
       }
     } catch (error) {
       _applyFavoriteState(song, previous);
@@ -1729,8 +1740,8 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _showAddToPlaylist(Song song) async {
-    if (song.isMv) {
-      _showNotice('MV音源暂不支持加入自建歌单');
+    if (!song.canAddToPlaylist) {
+      _showNotice(song.isMv ? 'MV音源暂不支持加入自建歌单' : '该音源暂不支持加入自建歌单');
       return;
     }
     if (_playlistOperationBusy) return;
@@ -2512,6 +2523,7 @@ class _MusicShellState extends State<MusicShell>
         onCreatePlaylist: _showCreatePlaylist,
         selectedTab: librarySelectedTab,
         onTabChanged: (index) => setState(() => librarySelectedTab = index),
+        enableBilibiliFeature: _bilibiliSourceEnabled,
       ),
       1 => SearchPage(
         controller: searchController,
@@ -2526,6 +2538,7 @@ class _MusicShellState extends State<MusicShell>
         onOpenArtist: _openArtistFromSong,
         onOpenAlbum: _openAlbumFromSong,
         isFavorite: libraryController.isFavorite,
+        enableBilibiliFeature: _bilibiliSourceEnabled,
       ),
       2 => RecommendationPage(
         controller: recommendationController,
@@ -2545,6 +2558,8 @@ class _MusicShellState extends State<MusicShell>
         onCloseToTrayChanged: _setCloseToTray,
         sidebarExpanded: _sidebarExpanded,
         onSidebarExpandedChanged: _setSidebarExpanded,
+        bilibiliSourceEnabled: _bilibiliSourceEnabled,
+        onBilibiliSourceEnabledChanged: _setBilibiliSourceEnabled,
         onEndpointChanged: () {
           libraryController.invalidateLoadedState();
           searchController.invalidateCachedResults();

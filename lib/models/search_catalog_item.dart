@@ -6,7 +6,8 @@ enum SearchCategory {
   playlist('歌单'),
   artist('歌手'),
   album('专辑'),
-  mv('MV');
+  mv('MV'),
+  bilibili('其他');
 
   const SearchCategory(this.label);
 

@@ -108,13 +108,9 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               decoration: BoxDecoration(
                 color: active
-                    ? AppColors.primary.withValues(
-                        alpha: isDark ? 0.20 : 0.10,
-                      )
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.20 : 0.10)
                     : _hovered
-                    ? AppColors.primary.withValues(
-                        alpha: isDark ? 0.08 : 0.04,
-                      )
+                    ? AppColors.primary.withValues(alpha: isDark ? 0.08 : 0.04)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(AppRadius.lg),
                 border: active
@@ -133,110 +129,112 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                     child: Center(
                       child: AnimatedSwitcher(
                         duration: const Duration(milliseconds: 120),
-                    child: _hovered
-                        ? AppIconButton.ghost(
-                            key: const ValueKey('row-play'),
-                            tooltip: active && widget.isPlaying
-                                ? '暂停'
-                                : '播放这首歌',
-                            onPressed: widget.onPlay,
-                            icon: active && widget.isPlaying
-                                ? Icons.pause_rounded
-                                : Icons.play_arrow_rounded,
-                            size: 32,
-                            iconSize: 20,
-                            iconColor: AppColors.primary,
-                            hoverIconColor: AppColors.primary,
-                            shadowColor: AppColors.primary,
-                            scaleFactor: 1.10,
-                          )
-                        : active
-                        ? AnimatedBuilder(
-                            animation: _playbackController,
-                            key: const ValueKey('row-eq'),
-                            builder: (context, _) => _PlaybackBars(
-                              isPlaying: widget.isPlaying,
-                              progress: _playbackController.value,
-                            ),
-                          )
-                        : Text(
-                            '${widget.index + 1}'.padLeft(2, '0'),
-                            key: const ValueKey('row-index'),
-                            style: TextStyle(
-                              color: AppColors.faint,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                  ),
-                ),
-              ),
-              AlbumArt(
-                size: widget.compact ? 38 : 44,
-                emphasized: active,
-                imageUrl: widget.song.coverUrl,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: active
-                            ? AppColors.primaryPressed
-                            : AppColors.text,
-                        fontWeight: active ? FontWeight.w700 : FontWeight.w600,
-                        fontSize: 14,
+                        child: _hovered
+                            ? AppIconButton.ghost(
+                                key: const ValueKey('row-play'),
+                                tooltip: active && widget.isPlaying
+                                    ? '暂停'
+                                    : '播放这首歌',
+                                onPressed: widget.onPlay,
+                                icon: active && widget.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                size: 32,
+                                iconSize: 20,
+                                iconColor: AppColors.primary,
+                                hoverIconColor: AppColors.primary,
+                                shadowColor: AppColors.primary,
+                                scaleFactor: 1.10,
+                              )
+                            : active
+                            ? AnimatedBuilder(
+                                animation: _playbackController,
+                                key: const ValueKey('row-eq'),
+                                builder: (context, _) => _PlaybackBars(
+                                  isPlaying: widget.isPlaying,
+                                  progress: _playbackController.value,
+                                ),
+                              )
+                            : Text(
+                                '${widget.index + 1}'.padLeft(2, '0'),
+                                key: const ValueKey('row-index'),
+                                style: TextStyle(
+                                  color: AppColors.faint,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w400,
+                                ),
+                              ),
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    SongArtistLine(
-                      song: widget.song,
-                      onArtist: widget.onArtist,
-                      onArtistLink: widget.onArtistLink,
-                    ),
-                  ],
-                ),
-              ),
-              if (widget.showAlbum)
-                Expanded(
-                  child: Builder(
-                    builder: (context) {
-                      final albumName = widget.song.album.trim();
-                      final hasAlbum =
-                          albumName.isNotEmpty && albumName != '未知专辑';
-                      final tap = hasAlbum ? widget.onAlbum : null;
-                      final clickable = tap != null;
-                      return MouseRegion(
-                        cursor: tap == null
-                            ? SystemMouseCursors.basic
-                            : SystemMouseCursors.click,
-                        child: GestureDetector(
-                          onTap: tap,
-                          child: Text(
-                            hasAlbum ? widget.song.album : '-',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: hasAlbum
-                                  ? clickable
-                                      ? AppColors.primaryPressed
-                                      : AppColors.muted
-                                  : AppColors.faint,
-                              fontSize: 12,
-                            ),
+                  ),
+                  AlbumArt(
+                    size: widget.compact ? 38 : 44,
+                    emphasized: active,
+                    imageUrl: widget.song.coverUrl,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: active
+                                ? AppColors.primaryPressed
+                                : AppColors.text,
+                            fontWeight: active
+                                ? FontWeight.w700
+                                : FontWeight.w600,
+                            fontSize: 14,
                           ),
                         ),
-                      );
-                    },
+                        const SizedBox(height: 3),
+                        SongArtistLine(
+                          song: widget.song,
+                          onArtist: widget.onArtist,
+                          onArtistLink: widget.onArtistLink,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  if (widget.showAlbum)
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final albumName = widget.song.album.trim();
+                          final hasAlbum =
+                              albumName.isNotEmpty && albumName != '未知专辑';
+                          final tap = hasAlbum ? widget.onAlbum : null;
+                          final clickable = tap != null;
+                          return MouseRegion(
+                            cursor: tap == null
+                                ? SystemMouseCursors.basic
+                                : SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: tap,
+                              child: Text(
+                                hasAlbum ? widget.song.album : '-',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: hasAlbum
+                                      ? clickable
+                                            ? AppColors.primaryPressed
+                                            : AppColors.muted
+                                      : AppColors.faint,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
                   if (widget.onLike != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
@@ -258,7 +256,8 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                         shadowColor: AppColors.favorite,
                       ),
                     ),
-                  if (widget.onAddToPlaylist != null && !widget.song.isMv)
+                  if (widget.onAddToPlaylist != null &&
+                      widget.song.canAddToPlaylist)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 2),
                       child: IgnorePointer(

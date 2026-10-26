@@ -87,6 +87,9 @@ class Song {
       audioUrl.isNotEmpty &&
       (isSpecialSource || isMv || playbackQuality == 'MV');
 
+  bool get canAddToPlaylist =>
+      !isMv && !isSpecialSource && playbackSource != 'bilibili';
+
   Song copyWith({
     String? audioUrl,
     String? hash,

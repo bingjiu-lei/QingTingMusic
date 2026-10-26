@@ -96,15 +96,21 @@ class MusicSearchController extends ChangeNotifier {
     final request = ++_searchRequest;
 
     try {
-      if (category == SearchCategory.song) {
-        final cached = _songCache[query];
+      if (category == SearchCategory.song ||
+          category == SearchCategory.bilibili) {
+        final cacheKey = category == SearchCategory.bilibili
+            ? 'bili:$query'
+            : query;
+        final cached = _songCache[cacheKey];
         final songs = _usableSongCache(cached)
             ? cached!
-            : await repository.searchSongs(query);
+            : (category == SearchCategory.bilibili
+                  ? await repository.searchBilibiliSongs(query)
+                  : await repository.searchSongs(query));
         // 请求已被更新的搜索作废时不回写，避免先发后至覆盖新结果。
         if (request != _searchRequest) return;
         results = songs;
-        if (results.isNotEmpty) _songCache[query] = results;
+        if (results.isNotEmpty) _songCache[cacheKey] = results;
         unawaited(cacheService.save(_songCache, _catalogCache));
         catalogResults = const [];
       } else {
@@ -153,13 +159,18 @@ class MusicSearchController extends ChangeNotifier {
     category = value;
     if (hasSearched && keyword.trim().isNotEmpty) {
       final query = keyword.trim();
-      if (value == SearchCategory.song && _songCache.containsKey(query)) {
-        final cached = _songCache[query]!;
-        if (_usableSongCache(cached)) {
-          results = cached;
-          catalogResults = const [];
-          notifyListeners();
-          return;
+      if (value == SearchCategory.song || value == SearchCategory.bilibili) {
+        final cacheKey = value == SearchCategory.bilibili
+            ? 'bili:$query'
+            : query;
+        if (_songCache.containsKey(cacheKey)) {
+          final cached = _songCache[cacheKey]!;
+          if (_usableSongCache(cached)) {
+            results = cached;
+            catalogResults = const [];
+            notifyListeners();
+            return;
+          }
         }
       }
       final key = '${value.name}:$query';

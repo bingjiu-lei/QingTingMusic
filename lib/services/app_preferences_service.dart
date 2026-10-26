@@ -106,6 +106,15 @@ class AppPreferencesService {
     } catch (_) {}
   }
 
+  Future<bool> readBilibiliSourceEnabled() async {
+    final values = _load();
+    return values['bilibiliSourceEnabled'] == true;
+  }
+
+  Future<void> writeBilibiliSourceEnabled(bool value) async {
+    await write('bilibiliSourceEnabled', value);
+  }
+
   Map<String, Object?> _load() {
     if (!_file.existsSync()) return {};
     try {

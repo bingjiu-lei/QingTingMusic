@@ -148,6 +148,10 @@ class DemoMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<List<Song>> searchBilibiliSongs(String keyword) async =>
+      searchSongs(keyword);
+
+  @override
   Future<List<SearchCatalogItem>> searchCatalog(
     String keyword,
     SearchCategory category,

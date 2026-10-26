@@ -29,6 +29,8 @@ class SettingsPage extends StatefulWidget {
     required this.onSidebarExpandedChanged,
     required this.playbackQualityController,
     required this.themeController,
+    this.bilibiliSourceEnabled = false,
+    this.onBilibiliSourceEnabledChanged,
     this.onEndpointChanged,
     this.onDeveloperModeChanged,
     this.onNotice,
@@ -42,6 +44,8 @@ class SettingsPage extends StatefulWidget {
   final ValueChanged<bool> onSidebarExpandedChanged;
   final PlaybackQualityController playbackQualityController;
   final ThemeController themeController;
+  final bool bilibiliSourceEnabled;
+  final ValueChanged<bool>? onBilibiliSourceEnabledChanged;
   final VoidCallback? onEndpointChanged;
   final ValueChanged<bool>? onDeveloperModeChanged;
   final ValueChanged<String>? onNotice;
@@ -660,6 +664,18 @@ class _SettingsPageState extends State<SettingsPage> {
                             subtitle: '点击侧边分割线，即可切换侧边栏的展开状态',
                             value: widget.sidebarExpanded,
                             onChanged: widget.onSidebarExpandedChanged,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _SettingSwitchRow(
+                            icon: Icons.tv_rounded,
+                            title: '其他音源',
+                            subtitle: '在搜索页和我的音乐展示“其他”标签，支持试听与本地收藏',
+                            value: widget.bilibiliSourceEnabled,
+                            onChanged:
+                                widget.onBilibiliSourceEnabledChanged ?? (_) {},
                           ),
                           Divider(
                             height: 32,

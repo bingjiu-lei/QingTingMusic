@@ -543,6 +543,7 @@ class KugouApiClient {
       SearchCategory.playlist => 'special',
       SearchCategory.song => 'song',
       SearchCategory.mv => 'mv',
+      SearchCategory.bilibili => 'song',
     };
     final response = await _get(
       '/search',
@@ -619,7 +620,12 @@ class KugouApiClient {
       final name = _read(r, ['rankname', 'name', 'title']);
       final rawImg = _read(r, ['imgurl', 'pic', 'cover']);
       final coverUrl = rawImg.replaceAll('{size}', '240');
-      final group = _read(r, ['rank_type_name', 'type_name', 'group', 'category_name']);
+      final group = _read(r, [
+        'rank_type_name',
+        'type_name',
+        'group',
+        'category_name',
+      ]);
       final songInfoList = _list(r['songinfo']);
       final topSongs = <String>[];
       for (var i = 0; i < songInfoList.length && i < 4; i++) {
@@ -684,6 +690,7 @@ class KugouApiClient {
       SearchCategory.album => throw const KugouApiException('不支持的详情类型'),
       SearchCategory.song => throw const KugouApiException('不支持的详情类型'),
       SearchCategory.mv => throw const KugouApiException('不支持的详情类型'),
+      SearchCategory.bilibili => throw const KugouApiException('不支持的详情类型'),
     };
     final response = await _get(
       path,
@@ -1485,6 +1492,7 @@ class KugouApiClient {
         _ensureOperationSucceeded(response.data);
       case SearchCategory.song:
       case SearchCategory.mv:
+      case SearchCategory.bilibili:
         throw const KugouApiException('不支持收藏该类型');
     }
   }
@@ -1518,6 +1526,7 @@ class KugouApiClient {
         _ensureOperationSucceeded(response.data);
       case SearchCategory.song:
       case SearchCategory.mv:
+      case SearchCategory.bilibili:
         throw const KugouApiException('不支持取消收藏该类型');
     }
   }
@@ -2828,11 +2837,11 @@ class KugouApiClient {
         artistList.isNotEmpty && artistList.first.id != null
             ? artistList.first.id
             : (json['SingerId'] ??
-                json['singerid'] ??
-                json['author_id'] ??
-                base['author_id'] ??
-                singerInfo['id'] ??
-                firstAuthor['author_id']),
+                  json['singerid'] ??
+                  json['author_id'] ??
+                  base['author_id'] ??
+                  singerInfo['id'] ??
+                  firstAuthor['author_id']),
       ),
       artists: _displayArtists(artist, artistList),
       isCloud: cloud,
@@ -2982,6 +2991,14 @@ class KugouApiClient {
         ], fallback: '未知歌手'),
         image: _read(json, ['Pic', 'pic', 'hdpic', 'thumb', 'img']),
         listId: _read(json, ['MvHash', 'mv_hash', 'hash']),
+        ownerId: '',
+      ),
+      SearchCategory.bilibili => (
+        id: '',
+        title: '',
+        subtitle: '',
+        image: '',
+        listId: '',
         ownerId: '',
       ),
       SearchCategory.song => (

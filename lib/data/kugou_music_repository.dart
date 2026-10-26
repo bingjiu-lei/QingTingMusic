@@ -3,14 +3,17 @@ import '../models/lyric.dart';
 import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 import '../services/kugou_api_client.dart';
+import '../services/bilibili_service.dart';
 import 'music_repository.dart';
 import '../models/artist_directory.dart';
 import '../models/rank_chart_item.dart';
 
 class KugouMusicRepository implements MusicRepository {
-  KugouMusicRepository(this.apiClient);
+  KugouMusicRepository(this.apiClient, {BilibiliService? bilibiliService})
+    : bilibiliService = bilibiliService ?? BilibiliService();
 
   final KugouApiClient apiClient;
+  final BilibiliService bilibiliService;
 
   @override
   Future<ArtistDirectory> getArtistDirectory({int type = 0, int sexType = 0}) =>
@@ -67,6 +70,11 @@ class KugouMusicRepository implements MusicRepository {
   @override
   Future<List<Song>> searchSongs(String keyword) {
     return apiClient.searchSongs(keyword);
+  }
+
+  @override
+  Future<List<Song>> searchBilibiliSongs(String keyword) {
+    return bilibiliService.search(keyword);
   }
 
   @override
@@ -185,11 +193,17 @@ class KugouMusicRepository implements MusicRepository {
 
   @override
   Future<Song> resolvePlayback(Song song) {
+    if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
+      return bilibiliService.resolvePlayback(song);
+    }
     return apiClient.resolvePlayback(song);
   }
 
   @override
   Future<List<LyricLine>> getLyrics(Song song) {
+    if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
+      return Future.value(const []);
+    }
     return apiClient.getLyrics(song);
   }
 

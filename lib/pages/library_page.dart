@@ -31,6 +31,7 @@ class LibraryPage extends StatefulWidget {
     required this.selectedTab,
     required this.onTabChanged,
     this.enableMvFeature = true,
+    this.enableBilibiliFeature = false,
   });
 
   final MusicLibraryController controller;
@@ -50,6 +51,7 @@ class LibraryPage extends StatefulWidget {
   final int selectedTab;
   final ValueChanged<int> onTabChanged;
   final bool enableMvFeature;
+  final bool enableBilibiliFeature;
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
@@ -85,6 +87,7 @@ class _LibraryPageState extends State<LibraryPage> {
     ('歌手', LibrarySection.artists),
     ('云盘', LibrarySection.cloud),
     if (widget.enableMvFeature) ('MV', LibrarySection.mv),
+    if (widget.enableBilibiliFeature) ('其他', LibrarySection.bilibili),
     ('最近播放', LibrarySection.recent),
   ];
 
@@ -190,7 +193,8 @@ class _LibraryPageState extends State<LibraryPage> {
                   onRefresh:
                       tabs[_safeSelectedTab].$2 == LibrarySection.cloud ||
                           tabs[_safeSelectedTab].$2 == LibrarySection.songs ||
-                          tabs[_safeSelectedTab].$2 == LibrarySection.mv
+                          tabs[_safeSelectedTab].$2 == LibrarySection.mv ||
+                          tabs[_safeSelectedTab].$2 == LibrarySection.bilibili
                       ? () => widget.controller.ensureLoaded(
                           tabs[_safeSelectedTab].$2,
                           refresh: true,
@@ -216,6 +220,7 @@ class _LibraryPageState extends State<LibraryPage> {
       LibrarySection.songs => widget.controller.sortedFavorites,
       LibrarySection.cloud => widget.controller.sortedCloudSongs,
       LibrarySection.mv => widget.controller.favoriteMvs,
+      LibrarySection.bilibili => widget.controller.favoriteBilibiliSongs,
       LibrarySection.recent => widget.recentSongs,
       _ => null,
     };
@@ -261,6 +266,12 @@ class _LibraryPageState extends State<LibraryPage> {
         controller.favoriteMvs,
         '还没有收藏的MV',
         storageKey: const PageStorageKey('library-mv-scroll'),
+      ),
+      LibrarySection.bilibili => _songs(
+        '其他',
+        controller.favoriteBilibiliSongs,
+        '还没有收藏的其他音源歌曲',
+        storageKey: const PageStorageKey('library-bilibili-scroll'),
       ),
       LibrarySection.recent => _songs(
         '最近播放',

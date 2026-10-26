@@ -29,6 +29,7 @@ class SearchPage extends StatefulWidget {
     required this.onOpenAlbum,
     this.isFavorite,
     this.enableMvFeature = true,
+    this.enableBilibiliFeature = false,
   });
 
   final MusicSearchController controller;
@@ -44,6 +45,7 @@ class SearchPage extends StatefulWidget {
   final ValueChanged<Song> onOpenAlbum;
   final bool Function(Song)? isFavorite;
   final bool enableMvFeature;
+  final bool enableBilibiliFeature;
 
   @override
   State<SearchPage> createState() => _SearchPageState();
@@ -66,6 +68,10 @@ class _SearchPageState extends State<SearchPage> {
     super.didUpdateWidget(oldWidget);
     if (!widget.enableMvFeature &&
         widget.controller.category == SearchCategory.mv) {
+      widget.controller.selectCategory(SearchCategory.song);
+    }
+    if (!widget.enableBilibiliFeature &&
+        widget.controller.category == SearchCategory.bilibili) {
       widget.controller.selectCategory(SearchCategory.song);
     }
   }
@@ -247,6 +253,7 @@ class _SearchPageState extends State<SearchPage> {
         onOpenAlbum: widget.onOpenAlbum,
         isFavorite: widget.isFavorite,
         enableMvFeature: widget.enableMvFeature,
+        enableBilibiliFeature: widget.enableBilibiliFeature,
       );
     }
 
@@ -500,6 +507,7 @@ class _SearchResults extends StatefulWidget {
     required this.onOpenAlbum,
     this.isFavorite,
     this.enableMvFeature = true,
+    this.enableBilibiliFeature = false,
   });
 
   final MusicSearchController controller;
@@ -515,6 +523,7 @@ class _SearchResults extends StatefulWidget {
   final ValueChanged<Song> onOpenAlbum;
   final bool Function(Song)? isFavorite;
   final bool enableMvFeature;
+  final bool enableBilibiliFeature;
 
   @override
   State<_SearchResults> createState() => _SearchResultsState();
@@ -525,7 +534,9 @@ class _SearchResultsState extends State<_SearchResults> {
 
   List<SearchCategory> get _availableCategories => [
     for (final category in SearchCategory.values)
-      if (widget.enableMvFeature || category != SearchCategory.mv) category,
+      if ((widget.enableMvFeature || category != SearchCategory.mv) &&
+          (widget.enableBilibiliFeature || category != SearchCategory.bilibili))
+        category,
   ];
 
   @override
@@ -533,6 +544,10 @@ class _SearchResultsState extends State<_SearchResults> {
     super.didUpdateWidget(oldWidget);
     if (!widget.enableMvFeature &&
         widget.controller.category == SearchCategory.mv) {
+      widget.controller.selectCategory(SearchCategory.song);
+    }
+    if (!widget.enableBilibiliFeature &&
+        widget.controller.category == SearchCategory.bilibili) {
       widget.controller.selectCategory(SearchCategory.song);
     }
   }
@@ -573,14 +588,18 @@ class _SearchResultsState extends State<_SearchResults> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text('搜索结果', style: AppTypography.panelTitle),
-                if ((controller.category == SearchCategory.song &&
+                if (((controller.category == SearchCategory.song ||
+                            controller.category == SearchCategory.bilibili) &&
                         controller.results.isNotEmpty) ||
                     (controller.category == SearchCategory.mv &&
                         controller.catalogResults.isNotEmpty)) ...[
                   const SizedBox(width: 8),
                   PlayAllHeaderButton(
                     onTap: () {
-                      if (controller.category == SearchCategory.song) {
+                      if (controller.category == SearchCategory.song ||
+                          controller.category == SearchCategory.bilibili ||
+                          controller.category == SearchCategory.bilibili ||
+                          controller.category == SearchCategory.bilibili) {
                         widget.onPlayAll(controller.results);
                       } else {
                         final mvSongs = controller.catalogResults
@@ -594,7 +613,9 @@ class _SearchResultsState extends State<_SearchResults> {
                         widget.onPlayAll(mvSongs);
                       }
                     },
-                    songCount: controller.category == SearchCategory.song
+                    songCount:
+                        (controller.category == SearchCategory.song ||
+                            controller.category == SearchCategory.bilibili)
                         ? controller.results.length
                         : controller.catalogResults.length,
                     size: 36,
@@ -650,6 +671,8 @@ class _SearchResultsState extends State<_SearchResults> {
                       child: LinearProgressIndicator(minHeight: 2),
                     ),
                   if (controller.category == SearchCategory.song ||
+                      controller.category == SearchCategory.bilibili ||
+                      controller.category == SearchCategory.bilibili ||
                       controller.category == SearchCategory.mv)
                     ListScrollActions(
                       controller: _scrollController,
@@ -679,8 +702,10 @@ class _SearchResultsState extends State<_SearchResults> {
       );
     }
     if (controller.category == SearchCategory.song ||
+        controller.category == SearchCategory.bilibili ||
         controller.category == SearchCategory.mv) {
       final isMv = controller.category == SearchCategory.mv;
+      final isBili = controller.category == SearchCategory.bilibili;
       final songs = isMv
           ? controller.catalogResults
                 .map((item) => item.toSong())
@@ -695,7 +720,7 @@ class _SearchResultsState extends State<_SearchResults> {
       if (songs.isEmpty) {
         return Center(
           child: Text(
-            isMv ? '没有找到相关MV' : '没有找到相关单曲',
+            isMv ? '没有找到相关MV' : (isBili ? '没有找到相关内容' : '没有找到相关单曲'),
             style: AppTypography.style(13, 500, color: AppColors.faint),
           ),
         );
@@ -756,7 +781,8 @@ class _SearchResultsState extends State<_SearchResults> {
 
   bool _hasVisibleData() {
     final controller = widget.controller;
-    return controller.category == SearchCategory.song
+    return (controller.category == SearchCategory.song ||
+            controller.category == SearchCategory.bilibili)
         ? controller.results.isNotEmpty
         : controller.catalogResults.isNotEmpty;
   }

@@ -182,6 +182,7 @@ class _CatalogImage extends StatelessWidget {
       SearchCategory.playlist => Icons.queue_music_rounded,
       SearchCategory.song => Icons.music_note_rounded,
       SearchCategory.mv => Icons.smart_display_rounded,
+      SearchCategory.bilibili => Icons.tv_rounded,
     };
 
     return ClipRRect(

@@ -318,113 +318,114 @@ class _TrackSection extends StatelessWidget {
             selectedColor: AppColors.favorite,
             selectedBackgroundColor: Colors.transparent,
           ),
-          GestureDetector(
-            onSecondaryTapDown: (details) async {
-              if (song!.isMv) return;
-              final isCurrentCreated =
-                  currentPlayingPlaylist != null &&
-                  currentPlayingPlaylist!.kind ==
-                      MusicPlaylistKind.createdPlaylist;
-              final selected = await showMenu<String>(
-                context: context,
-                position: RelativeRect.fromLTRB(
-                  details.globalPosition.dx,
-                  details.globalPosition.dy - (isCurrentCreated ? 95 : 55),
-                  details.globalPosition.dx + 1,
-                  details.globalPosition.dy + 1,
-                ),
-                items: [
-                  if (isCurrentCreated)
+          if (song!.canAddToPlaylist)
+            GestureDetector(
+              onSecondaryTapDown: (details) async {
+                if (song!.isMv) return;
+                final isCurrentCreated =
+                    currentPlayingPlaylist != null &&
+                    currentPlayingPlaylist!.kind ==
+                        MusicPlaylistKind.createdPlaylist;
+                final selected = await showMenu<String>(
+                  context: context,
+                  position: RelativeRect.fromLTRB(
+                    details.globalPosition.dx,
+                    details.globalPosition.dy - (isCurrentCreated ? 95 : 55),
+                    details.globalPosition.dx + 1,
+                    details.globalPosition.dy + 1,
+                  ),
+                  items: [
+                    if (isCurrentCreated)
+                      PopupMenuItem<String>(
+                        value: 'remove_and_skip',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 18,
+                              color: Colors.redAccent,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '从当前歌单「${currentPlayingPlaylist!.name}」移除并切歌',
+                              style: const TextStyle(
+                                color: Colors.redAccent,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     PopupMenuItem<String>(
-                      value: 'remove_and_skip',
+                      value: 'manage_playlist',
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(
-                            Icons.delete_outline_rounded,
+                          Icon(
+                            isAddedToPlaylist
+                                ? Icons.playlist_add_check_rounded
+                                : Icons.playlist_add_rounded,
                             size: 18,
-                            color: Colors.redAccent,
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            '从当前歌单「${currentPlayingPlaylist!.name}」移除并切歌',
-                            style: const TextStyle(
-                              color: Colors.redAccent,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            isAddedToPlaylist ? '收藏与歌单管理…' : '添加到歌单…',
+                            style: const TextStyle(fontSize: 12.5),
                           ),
                         ],
                       ),
                     ),
-                  PopupMenuItem<String>(
-                    value: 'manage_playlist',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isAddedToPlaylist
-                              ? Icons.playlist_add_check_rounded
-                              : Icons.playlist_add_rounded,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          isAddedToPlaylist ? '收藏与歌单管理…' : '添加到歌单…',
-                          style: const TextStyle(fontSize: 12.5),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-              if (!context.mounted) return;
-              if (selected == 'remove_and_skip' &&
-                  onRemoveFromCurrentPlaylistAndSkip != null &&
-                  currentPlayingPlaylist != null &&
-                  song != null) {
-                final confirmed = await showDialog<bool>(
-                  context: context,
-                  builder: (dialogContext) => AppConfirmDialog(
-                    icon: Icons.delete_outline_rounded,
-                    isDanger: true,
-                    title: '从当前歌单移除并切歌',
-                    content:
-                        '确定要将《${song!.title}》从正在播放的歌单「${currentPlayingPlaylist!.name}」中移除，并自动切入下一首吗？',
-                    cancelLabel: '取消',
-                    confirmLabel: '确认移除',
-                    onCancel: () => Navigator.of(dialogContext).pop(false),
-                    onConfirm: () => Navigator.of(dialogContext).pop(true),
-                  ),
+                  ],
                 );
-                if (confirmed == true) {
-                  await onRemoveFromCurrentPlaylistAndSkip!(
-                    currentPlayingPlaylist!,
-                    song!,
+                if (!context.mounted) return;
+                if (selected == 'remove_and_skip' &&
+                    onRemoveFromCurrentPlaylistAndSkip != null &&
+                    currentPlayingPlaylist != null &&
+                    song != null) {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (dialogContext) => AppConfirmDialog(
+                      icon: Icons.delete_outline_rounded,
+                      isDanger: true,
+                      title: '从当前歌单移除并切歌',
+                      content:
+                          '确定要将《${song!.title}》从正在播放的歌单「${currentPlayingPlaylist!.name}」中移除，并自动切入下一首吗？',
+                      cancelLabel: '取消',
+                      confirmLabel: '确认移除',
+                      onCancel: () => Navigator.of(dialogContext).pop(false),
+                      onConfirm: () => Navigator.of(dialogContext).pop(true),
+                    ),
                   );
+                  if (confirmed == true) {
+                    await onRemoveFromCurrentPlaylistAndSkip!(
+                      currentPlayingPlaylist!,
+                      song!,
+                    );
+                  }
+                } else if (selected == 'manage_playlist' &&
+                    onAddToPlaylist != null &&
+                    song != null) {
+                  onAddToPlaylist!(song!);
                 }
-              } else if (selected == 'manage_playlist' &&
-                  onAddToPlaylist != null &&
-                  song != null) {
-                onAddToPlaylist!(song!);
-              }
-            },
-            child: _ControlIconButton(
-              tooltip: song!.isMv
-                  ? 'MV音源暂不支持加入自建歌单'
-                  : (isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单'),
-              onPressed: (song!.isMv || onAddToPlaylist == null)
-                  ? null
-                  : () => onAddToPlaylist!(song!),
-              icon: isAddedToPlaylist
-                  ? Icons.playlist_add_check_rounded
-                  : Icons.playlist_add_rounded,
-              selected: isAddedToPlaylist && !song!.isMv,
-              selectedColor: AppColors.primary,
-              selectedBackgroundColor: Colors.transparent,
-              size: 38,
+              },
+              child: _ControlIconButton(
+                tooltip: song!.isMv
+                    ? 'MV音源暂不支持加入自建歌单'
+                    : (isAddedToPlaylist ? '歌单管理 (已收录)' : '添加到歌单'),
+                onPressed: (song!.isMv || onAddToPlaylist == null)
+                    ? null
+                    : () => onAddToPlaylist!(song!),
+                icon: isAddedToPlaylist
+                    ? Icons.playlist_add_check_rounded
+                    : Icons.playlist_add_rounded,
+                selected: isAddedToPlaylist && !song!.isMv,
+                selectedColor: AppColors.primary,
+                selectedBackgroundColor: Colors.transparent,
+                size: 38,
+              ),
             ),
-          ),
           _ControlIconButton(
             tooltip: playbackMode.label,
             onPressed: onCyclePlaybackMode,

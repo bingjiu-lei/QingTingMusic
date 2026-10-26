@@ -30,6 +30,8 @@ abstract interface class MusicRepository {
 
   Future<List<Song>> searchSongs(String keyword);
 
+  Future<List<Song>> searchBilibiliSongs(String keyword);
+
   Future<List<SearchCatalogItem>> searchCatalog(
     String keyword,
     SearchCategory category,

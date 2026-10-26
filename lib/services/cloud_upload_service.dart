@@ -86,7 +86,12 @@ class CloudUploadService {
           headers: {
             'User-Agent':
                 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': 'https://www.kugou.com/',
+            'Referer':
+                song.playbackSource == 'bilibili' ||
+                    audioUrl.contains('bili') ||
+                    song.id.startsWith('bili_')
+                ? 'https://www.bilibili.com/'
+                : 'https://www.kugou.com/',
           },
         ),
         onReceiveProgress: (received, total) {
@@ -197,7 +202,8 @@ class CloudUploadService {
         matchedAlbumAudioId == 0 &&
         (matchedHashStd == null || matchedHashStd.isEmpty);
 
-    final bool hasExplicitMatch = !matchCleared &&
+    final bool hasExplicitMatch =
+        !matchCleared &&
         ((matchedAudioId != null && matchedAudioId > 0) ||
             (matchedAlbumAudioId != null && matchedAlbumAudioId > 0) ||
             (matchedHashStd != null && matchedHashStd.isNotEmpty));
