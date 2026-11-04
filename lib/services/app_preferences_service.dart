@@ -80,6 +80,12 @@ class AppPreferencesService {
     );
   }
 
+  bool? readRawMaximizedSync() {
+    final values = _load();
+    final raw = values['windowMaximized'];
+    return raw is bool ? raw : null;
+  }
+
   Future<void> writeWindowState({
     double? width,
     double? height,

@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 
 import 'controllers/theme_controller.dart';
@@ -47,6 +49,7 @@ class _QingTingMusicAppState extends State<QingTingMusicApp> {
         themeMode: themeController.isDark ? ThemeMode.dark : ThemeMode.light,
         themeAnimationDuration: const Duration(milliseconds: 320),
         themeAnimationCurve: Curves.easeInOutCubic,
+        scrollBehavior: const AppScrollBehavior(),
         home: MusicShell(
           enableAudio: widget.enableAudio,
           enableWindowControls: widget.enableWindowControls,
@@ -56,4 +59,17 @@ class _QingTingMusicAppState extends State<QingTingMusicApp> {
       ),
     );
   }
+}
+
+class AppScrollBehavior extends MaterialScrollBehavior {
+  const AppScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+    PointerDeviceKind.touch,
+    PointerDeviceKind.stylus,
+    PointerDeviceKind.invertedStylus,
+    PointerDeviceKind.mouse,
+    PointerDeviceKind.trackpad,
+  };
 }
