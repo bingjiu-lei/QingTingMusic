@@ -142,7 +142,9 @@ class PlayerController extends ChangeNotifier {
     if (!playedLongEnough) return;
     _handlingCompletion = true;
     try {
-      await playNext(autoAdvance: true);
+      await playNext(autoAdvance: true).timeout(const Duration(seconds: 25));
+    } catch (_) {
+      // 捕获超时或异常，确保状态锁在 finally 中严格复位
     } finally {
       _handlingCompletion = false;
     }
@@ -192,6 +194,7 @@ class PlayerController extends ChangeNotifier {
     Duration startPosition = Duration.zero,
     bool preserveShufflePath = false,
   }) async {
+    _handlingCompletion = false;
     final requestEpoch = ++_playRequestEpoch;
     if (fromQueue != null && fromQueue.isNotEmpty) {
       queue = List.unmodifiable(_dedupeSongs(fromQueue));
@@ -228,7 +231,8 @@ class PlayerController extends ChangeNotifier {
       notifyListeners();
       Song playableSong;
       try {
-        playableSong = await (resolveSong?.call(song) ?? Future.value(song));
+        playableSong = await (resolveSong?.call(song) ?? Future.value(song))
+            .timeout(const Duration(seconds: 15));
       } catch (error, stackTrace) {
         await PlaybackLogService.write('resolve', error, stackTrace);
         rethrow;
@@ -632,6 +636,7 @@ class PlayerController extends ChangeNotifier {
   }
 
   Future<void> clearAccountState() async {
+    _handlingCompletion = false;
     _noticeTimer?.cancel();
     _nearEndTimer?.cancel();
     await audioService.pause();
@@ -780,6 +785,17 @@ class PlayerController extends ChangeNotifier {
       final played = await playSong(queue[targetIndex], fromQueue: queue);
       if (requestEpoch != _playRequestEpoch) return;
       if (played) return;
+      if (autoAdvance) {
+        final errorMsg = errorText ?? '';
+        final isCopyrightIssue =
+            errorMsg.contains('版权') ||
+            errorMsg.contains('付费') ||
+            errorMsg.contains('无版权');
+        if (!isCopyrightIssue) {
+          // 网络超时等非版权错误，停留在当前歌曲等待用户重试，不擅自连续跳歌
+          return;
+        }
+      }
       sourceIndex = targetIndex;
     }
     await _stopAtQueueEnd();

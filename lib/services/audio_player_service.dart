@@ -70,7 +70,9 @@ class AudioPlayerService {
     _openGeneration++;
     _localGuardTimer?.cancel();
     _userPaused = true;
-    await _player?.stop();
+    try {
+      await _player?.stop().timeout(const Duration(milliseconds: 600));
+    } catch (_) {}
   }
 
   Future<void> open(Song song) async {
@@ -192,29 +194,66 @@ class AudioPlayerService {
     return headers;
   }
 
+  static const Duration _networkOpenTimeout = Duration(seconds: 8);
+  static const int _maxNetworkRetries = 2;
+
   Future<void> _openUri(
     AudioPlayer player,
     Uri uri,
     int generation, {
     Map<String, String>? headers,
   }) async {
-    if (generation != _openGeneration || _userPaused) return;
-    await player.stop();
-    if (generation != _openGeneration || _userPaused) return;
-    _openedDuration = await player.setAudioSource(
-      AudioSource.uri(uri, headers: headers),
-    );
-    if (generation != _openGeneration || _userPaused) return;
-    unawaited(player.play());
-    await Future<void>.delayed(const Duration(milliseconds: 350));
-    if (generation != _openGeneration || _userPaused) return;
-    if (!player.playing) {
-      unawaited(player.play());
-      await Future<void>.delayed(const Duration(milliseconds: 650));
+    Object? lastError;
+    for (var attempt = 0; attempt <= _maxNetworkRetries; attempt++) {
+      if (generation != _openGeneration || _userPaused) return;
+      try {
+        if (attempt > 0) {
+          _technicalNotices.add(
+            '网络连接波动，正在自动重试 ($attempt/$_maxNetworkRetries)...',
+          );
+          try {
+            await player.stop().timeout(const Duration(milliseconds: 600));
+          } catch (_) {}
+          if (generation != _openGeneration || _userPaused) return;
+          await Future<void>.delayed(const Duration(milliseconds: 350));
+          if (generation != _openGeneration || _userPaused) return;
+        } else {
+          try {
+            await player.stop().timeout(const Duration(milliseconds: 600));
+          } catch (_) {}
+        }
+        if (generation != _openGeneration || _userPaused) return;
+
+        _openedDuration = await player
+            .setAudioSource(AudioSource.uri(uri, headers: headers))
+            .timeout(_networkOpenTimeout);
+
+        if (generation != _openGeneration || _userPaused) return;
+        unawaited(player.play());
+        await Future<void>.delayed(const Duration(milliseconds: 350));
+        if (generation != _openGeneration || _userPaused) return;
+        if (!player.playing) {
+          unawaited(player.play());
+          await Future<void>.delayed(const Duration(milliseconds: 650));
+        }
+        if (generation != _openGeneration || _userPaused) return;
+        if (!player.playing) {
+          unawaited(player.play());
+        }
+        return;
+      } catch (error) {
+        lastError = error;
+        if (generation != _openGeneration || _userPaused) return;
+        if (attempt >= _maxNetworkRetries) {
+          if (error is TimeoutException) {
+            throw const HttpException('网络音频加载超时，点击可重试');
+          }
+          rethrow;
+        }
+      }
     }
-    if (generation != _openGeneration || _userPaused) return;
-    if (!player.playing) {
-      unawaited(player.play());
+    if (lastError != null) {
+      throw lastError;
     }
   }
 
