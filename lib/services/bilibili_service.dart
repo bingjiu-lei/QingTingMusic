@@ -173,9 +173,29 @@ class BilibiliService {
     }
   }
 
+  /// 检查音频播放地址是否有效且未过期
+  static bool _isAudioUrlValid(String url) {
+    if (url.trim().isEmpty) return false;
+    try {
+      final uri = Uri.tryParse(url);
+      if (uri == null) return false;
+      final deadlineStr =
+          uri.queryParameters['deadline'] ?? uri.queryParameters['e'];
+      if (deadlineStr != null) {
+        final deadline = int.tryParse(deadlineStr);
+        if (deadline != null) {
+          final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+          // 预留 10 分钟缓冲期，未临近过期且有效时可复用
+          return now < (deadline - 600);
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+
   /// 解析播放音频流（DASH 模式取纯音频）
   Future<Song> resolvePlayback(Song song) async {
-    if (song.audioUrl.isNotEmpty) return song;
+    if (_isAudioUrlValid(song.audioUrl)) return song;
 
     var bvid = song.mvId?.trim() ?? '';
     if (bvid.isEmpty && song.id.startsWith('bili_')) {

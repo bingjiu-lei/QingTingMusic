@@ -41,7 +41,10 @@ class FavoriteBilibiliService extends ChangeNotifier {
             raw
                 .whereType<Map<String, Object?>>()
                 .map((json) {
-                  final s = Song.fromJson(json).copyWith(liked: true);
+                  // 加载收藏时清空可能残留的临时 audioUrl，确保播放时由播放解析器获取最新鲜活地址
+                  final s = Song.fromJson(
+                    json,
+                  ).copyWith(liked: true, audioUrl: '');
                   if (s.album == '哔哩哔哩') {
                     return Song(
                       id: s.id,
@@ -49,7 +52,7 @@ class FavoriteBilibiliService extends ChangeNotifier {
                       artist: s.artist,
                       album: 'B站',
                       duration: s.duration,
-                      audioUrl: s.audioUrl,
+                      audioUrl: '',
                       coverUrl: s.coverUrl,
                       mvId: s.mvId,
                       isSpecialSource: s.isSpecialSource,
@@ -73,9 +76,14 @@ class FavoriteBilibiliService extends ChangeNotifier {
       if (!file.parent.existsSync()) {
         file.parent.createSync(recursive: true);
       }
-      final data = _songs.map((song) => song.toJson()).toList();
+      // 持久化存储时统一将临时 audioUrl 置空，仅保存歌曲元数据
+      final data = _songs
+          .map((song) => song.copyWith(audioUrl: '').toJson())
+          .toList();
       await file.writeAsString(jsonEncode(data), flush: true);
-    } catch (_) {}
+    } catch (e, stack) {
+      debugPrint('保存B站本地收藏失败: $e');
+    }
   }
 
   bool isFavorite(Song song) {
@@ -84,7 +92,11 @@ class FavoriteBilibiliService extends ChangeNotifier {
 
   Future<void> add(Song song) async {
     _songs.removeWhere((item) => _sameSong(item, song));
-    _songs.insert(0, song.copyWith(liked: true, playbackSource: 'bilibili'));
+    // 收藏时不持久化当前可能已解析的临时时效直链
+    _songs.insert(
+      0,
+      song.copyWith(liked: true, playbackSource: 'bilibili', audioUrl: ''),
+    );
     if (_songs.length > maxItems) {
       _songs.removeLast();
     }
