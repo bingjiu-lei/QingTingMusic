@@ -18,9 +18,32 @@ final class AppShortcutService {
     final primaryFocus = FocusManager.instance.primaryFocus;
     if (primaryFocus == null) return false;
     final context = primaryFocus.context;
-    if (context == null) return false;
-    if (context.widget is EditableText) return true;
-    return context.findAncestorWidgetOfExactType<EditableText>() != null;
+    if (context != null) {
+      if (context.widget is EditableText || context.widget is TextField) {
+        return true;
+      }
+      if (context.findAncestorWidgetOfExactType<EditableText>() != null ||
+          context.findAncestorWidgetOfExactType<TextField>() != null) {
+        return true;
+      }
+    }
+    // 检查焦点分支中是否包含任何可编辑控件
+    bool foundEditable = false;
+    void checkNode(FocusNode node) {
+      if (foundEditable) return;
+      final ctx = node.context;
+      if (ctx != null &&
+          (ctx.widget is EditableText || ctx.widget is TextField)) {
+        foundEditable = true;
+        return;
+      }
+      for (final child in node.children) {
+        checkNode(child);
+      }
+    }
+
+    checkNode(primaryFocus);
+    return foundEditable;
   }
 
   /// 处理全局键盘事件。

@@ -60,7 +60,14 @@ class _SearchPageState extends State<SearchPage> {
     super.initState();
     _textController = TextEditingController(text: widget.controller.keyword);
     _textController.addListener(_handleTextControllerChanged);
-    _focusNode = FocusNode()..addListener(_handleFocusChanged);
+    _focusNode = FocusNode(debugLabel: 'SearchFieldFocusNode')
+      ..addListener(_handleFocusChanged);
+    // 第一帧布局稳定后再请求输入焦点，确保 Windows 平台计算候选框坐标与 IME 上下文正确关联
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_focusNode.hasFocus) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   @override
@@ -181,9 +188,17 @@ class _SearchPageState extends State<SearchPage> {
       child: TextField(
         controller: _textController,
         focusNode: _focusNode,
-        autofocus: true,
+        autofocus: false,
+        keyboardType: TextInputType.text,
+        enableSuggestions: true,
+        autocorrect: false,
         textInputAction: TextInputAction.search,
-        onTap: () => setState(() {}),
+        onTap: () {
+          if (!_focusNode.hasFocus) {
+            _focusNode.requestFocus();
+          }
+          SystemChannels.textInput.invokeMethod('TextInput.show');
+        },
         onSubmitted: widget.controller.search,
         style: AppTypography.style(15.5, 600, color: AppColors.text),
         decoration: InputDecoration(
@@ -197,34 +212,40 @@ class _SearchPageState extends State<SearchPage> {
               size: 22,
             ),
           ),
-          suffixIcon: _textController.text.isEmpty
-              ? null
-              : Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: IconButton(
-                    tooltip: '清空',
-                    constraints: const BoxConstraints.tightFor(
-                      width: 44,
-                      height: 44,
+          // 保持右侧结构尺寸恒定，避免首个拼音输入时内部尺寸跳变导致光标位移打断 IME 组合态
+          suffixIcon: Padding(
+            padding: const EdgeInsets.only(right: 6),
+            child: IgnorePointer(
+              ignoring: _textController.text.isEmpty,
+              child: AnimatedOpacity(
+                opacity: _textController.text.isEmpty ? 0.0 : 1.0,
+                duration: AppMotion.fast,
+                child: IconButton(
+                  tooltip: '清空',
+                  constraints: const BoxConstraints.tightFor(
+                    width: 44,
+                    height: 44,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: _clearSearch,
+                  icon: Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(
+                      color: AppGlass.surfaceSoft,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppGlass.border),
                     ),
-                    padding: EdgeInsets.zero,
-                    onPressed: _clearSearch,
-                    icon: Container(
-                      width: 26,
-                      height: 26,
-                      decoration: BoxDecoration(
-                        color: AppGlass.surfaceSoft,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: AppGlass.border),
-                      ),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 16,
-                        color: AppColors.muted,
-                      ),
+                    child: Icon(
+                      Icons.close_rounded,
+                      size: 16,
+                      color: AppColors.muted,
                     ),
                   ),
                 ),
+              ),
+            ),
+          ),
           filled: false,
           contentPadding: const EdgeInsets.symmetric(vertical: 15),
           border: InputBorder.none,
