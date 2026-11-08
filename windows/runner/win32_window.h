@@ -47,7 +47,10 @@ class Win32Window {
 
   // Returns the backing Window handle to enable clients to set icon and other
   // window properties. Returns nullptr if the window has been destroyed.
-  HWND GetHandle();
+    HWND GetHandle();
+
+  // Returns the child content window handle.
+  HWND GetChildContent() const { return child_content_; }
 
   // If true, closing this window will quit the application.
   void SetQuitOnClose(bool quit_on_close);

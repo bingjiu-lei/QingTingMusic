@@ -1,5 +1,8 @@
 #include "flutter_window.h"
 
+#include <imm.h>
+#pragma comment(lib, "imm32.lib")
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -650,6 +653,24 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     SetupThumbar();
     return 0;
   }
+
+  if (message == WM_ACTIVATE) {
+    if (LOWORD(wparam) != WA_INACTIVE) {
+      HWND child = GetChildContent();
+      if (child != nullptr) {
+        SetFocus(child);
+        ImmAssociateContextEx(child, nullptr, IACE_DEFAULT);
+      }
+      ImmAssociateContextEx(hwnd, nullptr, IACE_DEFAULT);
+    }
+  } else if (message == WM_SETFOCUS) {
+    HWND child = GetChildContent();
+    if (child != nullptr) {
+      SetFocus(child);
+      ImmAssociateContextEx(child, nullptr, IACE_DEFAULT);
+    }
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

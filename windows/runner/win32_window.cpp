@@ -2,7 +2,9 @@
 
 #include <dwmapi.h>
 #include <imm.h>
+#include <commctrl.h>
 #pragma comment(lib, "imm32.lib")
+#pragma comment(lib, "comctl32.lib")
 #include <flutter_windows.h>
 
 #include "resource.h"
@@ -246,6 +248,21 @@ Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
       GetWindowLongPtr(window, GWLP_USERDATA));
 }
 
+static LRESULT CALLBACK FlutterViewSubclassProc(
+    HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam,
+    UINT_PTR uIdSubclass, DWORD_PTR dwRefData) {
+  switch (message) {
+    case WM_SETFOCUS:
+    case WM_IME_SETCONTEXT:
+      ImmAssociateContextEx(hwnd, nullptr, IACE_DEFAULT);
+      break;
+    case WM_NCDESTROY:
+      RemoveWindowSubclass(hwnd, FlutterViewSubclassProc, uIdSubclass);
+      break;
+  }
+  return DefSubclassProc(hwnd, message, wparam, lparam);
+}
+
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
@@ -253,6 +270,8 @@ void Win32Window::SetChildContent(HWND content) {
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,
              frame.bottom - frame.top, true);
+
+  SetWindowSubclass(content, FlutterViewSubclassProc, 1, 0);
 
   SetFocus(child_content_);
 }

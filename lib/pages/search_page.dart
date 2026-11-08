@@ -54,7 +54,6 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
-  late final AppLifecycleListener _lifecycleListener;
 
   @override
   void initState() {
@@ -63,24 +62,6 @@ class _SearchPageState extends State<SearchPage> {
     _textController.addListener(_handleTextControllerChanged);
     _focusNode = FocusNode(debugLabel: 'SearchFieldFocusNode')
       ..addListener(_handleFocusChanged);
-    _lifecycleListener = AppLifecycleListener(
-      onResume: _reactivateFocusIfNeeded,
-    );
-  }
-
-  void _reactivateFocusIfNeeded() {
-    if (!mounted || !_focusNode.hasFocus) return;
-    _focusNode.unfocus();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _focusNode.requestFocus();
-        if (_textController.text.isNotEmpty) {
-          _textController.selection = TextSelection.collapsed(
-            offset: _textController.text.length,
-          );
-        }
-      }
-    });
   }
 
   @override
@@ -124,7 +105,6 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   void dispose() {
-    _lifecycleListener.dispose();
     _textController.removeListener(_handleTextControllerChanged);
     _textController.dispose();
     _focusNode.dispose();
@@ -204,13 +184,7 @@ class _SearchPageState extends State<SearchPage> {
         focusNode: _focusNode,
         autofocus: true,
         textInputAction: TextInputAction.search,
-        onTap: () {
-          if (_focusNode.hasFocus) {
-            _reactivateFocusIfNeeded();
-          } else {
-            setState(() {});
-          }
-        },
+        onTap: () => setState(() {}),
         onSubmitted: widget.controller.search,
         style: AppTypography.style(15.5, 600, color: AppColors.text),
         decoration: InputDecoration(
