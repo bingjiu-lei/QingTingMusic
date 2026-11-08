@@ -707,8 +707,6 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         SendMediaActionWithValue("desktopLyricsFontSizeChanged",
                                  flutter::EncodableValue(g_lyric.font_size));
       break;
-    case WM_POINTERACTIVATE:
-      return PA_ACTIVATE;
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;

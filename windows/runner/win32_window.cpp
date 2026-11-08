@@ -1,6 +1,8 @@
 #include "win32_window.h"
 
 #include <dwmapi.h>
+#include <imm.h>
+#pragma comment(lib, "imm32.lib")
 #include <flutter_windows.h>
 
 #include "resource.h"
@@ -144,9 +146,6 @@ bool Win32Window::Create(const std::wstring& title,
     return false;
   }
 
-  // 启用原生触屏多点触控支持
-  RegisterTouchWindow(window, 0);
-
   UpdateTheme(window);
 
   return OnCreate();
@@ -216,20 +215,11 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_ACTIVATE:
       if (child_content_ != nullptr) {
         SetFocus(child_content_);
+        if (LOWORD(wparam) != WA_INACTIVE) {
+          ImmAssociateContextEx(child_content_, nullptr, IACE_DEFAULT);
+        }
       }
       return 0;
-
-    case WM_SETFOCUS:
-      if (child_content_ != nullptr) {
-        SetFocus(child_content_);
-      }
-      return 0;
-
-    case WM_MOUSEACTIVATE:
-      if (child_content_ != nullptr) {
-        SetFocus(child_content_);
-      }
-      break;
 
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
@@ -259,7 +249,6 @@ Win32Window* Win32Window::GetThisFromHandle(HWND const window) noexcept {
 void Win32Window::SetChildContent(HWND content) {
   child_content_ = content;
   SetParent(content, window_handle_);
-  RegisterTouchWindow(content, 0);
   RECT frame = GetClientArea();
 
   MoveWindow(content, frame.left, frame.top, frame.right - frame.left,

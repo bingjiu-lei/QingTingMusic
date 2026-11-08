@@ -23,6 +23,8 @@ class BilibiliService {
   DateTime? _buvidExpireTime;
 
   static final RegExp _htmlTagRegex = RegExp(r'<[^>]*>');
+  static final RegExp _hexEntityRegex = RegExp(r'&#x([0-9a-fA-F]+);');
+  static final RegExp _decEntityRegex = RegExp(r'&#([0-9]+);');
   static final RegExp _bvidRegex = RegExp(
     r'BV[0-9A-Za-z]{10}',
     caseSensitive: false,
@@ -114,7 +116,8 @@ class BilibiliService {
 
     final rawTitle = item['title']?.toString() ?? '';
     final cleanTitle = _cleanHtml(rawTitle);
-    final author = item['author']?.toString().trim() ?? 'B站UP主';
+    final rawAuthor = item['author']?.toString().trim() ?? 'B站UP主';
+    final author = _cleanHtml(rawAuthor);
     var pic = item['pic']?.toString().trim() ?? '';
     if (pic.startsWith('//')) {
       pic = 'https:$pic';
@@ -272,12 +275,21 @@ class BilibiliService {
     );
   }
 
-  /// 过滤 HTML 标签并转换常见字符转义
+  /// 过滤 HTML 标签并转换常见字符转义（包括 16 进制与 10 进制实体）
   String _cleanHtml(String text) {
     if (text.isEmpty) return '';
     var clean = text.replaceAll(_htmlTagRegex, '');
+    clean = clean.replaceAllMapped(_hexEntityRegex, (match) {
+      final code = int.tryParse(match.group(1)!, radix: 16);
+      return code != null ? String.fromCharCode(code) : match.group(0)!;
+    });
+    clean = clean.replaceAllMapped(_decEntityRegex, (match) {
+      final code = int.tryParse(match.group(1)!);
+      return code != null ? String.fromCharCode(code) : match.group(0)!;
+    });
     clean = clean
         .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'")
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')

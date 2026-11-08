@@ -54,6 +54,7 @@ class SearchPage extends StatefulWidget {
 class _SearchPageState extends State<SearchPage> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
+  late final AppLifecycleListener _lifecycleListener;
 
   @override
   void initState() {
@@ -62,10 +63,22 @@ class _SearchPageState extends State<SearchPage> {
     _textController.addListener(_handleTextControllerChanged);
     _focusNode = FocusNode(debugLabel: 'SearchFieldFocusNode')
       ..addListener(_handleFocusChanged);
-    // 第一帧布局稳定后再请求输入焦点，确保 Windows 平台计算候选框坐标与 IME 上下文正确关联
+    _lifecycleListener = AppLifecycleListener(
+      onResume: _reactivateFocusIfNeeded,
+    );
+  }
+
+  void _reactivateFocusIfNeeded() {
+    if (!mounted || !_focusNode.hasFocus) return;
+    _focusNode.unfocus();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && !_focusNode.hasFocus) {
+      if (mounted) {
         _focusNode.requestFocus();
+        if (_textController.text.isNotEmpty) {
+          _textController.selection = TextSelection.collapsed(
+            offset: _textController.text.length,
+          );
+        }
       }
     });
   }
@@ -111,6 +124,7 @@ class _SearchPageState extends State<SearchPage> {
 
   @override
   void dispose() {
+    _lifecycleListener.dispose();
     _textController.removeListener(_handleTextControllerChanged);
     _textController.dispose();
     _focusNode.dispose();
@@ -188,16 +202,14 @@ class _SearchPageState extends State<SearchPage> {
       child: TextField(
         controller: _textController,
         focusNode: _focusNode,
-        autofocus: false,
-        keyboardType: TextInputType.text,
-        enableSuggestions: true,
-        autocorrect: false,
+        autofocus: true,
         textInputAction: TextInputAction.search,
         onTap: () {
-          if (!_focusNode.hasFocus) {
-            _focusNode.requestFocus();
+          if (_focusNode.hasFocus) {
+            _reactivateFocusIfNeeded();
+          } else {
+            setState(() {});
           }
-          SystemChannels.textInput.invokeMethod('TextInput.show');
         },
         onSubmitted: widget.controller.search,
         style: AppTypography.style(15.5, 600, color: AppColors.text),
