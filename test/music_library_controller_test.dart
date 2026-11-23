@@ -655,6 +655,21 @@ void main() {
       expect(favoriteMvService.isFavorite(inputSong), isFalse);
     },
   );
+
+  test(
+    'deleteCloudSong removes song from cloudSongs and saves cache',
+    () async {
+      final song1 = _song('cloud_1', title: 'Cloud 1', isCloud: true);
+      final song2 = _song('cloud_2', title: 'Cloud 2', isCloud: true);
+      final fakeRepo = _FakeMusicRepository();
+      final controller = _controller(fakeRepo);
+      controller.cloudSongs = [song1, song2];
+
+      await controller.deleteCloudSong(song1);
+
+      expect(controller.cloudSongs.map((s) => s.id), ['cloud_2']);
+    },
+  );
 }
 
 Song _song(
@@ -827,6 +842,9 @@ class _FakeMusicRepository implements MusicRepository {
   Future<void> deletePlaylist(MusicPlaylist playlist) async {
     playlists.removeWhere((item) => item.listId == playlist.listId);
   }
+
+  @override
+  Future<void> deleteCloudSong(Song song) async {}
 
   @override
   Future<List<SearchCatalogItem>> getArtistAlbums(

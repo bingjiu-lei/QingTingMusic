@@ -1897,6 +1897,43 @@ class _MusicShellState extends State<MusicShell>
     }
   }
 
+  Future<void> _handleDeleteCloudSong(Song song) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) => AppDialog(
+        icon: Icons.delete_outline_rounded,
+        iconColor: AppColors.danger,
+        title: '删除云盘歌曲',
+        content: Text(
+          '确定要从个人云盘中删除歌曲「${song.title}」吗？删除后文件无法找回。',
+          style: TextStyle(color: AppColors.muted, fontSize: 13.5, height: 1.5),
+        ),
+        actions: [
+          AppDialogButton.ghost(
+            label: '取消',
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          const SizedBox(width: 8),
+          AppDialogButton.danger(
+            label: '确认删除',
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    try {
+      await libraryController.deleteCloudSong(song);
+      if (!mounted) return;
+      _showNotice('已从个人云盘删除「${song.title}」', kind: AppNoticeKind.success);
+    } catch (error) {
+      if (!mounted) return;
+      final msg = error is KugouApiException ? error.message : error.toString();
+      _showNotice('删除失败：$msg', kind: AppNoticeKind.error);
+    }
+  }
+
   Future<void> _removeFromDetailPlaylist(Song song) async {
     final playlist = detailPlaylist;
     if (playlist == null) return;
@@ -2535,6 +2572,7 @@ class _MusicShellState extends State<MusicShell>
         selectedTab: librarySelectedTab,
         onTabChanged: (index) => setState(() => librarySelectedTab = index),
         enableBilibiliFeature: _bilibiliSourceEnabled,
+        onDeleteCloudSong: _handleDeleteCloudSong,
       ),
       1 => SearchPage(
         controller: searchController,

@@ -26,6 +26,7 @@ class SongPanel extends StatefulWidget {
     this.onLike,
     this.onAddToPlaylist,
     this.onRemoveFromPlaylist,
+    this.removeTooltip = '从歌单移除',
     this.onArtist,
     this.onAlbum,
     this.showAlbum = true,
@@ -47,6 +48,7 @@ class SongPanel extends StatefulWidget {
   final ValueChanged<Song>? onLike;
   final ValueChanged<Song>? onAddToPlaylist;
   final ValueChanged<Song>? onRemoveFromPlaylist;
+  final String removeTooltip;
   final ValueChanged<Song>? onArtist;
   final ValueChanged<Song>? onAlbum;
   final bool showAlbum;
@@ -98,7 +100,9 @@ class _SongPanelState extends State<SongPanel> {
   }
 
   List<Song> get _visibleSongs {
-    final source = widget.reversed ? widget.songs.reversed.toList() : widget.songs;
+    final source = widget.reversed
+        ? widget.songs.reversed.toList()
+        : widget.songs;
     final keyword = widget.filterText.trim().toLowerCase();
     if (keyword.isEmpty) return source;
     return source.where((song) {
@@ -125,9 +129,7 @@ class _SongPanelState extends State<SongPanel> {
 
     return GlassSurface(
       radius: AppRadius.xl,
-      tint: AppColors.surface.withValues(
-        alpha: AppColors.isDark ? 0.72 : 0.80,
-      ),
+      tint: AppColors.surface.withValues(alpha: AppColors.isDark ? 0.72 : 0.80),
       shadows: AppColors.isDark ? null : AppShadows.soft,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: widget.songs.isEmpty
@@ -138,116 +140,110 @@ class _SongPanelState extends State<SongPanel> {
               ),
             )
           : visibleSongs.isEmpty
-              ? Center(
-                  child: Text(
-                    hasFilter ? '当前列表没有匹配的歌曲' : widget.emptyText,
-                    style: TextStyle(color: AppColors.faint, fontSize: 13),
-                  ),
-                )
-              : Stack(
-                  children: [
-                    ShaderMask(
-                      blendMode: BlendMode.dstIn,
-                      shaderCallback: (bounds) => const LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          Colors.white,
-                          Colors.white,
-                          Colors.transparent,
-                        ],
-                        stops: [0, 0.955, 1],
-                      ).createShader(bounds),
-                      child: SmoothMouseScroll(
-                        controller: _scrollController,
-                        child: ListView.builder(
-                          key: widget.key is PageStorageKey
-                              ? widget.key
-                              : null,
-                          controller: _scrollController,
-                          physics: const ClampingScrollPhysics(),
-                          padding: const EdgeInsets.fromLTRB(4, 6, 4, 20),
-                          itemCount: visibleSongs.length + (widget.loadingMore ? 1 : 0),
-                          itemExtent: itemExtent,
-                          scrollCacheExtent: ScrollCacheExtent.pixels(
-                            itemExtent * 14,
-                          ),
-                          itemBuilder: (context, index) {
-                            if (index >= visibleSongs.length) {
-                              return Center(
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  child: SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: AppColors.primary,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }
-                            final song = visibleSongs[index];
-                            return Column(
-                              children: [
-                                SongRow(
-                                  key: ValueKey(song.id),
-                                  song: song,
-                                  index: index,
-                                  compact: widget.compactRows,
-                                  isCurrent: widget.currentSong?.id == song.id,
-                                  isPlaying: widget.isPlaying,
-                                  onPlay: () => widget.onPlay(song, visibleSongs),
-                                  onLike: widget.onLike == null
-                                      ? null
-                                      : () => widget.onLike!(song),
-                                  onArtist: widget.onArtist == null
-                                      ? null
-                                      : () => widget.onArtist!(song),
-                                  onArtistLink: widget.onArtist == null
-                                      ? null
-                                      : (artist) => widget.onArtist!(
-                                          song.copyWith(
-                                            artist: artist.name,
-                                            artistId: artist.id,
-                                            artists: [artist],
-                                          ),
-                                        ),
-                                  onAlbum: widget.onAlbum == null
-                                      ? null
-                                      : () => widget.onAlbum!(song),
-                                  onAddToPlaylist: widget.onAddToPlaylist == null
-                                      ? null
-                                      : () => widget.onAddToPlaylist!(song),
-                                  onRemoveFromPlaylist:
-                                      widget.onRemoveFromPlaylist == null
-                                          ? null
-                                          : () => widget.onRemoveFromPlaylist!(
-                                                song,
-                                              ),
-                                  showAlbum: widget.showAlbum,
-                                ),
-                                Divider(
-                                  height: 1,
-                                  thickness: 0.5,
-                                  color: AppColors.divider.withValues(
-                                    alpha: AppColors.isDark ? 0.72 : 0.8,
-                                  ),
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    ListScrollActions(
+          ? Center(
+              child: Text(
+                hasFilter ? '当前列表没有匹配的歌曲' : widget.emptyText,
+                style: TextStyle(color: AppColors.faint, fontSize: 13),
+              ),
+            )
+          : Stack(
+              children: [
+                ShaderMask(
+                  blendMode: BlendMode.dstIn,
+                  shaderCallback: (bounds) => const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.white, Colors.white, Colors.transparent],
+                    stops: [0, 0.955, 1],
+                  ).createShader(bounds),
+                  child: SmoothMouseScroll(
+                    controller: _scrollController,
+                    child: ListView.builder(
+                      key: widget.key is PageStorageKey ? widget.key : null,
                       controller: _scrollController,
-                      currentIndex: _currentIndexIn(visibleSongs),
+                      physics: const ClampingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(4, 6, 4, 20),
+                      itemCount:
+                          visibleSongs.length + (widget.loadingMore ? 1 : 0),
                       itemExtent: itemExtent,
+                      scrollCacheExtent: ScrollCacheExtent.pixels(
+                        itemExtent * 14,
+                      ),
+                      itemBuilder: (context, index) {
+                        if (index >= visibleSongs.length) {
+                          return Center(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8),
+                              child: SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              ),
+                            ),
+                          );
+                        }
+                        final song = visibleSongs[index];
+                        return Column(
+                          children: [
+                            SongRow(
+                              key: ValueKey(song.id),
+                              song: song,
+                              index: index,
+                              compact: widget.compactRows,
+                              isCurrent: widget.currentSong?.id == song.id,
+                              isPlaying: widget.isPlaying,
+                              onPlay: () => widget.onPlay(song, visibleSongs),
+                              onLike: widget.onLike == null
+                                  ? null
+                                  : () => widget.onLike!(song),
+                              onArtist: widget.onArtist == null
+                                  ? null
+                                  : () => widget.onArtist!(song),
+                              onArtistLink: widget.onArtist == null
+                                  ? null
+                                  : (artist) => widget.onArtist!(
+                                      song.copyWith(
+                                        artist: artist.name,
+                                        artistId: artist.id,
+                                        artists: [artist],
+                                      ),
+                                    ),
+                              onAlbum: widget.onAlbum == null
+                                  ? null
+                                  : () => widget.onAlbum!(song),
+                              onAddToPlaylist: widget.onAddToPlaylist == null
+                                  ? null
+                                  : () => widget.onAddToPlaylist!(song),
+                              onRemoveFromPlaylist:
+                                  widget.onRemoveFromPlaylist == null
+                                  ? null
+                                  : () => widget.onRemoveFromPlaylist!(song),
+                              removeTooltip: widget.removeTooltip,
+                              showAlbum: widget.showAlbum,
+                            ),
+                            Divider(
+                              height: 1,
+                              thickness: 0.5,
+                              color: AppColors.divider.withValues(
+                                alpha: AppColors.isDark ? 0.72 : 0.8,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  ],
+                  ),
                 ),
+                ListScrollActions(
+                  controller: _scrollController,
+                  currentIndex: _currentIndexIn(visibleSongs),
+                  itemExtent: itemExtent,
+                ),
+              ],
+            ),
     );
   }
 }
@@ -309,17 +305,11 @@ class SongHeaderActions extends StatelessWidget {
             onClear: onClearFilter,
           ),
           const SizedBox(width: 4),
-          _ListSortButton(
-            reversed: reversed,
-            onTap: onToggleSort,
-          ),
+          _ListSortButton(reversed: reversed, onTap: onToggleSort),
         ],
         if (onRefresh != null) ...[
           if (songs.isNotEmpty) const SizedBox(width: 4),
-          _ListRefreshButton(
-            onTap: onRefresh,
-            loading: isRefreshing,
-          ),
+          _ListRefreshButton(onTap: onRefresh, loading: isRefreshing),
         ],
       ],
     );
@@ -369,9 +359,7 @@ class _ListSortButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppIconButton.filled(
-      icon: reversed
-          ? Icons.south_rounded
-          : Icons.format_list_numbered_rounded,
+      icon: reversed ? Icons.south_rounded : Icons.format_list_numbered_rounded,
       tooltip: reversed ? '切换为原顺序' : '切换为倒序',
       onPressed: onTap,
       size: 36,

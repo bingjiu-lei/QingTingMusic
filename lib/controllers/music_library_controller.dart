@@ -315,6 +315,19 @@ class MusicLibraryController extends ChangeNotifier {
     }
   }
 
+  Future<void> deleteCloudSong(Song song) async {
+    await repository.deleteCloudSong(song);
+    cloudSongs = cloudSongs
+        .where(
+          (item) =>
+              item.id != song.id &&
+              (song.fileId == null || item.fileId != song.fileId),
+        )
+        .toList(growable: false);
+    unawaited(_saveCache());
+    notifyListeners();
+  }
+
   Future<void> refreshCachedInBackground() async {
     for (final section in loaded.toList()) {
       unawaited(ensureLoaded(section, refresh: true));

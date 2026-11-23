@@ -19,6 +19,7 @@ class SongRow extends StatefulWidget {
     this.onAlbum,
     this.onAddToPlaylist,
     this.onRemoveFromPlaylist,
+    this.removeTooltip = '从歌单移除',
     this.isCurrent = false,
     this.isPlaying = false,
     this.compact = false,
@@ -34,6 +35,7 @@ class SongRow extends StatefulWidget {
   final VoidCallback? onAlbum;
   final VoidCallback? onAddToPlaylist;
   final VoidCallback? onRemoveFromPlaylist;
+  final String removeTooltip;
   final bool isCurrent;
   final bool isPlaying;
   final bool compact;
@@ -287,7 +289,7 @@ class _SongRowState extends State<SongRow> with TickerProviderStateMixin {
                           opacity: _hovered ? 1 : 0,
                           duration: const Duration(milliseconds: 120),
                           child: AppIconButton.ghost(
-                            tooltip: '从歌单移除',
+                            tooltip: widget.removeTooltip,
                             onPressed: widget.onRemoveFromPlaylist,
                             icon: Icons.delete_outline_rounded,
                             size: 32,

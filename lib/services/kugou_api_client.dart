@@ -1433,6 +1433,34 @@ class KugouApiClient {
     }
   }
 
+  Future<void> deleteCloudSong(Song song) async {
+    if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    final fileId = _extractFileId(song);
+    if (fileId == null || fileId <= 0) {
+      throw const KugouApiException('缺少云盘文件标识，无法删除');
+    }
+    final response = await _post(
+      '/user/cloud/del',
+      authenticated: true,
+      queryParameters: {
+        'fileids': fileId.toString(),
+        'album_audio_ids': (song.albumAudioId ?? 0).toString(),
+      },
+    );
+    _ensureOperationSucceeded(response.data);
+    invalidateCloudSongsCache();
+  }
+
+  int? _extractFileId(Song song) {
+    if (song.fileId != null && song.fileId! > 0) return song.fileId;
+    if (song.id.startsWith('cloud_')) {
+      final idPart = song.id.substring(6);
+      final parsed = int.tryParse(idPart);
+      if (parsed != null && parsed > 0) return parsed;
+    }
+    return null;
+  }
+
   Future<List<SearchCatalogItem>> getFollowedArtists() async {
     final response = await _get(
       '/user/follow',

@@ -32,6 +32,7 @@ class LibraryPage extends StatefulWidget {
     required this.onTabChanged,
     this.enableMvFeature = true,
     this.enableBilibiliFeature = false,
+    this.onDeleteCloudSong,
   });
 
   final MusicLibraryController controller;
@@ -52,6 +53,7 @@ class LibraryPage extends StatefulWidget {
   final ValueChanged<int> onTabChanged;
   final bool enableMvFeature;
   final bool enableBilibiliFeature;
+  final ValueChanged<Song>? onDeleteCloudSong;
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
@@ -260,6 +262,8 @@ class _LibraryPageState extends State<LibraryPage> {
         controller.sortedCloudSongs,
         '云盘中还没有歌曲',
         storageKey: const PageStorageKey('library-cloud-scroll'),
+        onRemove: widget.onDeleteCloudSong,
+        removeTooltip: '从云盘删除',
       ),
       LibrarySection.mv => _songs(
         'MV',
@@ -325,6 +329,8 @@ class _LibraryPageState extends State<LibraryPage> {
     List<Song> songs,
     String emptyText, {
     PageStorageKey<String>? storageKey,
+    ValueChanged<Song>? onRemove,
+    String removeTooltip = '从歌单移除',
   }) {
     return SongPanel(
       key: storageKey,
@@ -339,6 +345,8 @@ class _LibraryPageState extends State<LibraryPage> {
       onPlay: widget.onPlay,
       onLike: widget.onLike,
       onAddToPlaylist: widget.onAddToPlaylist,
+      onRemoveFromPlaylist: onRemove,
+      removeTooltip: removeTooltip,
       onArtist: widget.onOpenArtist,
       onAlbum: widget.onOpenAlbum,
     );

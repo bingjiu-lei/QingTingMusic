@@ -182,6 +182,11 @@ class KugouMusicRepository implements MusicRepository {
   }
 
   @override
+  Future<void> deleteCloudSong(Song song) {
+    return apiClient.deleteCloudSong(song);
+  }
+
+  @override
   Future<List<SongClimaxSegment>> getSongClimax(String hash) {
     return apiClient.getSongClimax(hash);
   }

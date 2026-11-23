@@ -81,6 +81,8 @@ abstract interface class MusicRepository {
 
   Future<void> deletePlaylist(MusicPlaylist playlist);
 
+  Future<void> deleteCloudSong(Song song);
+
   /// 仅返回数据源明确标注的高潮片段；空列表代表该歌曲没有可用标记。
   Future<List<SongClimaxSegment>> getSongClimax(String hash);
 
