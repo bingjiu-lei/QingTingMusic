@@ -29,6 +29,8 @@ class SettingsPage extends StatefulWidget {
     required this.onSidebarExpandedChanged,
     required this.playbackQualityController,
     required this.themeController,
+    this.preferCloudSource = false,
+    this.onPreferCloudSourceChanged,
     this.bilibiliSourceEnabled = false,
     this.onBilibiliSourceEnabledChanged,
     this.onEndpointChanged,
@@ -44,6 +46,8 @@ class SettingsPage extends StatefulWidget {
   final ValueChanged<bool> onSidebarExpandedChanged;
   final PlaybackQualityController playbackQualityController;
   final ThemeController themeController;
+  final bool preferCloudSource;
+  final ValueChanged<bool>? onPreferCloudSourceChanged;
   final bool bilibiliSourceEnabled;
   final ValueChanged<bool>? onBilibiliSourceEnabledChanged;
   final VoidCallback? onEndpointChanged;
@@ -642,6 +646,18 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                           _PlaybackQualitySection(
                             controller: widget.playbackQualityController,
+                          ),
+                          Divider(
+                            height: 32,
+                            color: AppColors.divider.withValues(alpha: 0.72),
+                          ),
+                          _SettingSwitchRow(
+                            icon: Icons.cloud_done_rounded,
+                            title: '优先播放云盘音源',
+                            subtitle: '播放歌曲时若个人云盘存在同名或匹配歌曲，优先使用云盘音源播放',
+                            value: widget.preferCloudSource,
+                            onChanged:
+                                widget.onPreferCloudSourceChanged ?? (_) {},
                           ),
                           Divider(
                             height: 32,

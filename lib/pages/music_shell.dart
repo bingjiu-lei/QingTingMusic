@@ -134,6 +134,7 @@ class _MusicShellState extends State<MusicShell>
   bool _closeToTray = true;
   bool _isWindowMaximized = false;
   bool _bilibiliSourceEnabled = false;
+  bool _preferCloudSource = false;
   bool _windowReadyToTrackState = false;
   bool detailRelatedLoadingMore = false;
   bool detailRelatedHasMore = false;
@@ -290,6 +291,7 @@ class _MusicShellState extends State<MusicShell>
       _preferences.read('sidebarExpanded'),
       _preferences.readWindowState(),
       _preferences.readBilibiliSourceEnabled(),
+      _preferences.readPreferCloudSource(),
     ]);
     if (!mounted) return;
     final closeToTray = values[0] is bool ? values[0] as bool : false;
@@ -301,11 +303,14 @@ class _MusicShellState extends State<MusicShell>
             height: WindowStateSnapshot.defaultHeight,
             isMaximized: false,
           );
+    final preferCloudSource = values[4] is bool ? values[4] as bool : false;
+    apiClient?.preferCloudSource = preferCloudSource;
     setState(() {
       _closeToTray = closeToTray;
       _sidebarExpanded = sidebarExpanded;
       _isWindowMaximized = windowState.isMaximized;
       _bilibiliSourceEnabled = values[3] is bool ? values[3] as bool : false;
+      _preferCloudSource = preferCloudSource;
     });
     await _applyCloseBehavior(closeToTray);
   }
@@ -318,6 +323,12 @@ class _MusicShellState extends State<MusicShell>
   Future<void> _setBilibiliSourceEnabled(bool value) async {
     setState(() => _bilibiliSourceEnabled = value);
     await _preferences.writeBilibiliSourceEnabled(value);
+  }
+
+  Future<void> _setPreferCloudSource(bool value) async {
+    setState(() => _preferCloudSource = value);
+    apiClient?.preferCloudSource = value;
+    await _preferences.writePreferCloudSource(value);
   }
 
   KeyEventResult _handleGlobalKeyEvent(KeyEvent event) {
@@ -2558,6 +2569,8 @@ class _MusicShellState extends State<MusicShell>
         onCloseToTrayChanged: _setCloseToTray,
         sidebarExpanded: _sidebarExpanded,
         onSidebarExpandedChanged: _setSidebarExpanded,
+        preferCloudSource: _preferCloudSource,
+        onPreferCloudSourceChanged: _setPreferCloudSource,
         bilibiliSourceEnabled: _bilibiliSourceEnabled,
         onBilibiliSourceEnabledChanged: _setBilibiliSourceEnabled,
         onEndpointChanged: () {

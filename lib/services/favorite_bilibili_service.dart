@@ -81,7 +81,7 @@ class FavoriteBilibiliService extends ChangeNotifier {
           .map((song) => song.copyWith(audioUrl: '').toJson())
           .toList();
       await file.writeAsString(jsonEncode(data), flush: true);
-    } catch (e, stack) {
+    } catch (e) {
       debugPrint('保存B站本地收藏失败: $e');
     }
   }

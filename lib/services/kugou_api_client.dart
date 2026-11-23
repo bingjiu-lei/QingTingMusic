@@ -109,6 +109,7 @@ class KugouApiClient {
     SecureSessionStorage? storage,
     ApiEndpointService? endpointService,
     this.playbackQualityController,
+    this.preferCloudSource = false,
   }) : _dio = dio ?? _createDio(''),
        _storage = storage ?? SecureSessionStorage(),
        _endpointService = endpointService ?? ApiEndpointService(),
@@ -119,10 +120,20 @@ class KugouApiClient {
   final ApiEndpointService _endpointService;
   final PlaybackQualityController? playbackQualityController;
   final KugouOfficialClient _officialClient;
+  bool preferCloudSource;
   final Map<String, ({DateTime expiresAt, List<String> urls})> _portraitCache =
       {};
   final Map<String, Future<List<String>>> _portraitRequests = {};
   final Map<String, Future<List<_PlaybackCandidate>>> _privilegeRequests = {};
+  List<Song>? _cachedCloudSongs;
+  DateTime? _cloudSongsCachedAt;
+  Future<List<Song>>? _pendingCloudSongsRequest;
+  static const _cloudCacheDuration = Duration(minutes: 5);
+
+  void invalidateCloudSongsCache() {
+    _cachedCloudSongs = null;
+    _cloudSongsCachedAt = null;
+  }
 
   KugouSession session = const KugouSession();
 
@@ -386,6 +397,7 @@ class KugouApiClient {
   }
 
   Future<void> logout() async {
+    invalidateCloudSongsCache();
     session = session.loggedOut();
     await _storage.save(session);
   }
@@ -1272,8 +1284,30 @@ class KugouApiClient {
     }
   }
 
-  Future<List<Song>> getCloudSongs() async {
+  Future<List<Song>> getCloudSongs({bool forceRefresh = false}) async {
     if (!session.isLoggedIn) throw const AuthenticationRequiredException();
+    if (!forceRefresh &&
+        _cachedCloudSongs != null &&
+        _cloudSongsCachedAt != null &&
+        DateTime.now().difference(_cloudSongsCachedAt!) < _cloudCacheDuration) {
+      return _cachedCloudSongs!;
+    }
+    final pending = _pendingCloudSongsRequest;
+    if (pending != null) return pending;
+
+    final request = _fetchCloudSongs();
+    _pendingCloudSongsRequest = request;
+    try {
+      final songs = await request;
+      _cachedCloudSongs = songs;
+      _cloudSongsCachedAt = DateTime.now();
+      return songs;
+    } finally {
+      _pendingCloudSongsRequest = null;
+    }
+  }
+
+  Future<List<Song>> _fetchCloudSongs() async {
     const pageSize = 100;
     final songs = <String, Song>{};
     for (var page = 1; page <= 30; page++) {
@@ -1327,7 +1361,7 @@ class KugouApiClient {
     if (!session.isLoggedIn) throw const AuthenticationRequiredException();
     try {
       if (await _usesOfficialApi()) {
-        return await _officialClient.uploadCloudSong(
+        final result = await _officialClient.uploadCloudSong(
           fileBytes: fileBytes,
           name: name,
           extendname: extendname,
@@ -1340,6 +1374,8 @@ class KugouApiClient {
           cancelToken: cancelToken,
           onProgress: onProgress,
         );
+        invalidateCloudSongsCache();
+        return result;
       }
 
       await _configureEndpoint();
@@ -1379,6 +1415,7 @@ class KugouApiClient {
           _read(body, ['message', 'msg'], fallback: '上传到云盘失败'),
         );
       }
+      invalidateCloudSongsCache();
       return body;
     } on KugouOfficialException catch (e) {
       throw KugouApiException(e.message);
@@ -1666,6 +1703,30 @@ class KugouApiClient {
       return _resolveCloudCatalogPlayback(song);
     }
 
+    if (preferCloudSource &&
+        !song.isCloud &&
+        song.playbackSource != 'catalog' &&
+        session.isLoggedIn) {
+      final cloudMatch = await _findMatchingCloudSong(song);
+      if (cloudMatch != null) {
+        final cloudPlayback = await _resolvePreferredSongUrl(cloudMatch);
+        if (cloudPlayback != null) {
+          return song.copyWith(
+            hash: cloudMatch.hash,
+            catalogHash: song.hash,
+            audioUrl: cloudPlayback.url,
+            playbackQuality: _normalizedQuality(cloudPlayback.quality),
+            playbackNotice: '已优先播放云盘版本',
+            isCloud: true,
+            cloudAudioId: cloudMatch.cloudAudioId,
+            fileId: cloudMatch.fileId,
+            cloudQuality: cloudMatch.cloudQuality,
+            playbackSource: 'cloud',
+          );
+        }
+      }
+    }
+
     if (!song.isCloud) {
       final candidates = await _resolvePrivilegeCandidates(song);
       final allowedQualities =
@@ -1684,22 +1745,24 @@ class KugouApiClient {
               quality: candidate.quality,
             );
         if (candidateUrl != null) {
-          return song.copyWith(
+          final resolved = song.copyWith(
             audioUrl: candidateUrl,
             playbackQuality: _normalizedQuality(candidate.quality),
             isSpecialSource: candidate.isSubstitute,
           );
+          return _attachCloudMatchIfAvailable(song, resolved);
         }
       }
     }
 
     final directPlayback = await _resolvePreferredSongUrl(song);
     if (directPlayback != null) {
-      return song.copyWith(
+      final resolved = song.copyWith(
         audioUrl: directPlayback.url,
         playbackQuality: _normalizedQuality(directPlayback.quality),
         isSpecialSource: false,
       );
+      return _attachCloudMatchIfAvailable(song, resolved);
     }
 
     if (!song.isCloud) {
@@ -1708,9 +1771,16 @@ class KugouApiClient {
         final cloudPlayback = await _resolvePreferredSongUrl(cloudMatch);
         if (cloudPlayback != null) {
           return song.copyWith(
+            hash: cloudMatch.hash,
+            catalogHash: song.hash,
             audioUrl: cloudPlayback.url,
             playbackQuality: _normalizedQuality(cloudPlayback.quality),
             playbackNotice: '已切换云盘版本',
+            isCloud: true,
+            cloudAudioId: cloudMatch.cloudAudioId,
+            fileId: cloudMatch.fileId,
+            cloudQuality: cloudMatch.cloudQuality,
+            playbackSource: 'cloud',
           );
         }
       }
@@ -1723,6 +1793,28 @@ class KugouApiClient {
     }
 
     throw const KugouApiException('该歌曲无版权或需付费');
+  }
+
+  Future<Song> _attachCloudMatchIfAvailable(
+    Song original,
+    Song resolved,
+  ) async {
+    if (original.isCloud || !session.isLoggedIn) return resolved;
+    try {
+      final cloudMatch = await _findMatchingCloudSong(original);
+      if (cloudMatch != null) {
+        return resolved.copyWith(
+          isCloud: true,
+          cloudAudioId: cloudMatch.cloudAudioId,
+          fileId: cloudMatch.fileId,
+          cloudQuality: cloudMatch.cloudQuality,
+          catalogHash: original.hash,
+          hash: cloudMatch.hash,
+          playbackSource: 'catalog',
+        );
+      }
+    } catch (_) {}
+    return resolved;
   }
 
   Future<Song> _resolveMvPlayback(Song song) async {
@@ -1827,6 +1919,7 @@ class KugouApiClient {
 
     final directPlayback = await _resolvePreferredSongUrl(
       song,
+      hash: song.catalogHash,
       useCloudSource: false,
     );
     if (directPlayback != null) {
@@ -1839,14 +1932,16 @@ class KugouApiClient {
   }
 
   Future<List<LyricLine>> getLyrics(Song song) async {
-    final hash = song.hash?.trim() ?? '';
-    if (hash.isEmpty && !song.isMv) return const [];
+    final effectiveHash = song.catalogHash?.trim().isNotEmpty == true
+        ? song.catalogHash!.trim()
+        : song.hash?.trim() ?? '';
+    if (effectiveHash.isEmpty && !song.isMv) return const [];
     final isMv = song.isMv;
     final cleanTitle = isMv ? _cleanMvTitleForLyrics(song.title) : song.title;
     final searchResponse = await _get(
       '/search/lyric',
       queryParameters: {
-        'hash': isMv ? '' : hash,
+        'hash': isMv ? '' : effectiveHash,
         'keywords': '${song.artist} - $cleanTitle',
         'duration': song.duration.inMilliseconds,
         if (!isMv && song.albumAudioId != null)
@@ -1900,28 +1995,33 @@ class KugouApiClient {
   }
 
   Future<List<String>> getArtistPortraits(Song song) async {
-    final hash = song.hash?.trim() ?? '';
-    if (hash.isEmpty) return const [];
-    final cached = _portraitCache[hash];
+    final effectiveHash = song.catalogHash?.trim().isNotEmpty == true
+        ? song.catalogHash!.trim()
+        : song.hash?.trim() ?? '';
+    if (effectiveHash.isEmpty) return const [];
+    final cached = _portraitCache[effectiveHash];
     if (cached != null && cached.expiresAt.isAfter(DateTime.now())) {
       return cached.urls;
     }
-    final pending = _portraitRequests[hash];
+    final pending = _portraitRequests[effectiveHash];
     if (pending != null) return pending;
     final request = _loadArtistPortraits(song);
-    _portraitRequests[hash] = request;
+    _portraitRequests[effectiveHash] = request;
     try {
       return await request;
     } finally {
-      _portraitRequests.remove(hash);
+      _portraitRequests.remove(effectiveHash);
     }
   }
 
   Future<List<String>> _loadArtistPortraits(Song song) async {
+    final effectiveHash = song.catalogHash?.trim().isNotEmpty == true
+        ? song.catalogHash!.trim()
+        : song.hash ?? '';
     final response = await _get(
       '/images/audio',
       queryParameters: {
-        'hash': song.hash ?? '',
+        'hash': effectiveHash,
         'audio_id': song.fileId ?? 0,
         'album_audio_id': song.albumAudioId ?? 0,
         'filename': song.title,
@@ -1932,7 +2032,7 @@ class KugouApiClient {
     final urls = _findPortraitUrls(
       response.data,
     ).take(5).toList(growable: false);
-    _portraitCache[song.hash!] = (
+    _portraitCache[effectiveHash] = (
       expiresAt: DateTime.now().add(
         urls.isEmpty ? const Duration(minutes: 5) : const Duration(minutes: 30),
       ),
@@ -1976,6 +2076,7 @@ class KugouApiClient {
 
   Future<_ResolvedPlayback?> _resolvePreferredSongUrl(
     Song song, {
+    String? hash,
     bool? useCloudSource,
   }) async {
     final qualities =
@@ -1983,11 +2084,12 @@ class KugouApiClient {
     for (final quality in qualities) {
       final url = await _resolveSongUrl(
         song,
+        hash: hash,
         quality: quality,
         useCloudSource: useCloudSource,
       );
       if (url != null) {
-        if (!(useCloudSource ?? song.isCloud)) {
+        if (!(useCloudSource ?? song.isCloud) && hash == null) {
           playbackQualityController?.setAvailableQualities(song, [quality]);
         }
         final resolvedQuality =

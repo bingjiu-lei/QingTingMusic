@@ -121,6 +121,15 @@ class AppPreferencesService {
     await write('bilibiliSourceEnabled', value);
   }
 
+  Future<bool> readPreferCloudSource() async {
+    final values = _load();
+    return values['preferCloudSource'] == true;
+  }
+
+  Future<void> writePreferCloudSource(bool value) async {
+    await write('preferCloudSource', value);
+  }
+
   Map<String, Object?> _load() {
     if (!_file.existsSync()) return {};
     try {
