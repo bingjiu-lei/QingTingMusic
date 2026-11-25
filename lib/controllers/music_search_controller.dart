@@ -9,6 +9,14 @@ import '../services/kugou_api_client.dart';
 import '../services/search_history_service.dart';
 import '../services/music_search_cache_service.dart';
 
+enum OtherSourceSubCategory {
+  bilibili('B站'),
+  netease('云音乐');
+
+  const OtherSourceSubCategory(this.label);
+  final String label;
+}
+
 class MusicSearchController extends ChangeNotifier {
   MusicSearchController({
     required this.repository,
@@ -26,6 +34,7 @@ class MusicSearchController extends ChangeNotifier {
   List<Song> results = const [];
   List<SearchCatalogItem> catalogResults = const [];
   SearchCategory category = SearchCategory.song;
+  OtherSourceSubCategory otherSource = OtherSourceSubCategory.bilibili;
   bool enableMvFeature = true;
   bool hasSearched = false;
   bool isLoading = false;
@@ -99,13 +108,15 @@ class MusicSearchController extends ChangeNotifier {
       if (category == SearchCategory.song ||
           category == SearchCategory.bilibili) {
         final cacheKey = category == SearchCategory.bilibili
-            ? 'bili:$query'
+            ? '${otherSource.name}:$query'
             : query;
         final cached = _songCache[cacheKey];
         final songs = _usableSongCache(cached)
             ? cached!
             : (category == SearchCategory.bilibili
-                  ? await repository.searchBilibiliSongs(query)
+                  ? (otherSource == OtherSourceSubCategory.netease
+                        ? await repository.searchNeteaseSongs(query)
+                        : await repository.searchBilibiliSongs(query))
                   : await repository.searchSongs(query));
         // 请求已被更新的搜索作废时不回写，避免先发后至覆盖新结果。
         if (request != _searchRequest) return;
@@ -161,7 +172,7 @@ class MusicSearchController extends ChangeNotifier {
       final query = keyword.trim();
       if (value == SearchCategory.song || value == SearchCategory.bilibili) {
         final cacheKey = value == SearchCategory.bilibili
-            ? 'bili:$query'
+            ? '${otherSource.name}:$query'
             : query;
         if (_songCache.containsKey(cacheKey)) {
           final cached = _songCache[cacheKey]!;
@@ -187,6 +198,28 @@ class MusicSearchController extends ChangeNotifier {
     } else {
       notifyListeners();
     }
+  }
+
+  /// 切换“其他”分类下的子音源（B站、云音乐）
+  void selectOtherSource(OtherSourceSubCategory source) {
+    if (otherSource == source) return;
+    otherSource = source;
+    if (category == SearchCategory.bilibili) {
+      final query = keyword.trim();
+      if (hasSearched && query.isNotEmpty) {
+        final cacheKey = '${otherSource.name}:$query';
+        final cached = _songCache[cacheKey];
+        if (_usableSongCache(cached)) {
+          results = cached!;
+          catalogResults = const [];
+          notifyListeners();
+          return;
+        }
+        unawaited(search(query));
+        return;
+      }
+    }
+    notifyListeners();
   }
 
   Future<void> _prefetchCatalog(String query) async {

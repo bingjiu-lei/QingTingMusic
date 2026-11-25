@@ -12,6 +12,7 @@ import 'services/app_storage_service.dart';
 import 'services/single_instance_service.dart';
 
 Future<void> main() async {
+  HttpOverrides.global = AppHttpOverrides();
   WidgetsFlutterBinding.ensureInitialized();
   JustAudioMediaKit.title = '晴听音乐';
   JustAudioMediaKit.ensureInitialized(windows: true, linux: false);
@@ -71,4 +72,14 @@ Future<void> _showMainWindow() async {
     await windowManager.show();
   }
   await windowManager.focus();
+}
+
+class AppHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.userAgent =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    return client;
+  }
 }

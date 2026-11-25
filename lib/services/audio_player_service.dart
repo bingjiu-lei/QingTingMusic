@@ -190,6 +190,11 @@ class AudioPlayerService {
         uri.host.contains('bili') ||
         song.id.startsWith('bili_')) {
       headers['Referer'] = 'https://www.bilibili.com/';
+    } else if (song.playbackSource == 'netease' ||
+        uri.host.contains('126.net') ||
+        uri.host.contains('163.com') ||
+        song.id.startsWith('netease_')) {
+      headers['Referer'] = 'https://music.163.com/';
     }
     return headers;
   }

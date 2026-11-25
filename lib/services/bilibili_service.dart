@@ -79,6 +79,7 @@ class BilibiliService {
       queryParameters: {
         'search_type': 'video',
         'keyword': trimmed,
+        'tids': 3, // 锁定 B 站音乐大区（涵盖翻唱、Live现场、MV、演奏、原创等所有音乐子分区）
         'page': page,
         'page_size': pageSize,
       },
@@ -109,8 +110,8 @@ class BilibiliService {
 
     final rawDuration = item['duration']?.toString().trim() ?? '';
     final durationSeconds = _parseDuration(rawDuration);
-    // 过滤掉小于 45 秒（碎片）和大于 15 分钟（录屏/合集/教学等非歌曲内容）
-    if (durationSeconds < 45 || durationSeconds > 900) {
+    // 过滤掉小于 60 秒（短碎片）和大于 10 分钟（长合集/长录屏等非单曲内容）
+    if (durationSeconds < 60 || durationSeconds > 600) {
       return null;
     }
 

@@ -978,6 +978,9 @@ class _FakeMusicRepository implements MusicRepository {
   Future<List<Song>> searchBilibiliSongs(String keyword) async => const [];
 
   @override
+  Future<List<Song>> searchNeteaseSongs(String keyword) async => const [];
+
+  @override
   Future<List<String>> searchSuggestions(String keyword) async => const [];
 
   @override

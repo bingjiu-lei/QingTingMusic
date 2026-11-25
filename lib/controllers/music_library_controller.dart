@@ -501,7 +501,10 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   bool isFavorite(Song song) {
-    if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
+    if (song.playbackSource == 'bilibili' ||
+        song.playbackSource == 'netease' ||
+        song.id.startsWith('bili_') ||
+        song.id.startsWith('netease_')) {
       return favoriteBilibiliService.isFavorite(song);
     }
     if (song.isMv) {
@@ -726,7 +729,10 @@ class MusicLibraryController extends ChangeNotifier {
   }
 
   Future<void> toggleFavorite(Song song) async {
-    if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
+    if (song.playbackSource == 'bilibili' ||
+        song.playbackSource == 'netease' ||
+        song.id.startsWith('bili_') ||
+        song.id.startsWith('netease_')) {
       await favoriteBilibiliService.toggle(song);
       loaded.add(LibrarySection.bilibili);
       return;

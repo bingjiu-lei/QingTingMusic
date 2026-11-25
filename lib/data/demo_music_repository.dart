@@ -152,6 +152,10 @@ class DemoMusicRepository implements MusicRepository {
       searchSongs(keyword);
 
   @override
+  Future<List<Song>> searchNeteaseSongs(String keyword) async =>
+      searchSongs(keyword);
+
+  @override
   Future<List<SearchCatalogItem>> searchCatalog(
     String keyword,
     SearchCategory category,

@@ -276,6 +276,7 @@ class _LibraryPageState extends State<LibraryPage> {
         controller.favoriteBilibiliSongs,
         '还没有收藏的其他音源歌曲',
         storageKey: const PageStorageKey('library-bilibili-scroll'),
+        disableMetaLinks: true,
       ),
       LibrarySection.recent => _songs(
         '最近播放',
@@ -331,6 +332,7 @@ class _LibraryPageState extends State<LibraryPage> {
     PageStorageKey<String>? storageKey,
     ValueChanged<Song>? onRemove,
     String removeTooltip = '从歌单移除',
+    bool disableMetaLinks = false,
   }) {
     return SongPanel(
       key: storageKey,
@@ -344,11 +346,11 @@ class _LibraryPageState extends State<LibraryPage> {
       emptyText: emptyText,
       onPlay: widget.onPlay,
       onLike: widget.onLike,
-      onAddToPlaylist: widget.onAddToPlaylist,
+      onAddToPlaylist: disableMetaLinks ? null : widget.onAddToPlaylist,
       onRemoveFromPlaylist: onRemove,
       removeTooltip: removeTooltip,
-      onArtist: widget.onOpenArtist,
-      onAlbum: widget.onOpenAlbum,
+      onArtist: disableMetaLinks ? null : widget.onOpenArtist,
+      onAlbum: disableMetaLinks ? null : widget.onOpenAlbum,
     );
   }
 }

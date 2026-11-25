@@ -93,9 +93,12 @@ class FavoriteBilibiliService extends ChangeNotifier {
   Future<void> add(Song song) async {
     _songs.removeWhere((item) => _sameSong(item, song));
     // 收藏时不持久化当前可能已解析的临时时效直链
+    final source = (song.playbackSource != null && song.playbackSource!.isNotEmpty)
+        ? song.playbackSource!
+        : (song.id.startsWith('netease_') ? 'netease' : 'bilibili');
     _songs.insert(
       0,
-      song.copyWith(liked: true, playbackSource: 'bilibili', audioUrl: ''),
+      song.copyWith(liked: true, playbackSource: source, audioUrl: ''),
     );
     if (_songs.length > maxItems) {
       _songs.removeLast();

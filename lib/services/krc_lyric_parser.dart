@@ -33,6 +33,9 @@ String decodeKrcBytes(List<int> bytes) {
 class KrcLyricParser {
   const KrcLyricParser();
 
+  /// 解析标准 LRC 格式歌词
+  List<LyricLine> parseLrc(String content) => _parseLrc(content);
+
   List<LyricLine> parse(String content) {
     final language = _readLanguage(content);
     final lines = <LyricLine>[];

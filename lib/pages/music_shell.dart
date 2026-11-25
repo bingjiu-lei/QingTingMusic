@@ -1122,7 +1122,9 @@ class _MusicShellState extends State<MusicShell>
       if (song.isMv) {
         _showNotice(desired ? '已收藏到我的MV' : '已取消收藏MV');
       } else if (song.playbackSource == 'bilibili' ||
-          song.id.startsWith('bili_')) {
+          song.playbackSource == 'netease' ||
+          song.id.startsWith('bili_') ||
+          song.id.startsWith('netease_')) {
         _showNotice(desired ? '已收藏到其他音源' : '已取消收藏');
       }
     } catch (error) {
@@ -1553,6 +1555,13 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _openArtistFromSong(Song song) async {
+    if (song.isSpecialSource ||
+        song.playbackSource == 'bilibili' ||
+        song.playbackSource == 'netease' ||
+        song.id.startsWith('bili_') ||
+        song.id.startsWith('netease_')) {
+      return;
+    }
     final artists = visibleSongArtists(song);
     if (artists.isNotEmpty) {
       final first = artists.first;
@@ -1953,6 +1962,13 @@ class _MusicShellState extends State<MusicShell>
   }
 
   Future<void> _openAlbumFromSong(Song song) async {
+    if (song.isSpecialSource ||
+        song.playbackSource == 'bilibili' ||
+        song.playbackSource == 'netease' ||
+        song.id.startsWith('bili_') ||
+        song.id.startsWith('netease_')) {
+      return;
+    }
     final albumId = song.albumId;
     if (albumId != null && albumId > 0) {
       final id = albumId.toString();

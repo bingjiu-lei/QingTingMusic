@@ -4,16 +4,22 @@ import '../models/search_catalog_item.dart';
 import '../models/music_playlist.dart';
 import '../services/kugou_api_client.dart';
 import '../services/bilibili_service.dart';
+import '../services/netease_service.dart';
 import 'music_repository.dart';
 import '../models/artist_directory.dart';
 import '../models/rank_chart_item.dart';
 
 class KugouMusicRepository implements MusicRepository {
-  KugouMusicRepository(this.apiClient, {BilibiliService? bilibiliService})
-    : bilibiliService = bilibiliService ?? BilibiliService();
+  KugouMusicRepository(
+    this.apiClient, {
+    BilibiliService? bilibiliService,
+    NeteaseService? neteaseService,
+  })  : bilibiliService = bilibiliService ?? BilibiliService(),
+        neteaseService = neteaseService ?? NeteaseService();
 
   final KugouApiClient apiClient;
   final BilibiliService bilibiliService;
+  final NeteaseService neteaseService;
 
   @override
   Future<ArtistDirectory> getArtistDirectory({int type = 0, int sexType = 0}) =>
@@ -75,6 +81,11 @@ class KugouMusicRepository implements MusicRepository {
   @override
   Future<List<Song>> searchBilibiliSongs(String keyword) {
     return bilibiliService.search(keyword);
+  }
+
+  @override
+  Future<List<Song>> searchNeteaseSongs(String keyword) {
+    return neteaseService.search(keyword);
   }
 
   @override
@@ -201,6 +212,9 @@ class KugouMusicRepository implements MusicRepository {
     if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
       return bilibiliService.resolvePlayback(song);
     }
+    if (song.playbackSource == 'netease' || song.id.startsWith('netease_')) {
+      return neteaseService.resolvePlayback(song);
+    }
     return apiClient.resolvePlayback(song);
   }
 
@@ -208,6 +222,9 @@ class KugouMusicRepository implements MusicRepository {
   Future<List<LyricLine>> getLyrics(Song song) {
     if (song.playbackSource == 'bilibili' || song.id.startsWith('bili_')) {
       return Future.value(const []);
+    }
+    if (song.playbackSource == 'netease' || song.id.startsWith('netease_')) {
+      return neteaseService.getLyrics(song);
     }
     return apiClient.getLyrics(song);
   }

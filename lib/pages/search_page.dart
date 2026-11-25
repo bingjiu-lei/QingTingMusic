@@ -648,6 +648,20 @@ class _SearchResultsState extends State<_SearchResults> {
             onChanged: (index) =>
                 controller.selectCategory(_availableCategories[index]),
           ),
+          if (controller.category == SearchCategory.bilibili) ...[
+            const SizedBox(height: 8),
+            GlassTabBar(
+              dense: true,
+              tabs: [
+                for (final s in OtherSourceSubCategory.values) s.label,
+              ],
+              selectedIndex: OtherSourceSubCategory.values
+                  .indexOf(controller.otherSource),
+              onChanged: (index) => controller.selectOtherSource(
+                OtherSourceSubCategory.values[index],
+              ),
+            ),
+          ],
           const SizedBox(height: 4),
           Expanded(
             child: ClipRect(
@@ -761,16 +775,19 @@ class _SearchResultsState extends State<_SearchResults> {
               isPlaying: widget.isPlaying,
               onPlay: () => widget.onPlay(song, songs),
               onLike: () => widget.onLike(song),
-              onAddToPlaylist: isMv ? null : () => widget.onAddToPlaylist(song),
-              onArtist: () => widget.onOpenArtist(song),
-              onArtistLink: (artist) => widget.onOpenArtist(
-                song.copyWith(
-                  artist: artist.name,
-                  artistId: artist.id,
-                  artists: [artist],
-                ),
-              ),
-              onAlbum: () => widget.onOpenAlbum(song),
+              onAddToPlaylist:
+                  (isMv || isBili) ? null : () => widget.onAddToPlaylist(song),
+              onArtist: isBili ? null : () => widget.onOpenArtist(song),
+              onArtistLink: isBili
+                  ? null
+                  : (artist) => widget.onOpenArtist(
+                        song.copyWith(
+                          artist: artist.name,
+                          artistId: artist.id,
+                          artists: [artist],
+                        ),
+                      ),
+              onAlbum: isBili ? null : () => widget.onOpenAlbum(song),
             );
           },
         ),

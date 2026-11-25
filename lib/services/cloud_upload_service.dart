@@ -91,7 +91,12 @@ class CloudUploadService {
                     audioUrl.contains('bili') ||
                     song.id.startsWith('bili_')
                 ? 'https://www.bilibili.com/'
-                : 'https://www.kugou.com/',
+                : (song.playbackSource == 'netease' ||
+                    audioUrl.contains('126.net') ||
+                    audioUrl.contains('163.com') ||
+                    song.id.startsWith('netease_')
+                ? 'https://music.163.com/'
+                : 'https://www.kugou.com/'),
           },
         ),
         onReceiveProgress: (received, total) {

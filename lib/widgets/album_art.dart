@@ -36,6 +36,10 @@ class AlbumArt extends StatelessWidget {
             fit: BoxFit.cover,
             gaplessPlayback: true,
             cacheWidth: (size * 2).round(),
+            headers: const {
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
             errorBuilder: (_, _, _) => placeholder,
           );
 
