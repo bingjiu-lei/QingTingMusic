@@ -629,6 +629,63 @@ void main() {
 
     controller.dispose();
   });
+
+  test('insertAndPlaySong inserts song after current song and preserves queue', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final songs = [_song('one'), _song('two'), _song('three')];
+
+    await controller.playSong(songs[0], fromQueue: songs);
+    expect(controller.currentSong?.id, 'one');
+    expect(controller.queue.map((s) => s.id).toList(), ['one', 'two', 'three']);
+
+    // Now insert and play a searched song
+    final searched = _song('searched');
+    await controller.insertAndPlaySong(searched);
+
+    expect(controller.currentSong?.id, 'searched');
+    expect(
+      controller.queue.map((s) => s.id).toList(),
+      ['one', 'searched', 'two', 'three'],
+    );
+
+    // When advancing, it naturally plays 'two', then 'three'
+    await controller.playNext();
+    expect(controller.currentSong?.id, 'two');
+
+    await controller.playNext();
+    expect(controller.currentSong?.id, 'three');
+
+    controller.dispose();
+  });
+
+  test('insertAndPlaySong when song is already in queue jumps to it without duplicating', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+    final songs = [_song('one'), _song('two'), _song('three')];
+
+    await controller.playSong(songs[0], fromQueue: songs);
+
+    // Call insertAndPlaySong for 'three'
+    await controller.insertAndPlaySong(songs[2]);
+
+    expect(controller.currentSong?.id, 'three');
+    expect(controller.queue.map((s) => s.id).toList(), ['one', 'two', 'three']);
+
+    controller.dispose();
+  });
+
+  test('insertAndPlaySong with empty queue initializes queue with the song', () async {
+    final audio = _FakeAudioPlayerService();
+    final controller = PlayerController(audioService: audio);
+
+    await controller.insertAndPlaySong(_song('first'));
+
+    expect(controller.currentSong?.id, 'first');
+    expect(controller.queue.map((s) => s.id).toList(), ['first']);
+
+    controller.dispose();
+  });
 }
 
 Song _song(String id) => Song(

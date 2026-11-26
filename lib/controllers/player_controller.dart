@@ -559,6 +559,47 @@ class PlayerController extends ChangeNotifier {
     await playSong(song, fromQueue: queue.isEmpty ? [song] : queue);
   }
 
+  /// 临时插播单曲并立即播放。
+  ///
+  /// 若 [song] 尚未在当前播放队列中，将其插入至当前歌曲的紧邻下一位（若队列为空则作为首曲），
+  /// 并立即启动播放，同时完整保留用户原有的播放队列上下文；
+  /// 当该插播单曲播放完毕后，播放器将自然过渡至原歌单的后续歌曲继续播放。
+  Future<bool> insertAndPlaySong(Song song) async {
+    if (currentSong?.id == song.id) {
+      if (isPlaying) {
+        await togglePlay();
+        return true;
+      }
+      return playSong(song, fromQueue: queue.isEmpty ? [song] : queue);
+    }
+
+    final currentIndex = queue.indexWhere((item) => item.id == currentSong?.id);
+    final songIndex = queue.indexWhere((item) => item.id == song.id);
+
+    List<Song> newQueue;
+    if (songIndex >= 0) {
+      newQueue = queue;
+    } else if (queue.isEmpty) {
+      newQueue = [song];
+    } else if (currentIndex >= 0 && currentIndex < queue.length) {
+      newQueue = [
+        ...queue.sublist(0, currentIndex + 1),
+        song,
+        ...queue.sublist(currentIndex + 1),
+      ];
+    } else {
+      newQueue = [song, ...queue];
+    }
+
+    if (playbackMode == PlaybackMode.shuffle) {
+      queue = List.unmodifiable(_dedupeSongs(newQueue));
+      _recordManualShuffleSelection(song.id);
+      return playSong(song, fromQueue: queue, preserveShufflePath: true);
+    }
+
+    return playSong(song, fromQueue: newQueue);
+  }
+
   Future<void> removeFromQueue(Song song) async {
     final currentIndex = queue.indexWhere((item) => item.id == song.id);
     final wasCurrent = currentSong?.id == song.id;

@@ -858,6 +858,15 @@ class _MusicShellState extends State<MusicShell>
     await _playFromQueue(song, sourceQueue);
   }
 
+  Future<void> _playSongFromSearch(Song song, List<Song> sourceQueue) async {
+    final previousMode = _playbackModeBeforeFm;
+    _isFmSession = false;
+    _lastFmSyncSongId = null;
+    _playbackModeBeforeFm = null;
+    if (previousMode != null) playerController.setPlaybackMode(previousMode);
+    await playerController.insertAndPlaySong(song);
+  }
+
   /// Dedicated path for the "Play All" button – never used for individual song
   /// clicks, so shuffle-mode random pick cannot interfere with user intent.
   Future<void> _playAllSongs(List<Song> songs) async {
@@ -2594,7 +2603,7 @@ class _MusicShellState extends State<MusicShell>
         controller: searchController,
         currentSong: playerController.currentSong,
         isPlaying: playerController.isPlaying,
-        onPlay: _playSong,
+        onPlay: _playSongFromSearch,
         onPlayAll: _playAllSongs,
         onLogin: _showLogin,
         onOpenCatalog: _openCatalog,
